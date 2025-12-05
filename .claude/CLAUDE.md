@@ -254,3 +254,114 @@ Add comments for:
 // TODO: Implement retry logic
 // FIXME: Temporary workaround for XML parsing issue
 ```
+
+---
+
+## SAP ADT Domain Knowledge
+
+### Client ID Format
+
+Client IDs follow: `SystemId-ClientNumber` (e.g., `MediaDemo-DM1-200`)
+- `MediaDemo-DM1` → System ID (looks up URL in config.json)
+- `200` → SAP client number (passed as `sap-client` query param)
+
+Multiple SAP clients (100, 200, etc.) share the same server URL.
+
+### Config File
+
+`config.json` maps system IDs to URLs:
+```json
+{
+    "MediaDemo-DM1": {
+        "adt": "https://50.19.106.63:443"
+    }
+}
+```
+
+Use `loadConfigFromEnv()` which defaults to `./config.json` or reads from `RELAY_CONFIG` env var.
+
+### CSRF Token Flow
+
+1. First request sends header `x-csrf-token: fetch`
+2. Server returns token in response header
+3. All subsequent requests include that token
+4. On 403 "CSRF token validation failed" → auto-refresh and retry
+
+### SSL Verification
+
+The Python reference disables SSL verification (`verify: False`). This is intentional for SAP systems with self-signed certs.
+
+---
+
+## TypeScript Gotchas (Lessons Learned)
+
+### 1. `exactOptionalPropertyTypes` + Zod
+
+Zod infers `prop?: string | undefined` but interfaces may expect `prop?: string`. Cast after validation:
+```typescript
+const validation = schema.safeParse(body);
+const config = validation.data as ClientConfig;  // Cast needed
+```
+
+### 2. `process.env` Access
+
+Use bracket notation for index signatures:
+```typescript
+// BAD - TS error with noUncheckedIndexedAccess
+const path = process.env.RELAY_CONFIG;
+
+// GOOD
+const path = process.env['RELAY_CONFIG'];
+```
+
+### 3. Hono Status Codes
+
+Hono's `c.json()` only accepts standard HTTP status codes. Non-standard codes like 440 cause TS errors:
+```typescript
+// BAD - 440 not in ContentfulStatusCode
+return c.json({ error: 'Session expired' }, 440);
+
+// GOOD - use standard code
+return c.json({ error: 'Session expired', code: 'SESSION_EXPIRED' }, 401);
+```
+
+### 4. Middleware Return Types
+
+Hono middleware must return after `await next()`:
+```typescript
+export const middleware = createMiddleware(async (c, next) => {
+    await next();
+    return;  // Required for TS
+});
+```
+
+### 5. Literal Types in JSON Responses
+
+Use `as const` for discriminated unions:
+```typescript
+return c.json({ success: false as const, error: msg }, 400);
+```
+
+---
+
+## Architecture Decisions
+
+### Why Error Tuples?
+
+- Forces explicit error handling at call site
+- No try/catch soup
+- TypeScript narrows types after null check
+- Matches Go idiom (familiar pattern)
+
+### Why Separate core/ and server/?
+
+- `core/` = pure functions, testable, library-consumable
+- `server/` = HTTP concerns only (routes, middleware)
+- Consumers can import `core/` directly without server overhead
+
+### Why Config File Lookup?
+
+Matches Python reference behavior. Allows:
+- Single source of truth for system URLs
+- Easy environment switching
+- Client ID as simple string identifier
