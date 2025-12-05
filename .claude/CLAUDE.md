@@ -1,0 +1,241 @@
+# Catalyst-Relay
+
+TypeScript port of SNAP-Relay-API — middleware bridging frontend applications to SAP ADT (ABAP Development Tools) servers.
+
+## Quick Reference
+
+| Item | Value |
+|------|-------|
+| Runtime | Bun (dev) / Node.js (library consumers) |
+| Framework | Hono |
+| Validation | Zod |
+| Testing | Vitest |
+| Build | tsup |
+
+## Dual-Mode Architecture
+
+This package operates in two modes:
+
+**Library Mode** — Direct function imports:
+```typescript
+import { createClient, login, executeQuery } from 'catalyst-relay';
+```
+
+**Server Mode** — HTTP API:
+```bash
+bun run src/server.ts
+```
+
+### Critical Constraint: Runtime Agnostic
+
+**NEVER use Bun-specific APIs.** Library consumers may run on Node.js.
+
+Forbidden:
+- `Bun.serve()`, `Bun.file()`, `Bun.write()`
+- `bun:*` module imports
+- Any API requiring Bun runtime
+
+Required:
+- Web standard APIs: `fetch`, `Request`, `Response`, `URL`
+- Cross-platform npm packages only
+- Test library imports in Node before publishing
+
+## Project Structure
+
+```
+src/
+├── index.ts              # Library exports (re-exports from core/)
+├── server.ts             # Hono HTTP server (thin wrapper over core/)
+├── core/                 # Pure business logic
+│   ├── index.ts          # Barrel exports
+│   ├── client.ts         # ADT client implementation
+│   ├── auth/             # Authentication (basic, SAML, SSO)
+│   ├── session/          # Session management
+│   ├── adt/              # ADT operations (CRAUD, discovery, preview)
+│   └── utils/            # Internal utilities
+├── types/                # Shared type definitions
+│   ├── index.ts          # Type exports
+│   ├── requests.ts       # Request schemas
+│   ├── responses.ts      # Response schemas
+│   └── config.ts         # Configuration types
+├── server/               # Server-specific code
+│   ├── routes/           # Route handlers
+│   └── middleware/       # Hono middleware
+└── __tests__/            # Test files (mirror src/ structure)
+```
+
+## Code Style — Non-Negotiable Rules
+
+### 1. Guard Clauses (Early Returns)
+
+**ALWAYS** use guard clauses. Violations will be called out immediately.
+
+BAD:
+```typescript
+function processData(data: Data | null) {
+    if (data) {
+        if (data.items.length > 0) {
+            // lots of code
+        }
+    }
+}
+```
+
+GOOD:
+```typescript
+function processData(data: Data | null) {
+    if (!data) return;
+    if (data.items.length === 0) return;
+
+    // lots of code at base indentation
+}
+```
+
+### 2. Error Tuples (Go-style)
+
+All fallible operations return `[result, error]` tuples.
+
+```typescript
+type Result<T, E = Error> = [T, null] | [null, E];
+
+// Usage
+const [client, error] = await createClient(config);
+if (error) {
+    console.error('Failed to create client:', error);
+    return;
+}
+// client is guaranteed non-null here
+```
+
+### 3. DRY Principle
+
+Before writing ANY code:
+1. Does this functionality exist? → Reuse it
+2. Will this be used in multiple places? → Make it shared
+3. Am I copy-pasting? → STOP and refactor
+
+## Naming Conventions
+
+| Type | Convention | Example |
+|------|------------|---------|
+| Files/folders | camelCase | `dataPreview.ts`, `authUtils/` |
+| Types/Interfaces | PascalCase | `ClientConfig`, `LoginResponse` |
+| Functions | camelCase | `createClient`, `fetchData` |
+| Constants | UPPER_SNAKE_CASE | `MAX_RETRIES`, `DEFAULT_TIMEOUT` |
+| Booleans | is/has/can prefix | `isConnected`, `hasError`, `canRetry` |
+
+## TypeScript Patterns
+
+### Type Definitions
+```typescript
+// Use interfaces for objects
+interface ClientConfig {
+    url: string;
+    auth: AuthConfig;
+}
+
+// Use type for unions/intersections
+type AuthType = 'basic' | 'saml' | 'sso';
+type Result<T> = [T, null] | [null, Error];
+```
+
+### Null Handling
+```typescript
+// Optional chaining
+const value = response?.data?.field;
+
+// Nullish coalescing
+const timeout = config.timeout ?? DEFAULT_TIMEOUT;
+
+// Guard clause (preferred)
+if (!response) return [null, new Error('No response')];
+```
+
+### Async Patterns
+```typescript
+// Parallel when independent
+const [users, posts] = await Promise.all([
+    fetchUsers(),
+    fetchPosts()
+]);
+
+// Sequential when dependent
+const [session, err1] = await login(credentials);
+if (err1) return [null, err1];
+
+const [data, err2] = await fetchData(session);
+if (err2) return [null, err2];
+```
+
+## Import Conventions
+
+```typescript
+// External packages
+import { Hono } from 'hono';
+import { z } from 'zod';
+
+// Internal - namespace for modules
+import * as auth from './auth';
+import * as adt from './adt';
+
+// Internal - named for specific items
+import { ClientConfig, AuthType } from '../types';
+import { parseXml, buildUrl } from '../utils';
+
+// Types only
+import type { Context } from 'hono';
+```
+
+## API Endpoints (Server Mode)
+
+### Session Management
+- `POST /login` — Authenticate, returns session ID
+- `DELETE /logout` — End session
+
+### Metadata Discovery
+- `GET /packages` — List available packages
+- `POST /tree` — Hierarchical package browser
+- `GET /transports/:package` — List transports
+
+### CRAUD Operations
+- `POST /objects/read` — Batch read with content
+- `POST /objects/upsert` — Create/update objects
+- `POST /objects/activate` — Activate objects
+- `DELETE /objects` — Delete objects
+
+### Data Preview
+- `POST /preview/data` — Query table/view data
+- `POST /preview/distinct` — Distinct column values
+- `POST /preview/count` — Row count
+
+### Search
+- `POST /search` — Search objects
+- `POST /where-used` — Find dependencies
+
+## Testing
+
+Run tests:
+```bash
+bun test                 # All tests
+bun test --watch         # Watch mode
+bun test src/__tests__/core  # Specific directory
+```
+
+Test Node.js compatibility before publishing:
+```bash
+node --experimental-strip-types -e "import('.')"
+```
+
+## Comments
+
+Add comments for:
+- Complex business logic
+- Non-obvious implementations
+- SAP/ADT-specific behavior
+- Workarounds
+
+```typescript
+// NOTE: SAP requires CSRF token refresh after 401
+// TODO: Implement retry logic
+// FIXME: Temporary workaround for XML parsing issue
+```

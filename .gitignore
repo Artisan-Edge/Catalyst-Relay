@@ -1,17 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+
+# Certificates (sensitive)
+certificates/
+*.pem
+*.key
+*.crt
+
+# Bun
+bun.lockb
+
+# Misc
+errors/
 *.xml
 *.html
-.env
-**.egg-info/
-__pycache__/
-build/
-.vscode
-*.asddls
-*.json
-*.png
-dist
-*.spec
-errors
-*.json
-USER_MAP.py
-pgenv/
-certificates/sso/*
