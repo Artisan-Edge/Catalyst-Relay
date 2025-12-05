@@ -11,7 +11,7 @@ import type { ObjectRef } from '../../types/requests';
 import type { SearchResult, Dependency } from '../../types/responses';
 import { getConfigByType, getConfigByExtension, getAllTypes } from './types';
 import { extractError } from '../utils/xml';
-import type { AdtRequestor } from './craud';
+import type { AdtRequestor } from './types';
 
 /**
  * Search for objects by name pattern

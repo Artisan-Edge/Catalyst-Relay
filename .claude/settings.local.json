@@ -11,7 +11,18 @@
       "Bash(bun --eval:*)",
       "Bash(bun test:*)",
       "Bash(bun --print:*)",
-      "Bash(node --experimental-strip-types:*)"
+      "Bash(node --experimental-strip-types:*)",
+      "Bash(find:*)",
+      "Bash(bun tsc:*)",
+      "Bash(node --check:*)",
+      "Bash(grep:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node_modules.bintsc:*)",
+      "Bash(wc:*)",
+      "Bash(\"node_modules/.bin/tsc.cmd\" --noEmit)",
+      "Bash(bun x tsc:*)",
+      "Bash(bun -e:*)",
+      "Bash(bun build:*)"
     ],
     "deny": [],
     "ask": []

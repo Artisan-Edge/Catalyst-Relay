@@ -1,35 +1,20 @@
-/**
- * Object CRAUD routes
- *
- * Handles Create, Read, Activate, Update, Delete operations
- */
+// Object CRAUD routes — Create, Read, Activate, Update, Delete operations
 
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { objectRefSchema, objectContentSchema } from '../../types/requests';
 import type { SessionContext } from '../middleware/session';
 import { ApiError } from '../middleware/error';
+import { formatZodError } from '../utils';
 
-/**
- * Create object CRAUD routes
- *
- * @param sessionMiddleware - Session validation middleware
- * @returns Hono app with object routes
- */
+// Create object CRAUD routes with session middleware
 export function createObjectRoutes(sessionMiddleware: unknown) {
     const objects = new Hono<SessionContext>();
 
     // All object routes require authentication
     objects.use('*', sessionMiddleware as any);
 
-    /**
-     * POST /objects/read
-     *
-     * Batch read objects with content
-     *
-     * Request body: ObjectRef[]
-     * Response: { success: true, data: ObjectWithContent[] }
-     */
+    // POST /objects/read — Batch read objects with content
     objects.post('/read', async (c) => {
         const body = await c.req.json();
 
@@ -38,10 +23,7 @@ export function createObjectRoutes(sessionMiddleware: unknown) {
         const validation = schema.safeParse(body);
 
         if (!validation.success) {
-            const issues = validation.error.issues
-                .map((i) => `${i.path.join('.')}: ${i.message}`)
-                .join(', ');
-            throw new ApiError('VALIDATION_ERROR', `Invalid objects: ${issues}`, 400);
+            throw new ApiError('VALIDATION_ERROR', `Invalid objects: ${formatZodError(validation.error)}`, 400);
         }
 
         const objectRefs = validation.data;
@@ -61,14 +43,7 @@ export function createObjectRoutes(sessionMiddleware: unknown) {
         });
     });
 
-    /**
-     * POST /objects/upsert/:package/:transport
-     *
-     * Create or update objects in a package/transport
-     *
-     * Request body: ObjectContent[]
-     * Response: { success: true, data: UpsertResult[] }
-     */
+    // POST /objects/upsert/:package/:transport — Create or update objects
     objects.post('/upsert/:package/:transport', async (c) => {
         const packageName = c.req.param('package');
         const transport = c.req.param('transport');
@@ -93,10 +68,7 @@ export function createObjectRoutes(sessionMiddleware: unknown) {
         const validation = schema.safeParse(body);
 
         if (!validation.success) {
-            const issues = validation.error.issues
-                .map((i) => `${i.path.join('.')}: ${i.message}`)
-                .join(', ');
-            throw new ApiError('VALIDATION_ERROR', `Invalid objects: ${issues}`, 400);
+            throw new ApiError('VALIDATION_ERROR', `Invalid objects: ${formatZodError(validation.error)}`, 400);
         }
 
         const objectContents = validation.data;
@@ -116,14 +88,7 @@ export function createObjectRoutes(sessionMiddleware: unknown) {
         });
     });
 
-    /**
-     * POST /objects/activate
-     *
-     * Activate objects (make them runtime-available)
-     *
-     * Request body: ObjectRef[]
-     * Response: { success: true, data: ActivationResult[] }
-     */
+    // POST /objects/activate — Activate objects (make runtime-available)
     objects.post('/activate', async (c) => {
         const body = await c.req.json();
 
@@ -132,10 +97,7 @@ export function createObjectRoutes(sessionMiddleware: unknown) {
         const validation = schema.safeParse(body);
 
         if (!validation.success) {
-            const issues = validation.error.issues
-                .map((i) => `${i.path.join('.')}: ${i.message}`)
-                .join(', ');
-            throw new ApiError('VALIDATION_ERROR', `Invalid objects: ${issues}`, 400);
+            throw new ApiError('VALIDATION_ERROR', `Invalid objects: ${formatZodError(validation.error)}`, 400);
         }
 
         const objectRefs = validation.data;
@@ -155,14 +117,7 @@ export function createObjectRoutes(sessionMiddleware: unknown) {
         });
     });
 
-    /**
-     * DELETE /objects/:transport
-     *
-     * Delete objects from a transport
-     *
-     * Request body: ObjectRef[]
-     * Response: { success: true, data: null }
-     */
+    // DELETE /objects/:transport — Delete objects from transport
     objects.delete('/:transport', async (c) => {
         const transport = c.req.param('transport');
         const body = await c.req.json();
@@ -172,10 +127,7 @@ export function createObjectRoutes(sessionMiddleware: unknown) {
         const validation = schema.safeParse(body);
 
         if (!validation.success) {
-            const issues = validation.error.issues
-                .map((i) => `${i.path.join('.')}: ${i.message}`)
-                .join(', ');
-            throw new ApiError('VALIDATION_ERROR', `Invalid objects: ${issues}`, 400);
+            throw new ApiError('VALIDATION_ERROR', `Invalid objects: ${formatZodError(validation.error)}`, 400);
         }
 
         const objectRefs = validation.data;

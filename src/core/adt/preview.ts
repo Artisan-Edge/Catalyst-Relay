@@ -1,31 +1,20 @@
-/**
- * ADT Data Preview Operations
- *
- * Query table and CDS view data, get distinct values, count rows.
- */
+// ADT Data Preview — query table/view data, distinct values, row counts
 
 import { DOMParser } from '@xmldom/xmldom';
 import type { AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
-import type { PreviewQuery, Filter, OrderBy } from '../../types/requests';
+import type { PreviewQuery } from '../../types/requests';
 import type { DataFrame, DistinctResult, ColumnInfo } from '../../types/responses';
 import { getConfigByExtension } from './types';
 import { extractError } from '../utils/xml';
 import { validateSqlInput } from '../utils/sql';
-import type { AdtRequestor } from './craud';
+import type { AdtRequestor } from './types';
+import { quoteIdentifier, buildWhereClauses, buildOrderByClauses } from './queryBuilder';
 
-/**
- * Maximum row count for preview queries
- */
 const MAX_ROW_COUNT = 50000;
 
-/**
- * Preview data from a table or CDS view
- *
- * @param client - ADT client
- * @param query - Preview query parameters
- * @returns DataFrame with results or error
- */
+// ===== Data Preview =====
+
 export async function previewData(
     client: AdtRequestor,
     query: PreviewQuery
@@ -42,7 +31,7 @@ export async function previewData(
 
     const whereClauses = buildWhereClauses(query.filters);
     const orderByClauses = buildOrderByClauses(query.orderBy);
-    const sqlQuery = `select * from ${query.objectName}${whereClauses}${orderByClauses}`;
+    const sqlQuery = `select * from ${quoteIdentifier(query.objectName)}${whereClauses}${orderByClauses}`;
 
     const [valid, validationErr] = validateSqlInput(sqlQuery);
     if (validationErr) {
@@ -81,15 +70,6 @@ export async function previewData(
     return ok(dataFrame);
 }
 
-/**
- * Get distinct values for a column
- *
- * @param client - ADT client
- * @param objectName - Table or view name
- * @param column - Column name
- * @param objectType - 'table' or 'view'
- * @returns Distinct values with counts or error
- */
 export async function getDistinctValues(
     client: AdtRequestor,
     objectName: string,
@@ -103,7 +83,9 @@ export async function getDistinctValues(
         return err(new Error(`Data preview not supported for object type: ${objectType}`));
     }
 
-    const sqlQuery = `SELECT ${column.toUpperCase()} AS value, COUNT(*) AS count FROM ${objectName} GROUP BY ${column.toUpperCase()}`;
+    const quotedColumn = quoteIdentifier(column.toUpperCase());
+    const quotedTable = quoteIdentifier(objectName);
+    const sqlQuery = `SELECT ${quotedColumn} AS value, COUNT(*) AS count FROM ${quotedTable} GROUP BY ${quotedColumn}`;
 
     const [valid, validationErr] = validateSqlInput(sqlQuery);
     if (validationErr) {
@@ -143,9 +125,6 @@ export async function getDistinctValues(
         return err(new Error('Unexpected data structure from distinct values query'));
     }
 
-    const valueCol = objectType === 'table' ? 'value' : 'value';
-    const countCol = objectType === 'table' ? 'count' : 'count';
-
     const values = dataFrame.rows.map(row => ({
         value: row[0],
         count: parseInt(String(row[1]), 10),
@@ -159,14 +138,6 @@ export async function getDistinctValues(
     return ok(result);
 }
 
-/**
- * Count total rows in a table or view
- *
- * @param client - ADT client
- * @param objectName - Table or view name
- * @param objectType - 'table' or 'view'
- * @returns Row count or error
- */
 export async function countRows(
     client: AdtRequestor,
     objectName: string,
@@ -179,7 +150,7 @@ export async function countRows(
         return err(new Error(`Data preview not supported for object type: ${objectType}`));
     }
 
-    const sqlQuery = `SELECT COUNT(*) AS count FROM ${objectName}`;
+    const sqlQuery = `SELECT COUNT(*) AS count FROM ${quoteIdentifier(objectName)}`;
 
     const [valid, validationErr] = validateSqlInput(sqlQuery);
     if (validationErr) {
@@ -227,81 +198,8 @@ export async function countRows(
     return ok(count);
 }
 
-/**
- * Build WHERE clause from filters
- */
-function buildWhereClauses(filters: Filter[] | undefined): string {
-    if (!filters || filters.length === 0) {
-        return '';
-    }
+// ===== XML Parsing =====
 
-    const clauses = filters.map(filter => {
-        const { column, operator, value } = filter;
-
-        switch (operator) {
-            case 'eq':
-                return `${column} = ${formatValue(value)}`;
-            case 'ne':
-                return `${column} != ${formatValue(value)}`;
-            case 'gt':
-                return `${column} > ${formatValue(value)}`;
-            case 'ge':
-                return `${column} >= ${formatValue(value)}`;
-            case 'lt':
-                return `${column} < ${formatValue(value)}`;
-            case 'le':
-                return `${column} <= ${formatValue(value)}`;
-            case 'like':
-                return `${column} LIKE ${formatValue(value)}`;
-            case 'in':
-                if (Array.isArray(value)) {
-                    const values = value.map(v => formatValue(v)).join(', ');
-                    return `${column} IN (${values})`;
-                }
-                return `${column} IN (${formatValue(value)})`;
-            default:
-                return '';
-        }
-    }).filter(c => c);
-
-    if (clauses.length === 0) {
-        return '';
-    }
-
-    return ` WHERE ${clauses.join(' AND ')}`;
-}
-
-/**
- * Build ORDER BY clause
- */
-function buildOrderByClauses(orderBy: OrderBy[] | undefined): string {
-    if (!orderBy || orderBy.length === 0) {
-        return '';
-    }
-
-    const clauses = orderBy.map(o => `${o.column} ${o.direction.toUpperCase()}`);
-    return ` ORDER BY ${clauses.join(', ')}`;
-}
-
-/**
- * Format value for SQL
- */
-function formatValue(value: unknown): string {
-    if (value === null) {
-        return 'NULL';
-    }
-    if (typeof value === 'string') {
-        return `'${value.replace(/'/g, "''")}'`;
-    }
-    if (typeof value === 'boolean') {
-        return value ? '1' : '0';
-    }
-    return String(value);
-}
-
-/**
- * Parse data preview XML response
- */
 function parseDataPreview(
     xml: string,
     maxRows: number,

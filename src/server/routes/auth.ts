@@ -1,8 +1,4 @@
-/**
- * Authentication routes
- *
- * Handles login/logout and session management
- */
+// Authentication routes — login/logout and session management
 
 import { Hono } from 'hono';
 import { createClient } from '../../core/client';
@@ -11,14 +7,9 @@ import type { ClientConfig } from '../../types/config';
 import { hashConnectionConfig } from '../../core/session/hash';
 import type { SessionContext } from '../middleware/session';
 import { ApiError } from '../middleware/error';
+import { formatZodError } from '../utils';
 
-/**
- * Create authentication routes
- *
- * @param sessionManager - Session manager instance
- * @param sessionMiddleware - Session validation middleware
- * @returns Hono app with auth routes
- */
+// Create authentication routes with session manager and middleware
 export function createAuthRoutes(sessionManager: unknown, sessionMiddleware: unknown) {
     const auth = new Hono<SessionContext>();
 
@@ -32,24 +23,14 @@ export function createAuthRoutes(sessionManager: unknown, sessionMiddleware: unk
         unregisterClient: (hash: string) => boolean;
     };
 
-    /**
-     * POST /login
-     *
-     * Authenticates user and creates a session
-     *
-     * Request body: ClientConfig
-     * Response: { success: true, data: { sessionId: string, username: string, expiresAt: number } }
-     */
+    // POST /login — Authenticate and create session
     auth.post('/login', async (c) => {
         const body = await c.req.json();
 
         // Validate request body
         const validation = clientConfigSchema.safeParse(body);
         if (!validation.success) {
-            const issues = validation.error.issues
-                .map((i) => `${i.path.join('.')}: ${i.message}`)
-                .join(', ');
-            throw new ApiError('VALIDATION_ERROR', `Invalid configuration: ${issues}`, 400);
+            throw new ApiError('VALIDATION_ERROR', `Invalid configuration: ${formatZodError(validation.error)}`, 400);
         }
 
         const config = validation.data as ClientConfig;
@@ -105,14 +86,7 @@ export function createAuthRoutes(sessionManager: unknown, sessionMiddleware: unk
         });
     });
 
-    /**
-     * DELETE /logout
-     *
-     * Ends session and logs out client if no other sessions reference it
-     *
-     * Headers: X-Session-ID
-     * Response: { success: true, data: null }
-     */
+    // DELETE /logout — End session and cleanup client if no other sessions reference it
     auth.delete('/logout', sessionMiddleware as any, async (c) => {
         const client = c.get('client');
         const sessionId = c.get('sessionId');
@@ -131,12 +105,10 @@ export function createAuthRoutes(sessionManager: unknown, sessionMiddleware: unk
         const allSessions = manager.getAllSessions();
         const clientStillInUse = allSessions.some(([, entry]) => entry.client === client);
 
+        // TODO: Implement client cleanup when no sessions reference it
+        // Need to unregister config hash from manager, but requires access to hash map
         if (!clientStillInUse) {
-            // Find and remove config hash for this client
-            // This is a bit inefficient but session count should be low
-            const configHashes: string[] = [];
-            // We need to iterate through config hash map, but we don't have direct access
-            // For now, we'll just let the cleanup task handle it
+            // manager.unregisterClient(configHash) — need to track hash per session
         }
 
         return c.json({

@@ -1,35 +1,20 @@
-/**
- * Search routes
- *
- * Handles object search and where-used dependency analysis
- */
+// Search routes — object search and where-used dependency analysis
 
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { objectRefSchema } from '../../types/requests';
 import type { SessionContext } from '../middleware/session';
 import { ApiError } from '../middleware/error';
+import { formatZodError } from '../utils';
 
-/**
- * Create search routes
- *
- * @param sessionMiddleware - Session validation middleware
- * @returns Hono app with search routes
- */
+// Create search routes with session middleware
 export function createSearchRoutes(sessionMiddleware: unknown) {
     const search = new Hono<SessionContext>();
 
     // All search routes require authentication
     search.use('*', sessionMiddleware as any);
 
-    /**
-     * POST /search/:query
-     *
-     * Search for objects by name/pattern
-     *
-     * Request body: string[] (array of types)
-     * Response: { success: true, data: SearchResult[] }
-     */
+    // POST /search/:query — Search for objects by name/pattern
     search.post('/search/:query', async (c) => {
         const query = c.req.param('query');
 
@@ -44,10 +29,7 @@ export function createSearchRoutes(sessionMiddleware: unknown) {
         const validation = schema.safeParse(body);
 
         if (!validation.success) {
-            const issues = validation.error.issues
-                .map((i) => `${i.path.join('.')}: ${i.message}`)
-                .join(', ');
-            throw new ApiError('VALIDATION_ERROR', `Invalid types array: ${issues}`, 400);
+            throw new ApiError('VALIDATION_ERROR', `Invalid types array: ${formatZodError(validation.error)}`, 400);
         }
 
         const types = validation.data;
@@ -67,14 +49,7 @@ export function createSearchRoutes(sessionMiddleware: unknown) {
         });
     });
 
-    /**
-     * POST /where-used
-     *
-     * Find where objects are used (dependencies) - batch operation
-     *
-     * Request body: ObjectRef[]
-     * Response: { success: true, data: Dependency[][] }
-     */
+    // POST /where-used — Find object dependencies (batch operation)
     search.post('/where-used', async (c) => {
         const body = await c.req.json();
 
@@ -83,10 +58,7 @@ export function createSearchRoutes(sessionMiddleware: unknown) {
         const validation = schema.safeParse(body);
 
         if (!validation.success) {
-            const issues = validation.error.issues
-                .map((i) => `${i.path.join('.')}: ${i.message}`)
-                .join(', ');
-            throw new ApiError('VALIDATION_ERROR', `Invalid object references: ${issues}`, 400);
+            throw new ApiError('VALIDATION_ERROR', `Invalid object references: ${formatZodError(validation.error)}`, 400);
         }
 
         const objectRefs = validation.data;

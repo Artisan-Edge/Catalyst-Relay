@@ -14,11 +14,15 @@ export * from './types';
 // CRAUD operations
 export * from './craud';
 
+// Activation operations
+export * from './activation';
+
 // Discovery operations
 export * from './discovery';
 
 // Data preview operations
 export * from './preview';
+export * from './queryBuilder';
 
 // Search operations
 export * from './search';

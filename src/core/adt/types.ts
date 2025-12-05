@@ -1,14 +1,19 @@
-/**
- * ADT Object Type Configuration
- *
- * Defines metadata for each supported SAP development object type.
- * This configuration maps file extensions to their ADT endpoints,
- * XML namespaces, and data preview capabilities.
- */
+// ADT Object Type Configuration — metadata for SAP development objects
 
-/**
- * Configuration for a specific SAP object type
- */
+import type { AsyncResult } from '../../types/result';
+
+// Client interface for ADT requests
+export interface AdtRequestor {
+    request(options: {
+        method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+        path: string;
+        params?: Record<string, string | number>;
+        headers?: Record<string, string>;
+        body?: string;
+    }): AsyncResult<Response, Error>;
+}
+
+// Configuration for a specific SAP object type
 export interface ObjectConfig {
     /** ADT endpoint path (e.g., 'ddic/ddl/sources') */
     endpoint: string;

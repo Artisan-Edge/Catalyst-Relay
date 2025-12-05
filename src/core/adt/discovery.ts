@@ -11,7 +11,7 @@ import type { TreeQuery } from '../../types/requests';
 import type { Package, TreeNode, Transport } from '../../types/responses';
 import { getConfigByType } from './types';
 import { extractError, dictToAbapXml } from '../utils/xml';
-import type { AdtRequestor } from './craud';
+import type { AdtRequestor } from './types';
 
 /**
  * Virtual folder for tree discovery

@@ -1,33 +1,19 @@
-/**
- * Discovery routes
- *
- * Handles package/tree discovery and transport listing
- */
+// Discovery routes — package/tree discovery and transport listing
 
 import { Hono } from 'hono';
 import { treeQuerySchema } from '../../types/requests';
 import type { SessionContext } from '../middleware/session';
 import { ApiError } from '../middleware/error';
+import { formatZodError } from '../utils';
 
-/**
- * Create discovery routes
- *
- * @param sessionMiddleware - Session validation middleware
- * @returns Hono app with discovery routes
- */
+// Create discovery routes with session middleware
 export function createDiscoveryRoutes(sessionMiddleware: unknown) {
     const discovery = new Hono<SessionContext>();
 
     // All discovery routes require authentication
     discovery.use('*', sessionMiddleware as any);
 
-    /**
-     * GET /package-discovery
-     *
-     * Lists all available packages
-     *
-     * Response: { success: true, data: Package[] }
-     */
+    // GET /package-discovery — List all available packages
     discovery.get('/package-discovery', async (c) => {
         const client = c.get('client');
 
@@ -45,24 +31,14 @@ export function createDiscoveryRoutes(sessionMiddleware: unknown) {
         });
     });
 
-    /**
-     * POST /tree-discovery
-     *
-     * Hierarchical tree discovery for package browsing
-     *
-     * Request body: TreeQuery
-     * Response: { success: true, data: TreeNode[] }
-     */
+    // POST /tree-discovery — Hierarchical tree for package browsing
     discovery.post('/tree-discovery', async (c) => {
         const body = await c.req.json();
 
         // Validate request body
         const validation = treeQuerySchema.safeParse(body);
         if (!validation.success) {
-            const issues = validation.error.issues
-                .map((i) => `${i.path.join('.')}: ${i.message}`)
-                .join(', ');
-            throw new ApiError('VALIDATION_ERROR', `Invalid query: ${issues}`, 400);
+            throw new ApiError('VALIDATION_ERROR', `Invalid query: ${formatZodError(validation.error)}`, 400);
         }
 
         const query = validation.data;
@@ -82,13 +58,7 @@ export function createDiscoveryRoutes(sessionMiddleware: unknown) {
         });
     });
 
-    /**
-     * GET /transports/:package
-     *
-     * Lists transport requests for a package
-     *
-     * Response: { success: true, data: Transport[] }
-     */
+    // GET /transports/:package — List transport requests for package
     discovery.get('/transports/:package', async (c) => {
         const packageName = c.req.param('package');
 
