@@ -226,3 +226,67 @@ bun test --watch                    # Watch mode
   - [x] Server entry (`server.ts`)
 - [ ] Integration tests (requires live SAP system)
 - [x] Node.js compatibility test ✓
+
+---
+
+## SAP System Connection Setup
+
+### Python Reference Approach
+
+**Config file** (`config.json`):
+```json
+{
+    "MediaDemo-DM1": {
+        "adt": "https://50.19.106.63:443"
+    }
+}
+```
+
+**Environment**:
+```bash
+RELAY_CONFIG=/path/to/config.json
+```
+
+**Client ID format**: `SystemId-ClientNumber` (e.g., `MediaDemo-DM1-200`)
+- `MediaDemo-DM1` → looks up URL from config.json
+- `200` → SAP client number (passed as `sap-client` query param)
+
+Multiple clients (100, 200, etc.) share the same URL—only the client number differs.
+
+**SSL**: Always disabled (`verify: False`)
+
+### Test System
+
+| Property | Value |
+|----------|-------|
+| Config Key | `MediaDemo-DM1` |
+| URL | `https://50.19.106.63:443` |
+| Client ID Example | `MediaDemo-DM1-200` |
+| Test Package | `ZSNAP_TEST` |
+
+### Config File Support ✓
+
+Implemented in `src/core/config.ts`:
+- [x] `loadConfig(path)` - Load config.json from path
+- [x] `loadConfigFromEnv()` - Load from `RELAY_CONFIG` env var
+- [x] `parseClientId(id)` - Parse "MediaDemo-DM1-200" format
+- [x] `resolveClientId(id)` - Look up URL from config
+- [x] `buildClientConfig(id, auth)` - Build complete ClientConfig
+
+**Usage:**
+```typescript
+import { loadConfig, buildClientConfig, createClient } from 'catalyst-relay';
+
+// Load config once at startup
+loadConfig('./config.json');
+
+// Create client from client ID
+const [config, err] = buildClientConfig('MediaDemo-DM1-200', {
+    type: 'basic',
+    username: 'user',
+    password: 'pass',
+});
+if (err) throw err;
+
+const [client, clientErr] = createClient(config);
+```
