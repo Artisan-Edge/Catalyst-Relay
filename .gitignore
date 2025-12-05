@@ -1,0 +1,17 @@
+*.xml
+*.html
+.env
+**.egg-info/
+__pycache__/
+build/
+.vscode
+*.asddls
+*.json
+*.png
+dist
+*.spec
+errors
+*.json
+USER_MAP.py
+pgenv/
+certificates/sso/*
