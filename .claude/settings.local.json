@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\Artisan\\SNAP\\SNAP-Relay-API\")",
+      "Bash(dir:*)",
+      "Bash(bun add:*)",
+      "Bash(bun run typecheck:*)",
+      "Bash(bun run build:*)",
+      "Bash(bun run:*)",
+      "Bash(bunx tsc:*)",
+      "Bash(bun --eval:*)",
+      "Bash(bun test:*)",
+      "Bash(bun --print:*)",
+      "Bash(node --experimental-strip-types:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

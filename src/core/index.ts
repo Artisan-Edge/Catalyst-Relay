@@ -12,8 +12,8 @@ export type { ADTClient } from './client';
 // Re-export auth (when implemented)
 // export * as auth from './auth';
 
-// Re-export session (when implemented)
-// export * as session from './session';
+// Re-export session
+export * as session from './session';
 
-// Re-export ADT operations (when implemented)
-// export * as adt from './adt';
+// Re-export ADT operations
+export * as adt from './adt';

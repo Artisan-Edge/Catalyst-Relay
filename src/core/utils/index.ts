@@ -8,7 +8,16 @@
  * - CSRF token handling
  */
 
-// export { parseXml, buildXml } from './xml';
-// export { buildUrl, joinPath } from './url';
-// export { validateSql, buildWhereClause } from './sql';
-// export { fetchCsrf, refreshCsrf } from './csrf';
+export {
+    parseXml,
+    extractLockHandle,
+    extractError,
+    escapeXml,
+    dictToAbapXml
+} from './xml';
+
+export { buildUrl, joinPath } from './url';
+
+export { validateSqlInput, SqlValidationError } from './sql';
+
+export { FETCH_CSRF_TOKEN, CSRF_TOKEN_HEADER } from './csrf';

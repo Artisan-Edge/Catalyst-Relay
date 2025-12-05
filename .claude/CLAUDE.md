@@ -186,6 +186,21 @@ import { parseXml, buildUrl } from '../utils';
 import type { Context } from 'hono';
 ```
 
+### Forbidden Import Patterns
+
+**NEVER use inline imports for type assertions.** This is ugly and unreadable.
+
+BAD:
+```typescript
+const config = data as import('../types').ClientConfig;  // FORBIDDEN
+```
+
+GOOD:
+```typescript
+import type { ClientConfig } from '../types';
+const config = data as ClientConfig;
+```
+
 ## API Endpoints (Server Mode)
 
 ### Session Management

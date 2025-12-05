@@ -5,14 +5,8 @@
  * Each route module exports a Hono app that can be mounted.
  */
 
-import { Hono } from 'hono';
-
-const routes = new Hono();
-
-// TODO: Mount route modules
-// routes.route('/auth', authRoutes);
-// routes.route('/objects', objectRoutes);
-// routes.route('/preview', previewRoutes);
-// routes.route('/search', searchRoutes);
-
-export { routes };
+export { createAuthRoutes } from './auth';
+export { createDiscoveryRoutes } from './discovery';
+export { createObjectRoutes } from './objects';
+export { createPreviewRoutes } from './preview';
+export { createSearchRoutes } from './search';

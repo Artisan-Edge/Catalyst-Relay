@@ -7,5 +7,9 @@
  * - Config hash deduplication
  */
 
-// export { SessionManager } from './manager';
-// export type { SessionConfig } from './types';
+export { SessionManager } from './manager';
+export { hashConnectionConfig } from './hash';
+export { startCleanupTask } from './cleanup';
+export type { SessionEntry, SessionConfig } from './types';
+export type { CleanupHandle } from './cleanup';
+export { DEFAULT_SESSION_CONFIG } from './types';

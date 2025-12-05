@@ -7,5 +7,6 @@
  * - Error handling
  */
 
-// export { sessionMiddleware } from './session';
-// export { errorMiddleware } from './error';
+export { createSessionMiddleware } from './session';
+export type { SessionContext } from './session';
+export { errorMiddleware, ApiError } from './error';
