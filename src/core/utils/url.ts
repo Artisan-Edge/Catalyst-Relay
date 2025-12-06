@@ -21,30 +21,32 @@ export function buildUrl(
     path: string,
     params?: Record<string, string | number>
 ): string {
+    // Validate base URL is provided.
     if (!base) {
         throw new Error('Base URL is required');
     }
 
-    // Remove trailing slash from base
+    // Remove trailing slash from base.
     const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
 
-    // Ensure path starts with slash
+    // Ensure path starts with slash.
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
 
-    // Combine base and path
+    // Combine base and path.
     const baseUrl = `${cleanBase}${cleanPath}`;
 
-    // If no params, return base URL
+    // Return early if no parameters provided.
     if (!params || Object.keys(params).length === 0) {
         return baseUrl;
     }
 
-    // Build query string
+    // Build query string from parameters.
     const queryParams = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
         queryParams.append(key, String(value));
     }
 
+    // Append query string if present.
     const queryString = queryParams.toString();
     return queryString ? `${baseUrl}?${queryString}` : baseUrl;
 }
@@ -62,26 +64,28 @@ export function buildUrl(
  * // Returns: '/api/users/123'
  */
 export function joinPath(...segments: string[]): string {
+    // Return early if no segments provided.
     if (segments.length === 0) {
         return '';
     }
 
-    // Filter out empty segments
+    // Filter out empty segments.
     const cleanSegments = segments.filter(s => s && s.length > 0);
 
+    // Return early if all segments were empty.
     if (cleanSegments.length === 0) {
         return '';
     }
 
-    // Check if the first segment starts with slash
+    // Preserve leading slash from first segment.
     const startsWithSlash = cleanSegments[0]?.startsWith('/') ?? false;
 
-    // Join segments and normalize slashes
+    // Strip slashes from segments and join with single separator.
     const joined = cleanSegments
-        .map(segment => segment.replace(/^\/+|\/+$/g, '')) // Remove leading and trailing slashes
-        .filter(segment => segment.length > 0) // Remove empty segments again
+        .map(segment => segment.replace(/^\/+|\/+$/g, ''))
+        .filter(segment => segment.length > 0)
         .join('/');
 
-    // Preserve leading slash if original path had one
+    // Add leading slash if original path had one.
     return startsWithSlash ? `/${joined}` : joined;
 }

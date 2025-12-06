@@ -20,15 +20,18 @@ export async function readObject(
     client: AdtRequestor,
     object: ObjectRef
 ): AsyncResult<ObjectWithContent, Error> {
+    // Validate object extension is supported.
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
 
+    // Execute GET request for object source content.
     const [response, requestErr] = await client.request({
         method: 'GET',
         path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
         headers: { 'Accept': 'text/plain' },
     });
 
+    // Validate successful response and extract content.
     const [content, checkErr] = await checkResponse(
         response,
         requestErr,
@@ -36,6 +39,7 @@ export async function readObject(
     );
     if (checkErr) return err(checkErr);
 
+    // Build result object with content.
     const result: ObjectWithContent = {
         name: object.name,
         extension: object.extension,

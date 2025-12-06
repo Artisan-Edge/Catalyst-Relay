@@ -17,10 +17,14 @@ import { getTreeInternal } from './tree';
 export async function getPackages(
     client: AdtRequestor
 ): AsyncResult<Package[], Error> {
+    // Fetch tree with all packages using wildcard filter.
     const [treeResult, treeErr] = await getTreeInternal(client, {}, '*');
+
+    // Validate successful tree retrieval.
     if (treeErr) {
         return err(treeErr);
     }
 
+    // Extract packages from tree result.
     return ok(treeResult.packages);
 }

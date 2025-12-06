@@ -23,9 +23,11 @@ export async function deleteObject(
     lockHandle: string,
     transport: string | undefined
 ): AsyncResult<void, Error> {
+    // Validate object extension is supported.
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
 
+    // Build request parameters with lock handle.
     const params: Record<string, string> = {
         'lockHandle': lockHandle,
     };
@@ -33,6 +35,7 @@ export async function deleteObject(
         params['corrNr'] = transport;
     }
 
+    // Execute delete request.
     const [response, requestErr] = await client.request({
         method: 'DELETE',
         path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
@@ -40,6 +43,7 @@ export async function deleteObject(
         headers: { 'Accept': 'text/plain' },
     });
 
+    // Validate successful response.
     const [_, checkErr] = await checkResponse(
         response,
         requestErr,

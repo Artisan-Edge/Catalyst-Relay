@@ -51,6 +51,7 @@ export function startCleanupTask(
     config: SessionConfig,
     onExpired?: (sessionId: string, entry: SessionEntry) => void
 ): CleanupHandle {
+    // Schedule periodic cleanup at configured interval.
     const intervalId = setInterval(() => {
         performCleanup(manager, config, onExpired);
     }, config.cleanupInterval * 1000);
@@ -79,41 +80,44 @@ function performCleanup(
     const now = new Date();
     const expiredSessions: Array<{ sessionId: string; entry: SessionEntry }> = [];
 
-    // Find expired sessions
+    // Find expired sessions.
     for (const [sessionId, entry] of manager.getAllSessions()) {
+        // Determine timeout based on auth type.
         const timeout = entry.authType === 'saml'
             ? config.samlSessionTimeout
             : config.sessionTimeout;
 
+        // Calculate time elapsed since last activity.
         const elapsedSeconds = (now.getTime() - entry.lastActivity.getTime()) / 1000;
 
+        // Add to expired list if timeout exceeded.
         if (elapsedSeconds > timeout) {
             expiredSessions.push({ sessionId, entry });
         }
     }
 
-    // No expired sessions, nothing to do
+    // Early return if no expired sessions found.
     if (expiredSessions.length === 0) return;
 
-    // Track clients from expired sessions
+    // Track clients from expired sessions.
     const expiredClients = new Set<unknown>();
 
-    // Destroy expired sessions
+    // Destroy expired sessions and invoke callbacks.
     for (const { sessionId, entry } of expiredSessions) {
         manager.destroySession(sessionId);
         expiredClients.add(entry.client);
 
-        // Invoke callback if provided
+        // Invoke callback if provided.
         if (onExpired) {
             onExpired(sessionId, entry);
         }
     }
 
-    // Check if any expired clients are still referenced by active sessions
+    // Check if any expired clients are still referenced by active sessions.
     const activeSessions = manager.getAllSessions();
     const activeClients = new Set(activeSessions.map(([_, entry]) => entry.client));
 
-    // Remove clients from config hash map if no active sessions reference them
+    // Remove clients from config hash map if no active sessions reference them.
     // NOTE: We can't directly get the config hash from the client, so we'll need
     // to track this mapping elsewhere. For now, this is a placeholder.
     // In practice, the cleanup of config hash map should be handled by the

@@ -34,7 +34,7 @@ export class SamlAuth implements AuthStrategy {
         private password: string,
         private provider?: string
     ) {
-        // Validate inputs
+        // Validate required credentials.
         if (!username || !password) {
             throw new Error('SamlAuth requires both username and password');
         }
@@ -45,8 +45,8 @@ export class SamlAuth implements AuthStrategy {
      * @returns Headers object (may include CSRF tokens after login)
      */
     getAuthHeaders(): Record<string, string> {
-        // SAML primarily uses cookies for authentication
-        // Headers may be needed for CSRF protection after login
+        // SAML primarily uses cookies for authentication.
+        // Headers may be needed for CSRF protection after login.
         return {};
     }
 
@@ -74,12 +74,10 @@ export class SamlAuth implements AuthStrategy {
      * 7. Store cookies for subsequent requests
      */
     async performLogin(fetchFn: typeof fetch): AsyncResult<void, Error> {
-        // Placeholder implementation
-        // Full implementation requires:
-        // - Playwright for browser automation
-        // - SAML provider-specific flow handling
-        // - Cookie extraction and persistence
+        // Placeholder implementation.
+        // Full implementation requires browser automation, SAML provider flow handling, and cookie extraction.
 
+        // Return error indicating SAML is not yet implemented.
         return err(
             new Error(
                 'SAML authentication not yet implemented. ' +

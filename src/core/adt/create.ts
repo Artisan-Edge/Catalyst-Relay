@@ -26,11 +26,14 @@ export async function createObject(
     transport: string | undefined,
     username: string
 ): AsyncResult<void, Error> {
+    // Validate object extension is supported.
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
 
+    // Default empty description if not provided.
     const description = object.description ?? '';
 
+    // Build XML request body with object metadata.
     const body = `<?xml version="1.0" encoding="UTF-8"?>
 <${config.rootName} ${config.nameSpace}
     xmlns:adtcore="http://www.sap.com/adt/core"
@@ -44,11 +47,13 @@ export async function createObject(
 
 </${config.rootName}>`;
 
+    // Add transport parameter if provided.
     const params: Record<string, string> = {};
     if (transport) {
         params['corrNr'] = transport;
     }
 
+    // Execute create request.
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: `/sap/bc/adt/${config.endpoint}`,
@@ -57,6 +62,7 @@ export async function createObject(
         body: body.trim(),
     });
 
+    // Validate successful response.
     const [_, checkErr] = await checkResponse(
         response,
         requestErr,

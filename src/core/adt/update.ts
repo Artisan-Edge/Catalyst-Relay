@@ -23,9 +23,11 @@ export async function updateObject(
     lockHandle: string,
     transport: string | undefined
 ): AsyncResult<void, Error> {
+    // Validate object extension is supported.
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
 
+    // Build request parameters with lock handle.
     const params: Record<string, string> = {
         'lockHandle': lockHandle,
     };
@@ -33,6 +35,7 @@ export async function updateObject(
         params['corrNr'] = transport;
     }
 
+    // Execute update request to ADT server.
     const [response, requestErr] = await client.request({
         method: 'PUT',
         path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
@@ -41,6 +44,7 @@ export async function updateObject(
         body: object.content,
     });
 
+    // Validate successful response.
     const [_, checkErr] = await checkResponse(
         response,
         requestErr,

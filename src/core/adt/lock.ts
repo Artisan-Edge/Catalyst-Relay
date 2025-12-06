@@ -20,9 +20,11 @@ export async function lockObject(
     client: AdtRequestor,
     object: ObjectRef
 ): AsyncResult<string, Error> {
+    // Validate object extension is supported.
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
 
+    // Execute lock request.
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
@@ -35,6 +37,7 @@ export async function lockObject(
         },
     });
 
+    // Validate successful response.
     const [text, checkErr] = await checkResponse(
         response,
         requestErr,
@@ -42,6 +45,7 @@ export async function lockObject(
     );
     if (checkErr) return err(checkErr);
 
+    // Extract lock handle from XML response.
     const [lockHandle, extractErr] = extractLockHandle(text);
     if (extractErr) {
         return err(new Error(`Failed to extract lock handle: ${extractErr.message}`));
@@ -63,9 +67,11 @@ export async function unlockObject(
     object: ObjectRef,
     lockHandle: string
 ): AsyncResult<void, Error> {
+    // Validate object extension is supported.
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
 
+    // Execute unlock request.
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
@@ -75,6 +81,7 @@ export async function unlockObject(
         },
     });
 
+    // Validate successful response.
     const [_, checkErr] = await checkResponse(
         response,
         requestErr,

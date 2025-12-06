@@ -45,17 +45,17 @@ export function validateSqlInput(
     input: string,
     maxLength: number = 10000
 ): Result<true, SqlValidationError> {
-    // Type check
+    // Verify input is a string type.
     if (typeof input !== 'string') {
         return err(new SqlValidationError('Input must be a string'));
     }
 
-    // Length check
+    // Enforce maximum input length to prevent resource exhaustion.
     if (input.length > maxLength) {
         return err(new SqlValidationError(`Input exceeds maximum length of ${maxLength}`));
     }
 
-    // Dangerous pattern checks
+    // Define patterns for SQL injection detection.
     const dangerousPatterns: Array<{ pattern: RegExp; description: string }> = [
         {
             pattern: /\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|TRUNCATE)\s+/i,
@@ -107,6 +107,7 @@ export function validateSqlInput(
         }
     ];
 
+    // Test input against each dangerous pattern.
     for (const { pattern, description } of dangerousPatterns) {
         if (pattern.test(input)) {
             return err(new SqlValidationError(
@@ -115,20 +116,22 @@ export function validateSqlInput(
         }
     }
 
-    // Check for excessive special characters
+    // Count special characters that could indicate injection attempts.
     const specialCharMatches = input.match(/[;'"\\]/g);
     const specialCharCount = specialCharMatches ? specialCharMatches.length : 0;
 
+    // Reject inputs with too many special characters.
     if (specialCharCount > 5) {
         return err(new SqlValidationError('Input contains excessive special characters'));
     }
 
-    // Validate balanced quotes
+    // Ensure single quotes are balanced.
     const singleQuoteCount = (input.match(/'/g) || []).length;
     if (singleQuoteCount % 2 !== 0) {
         return err(new SqlValidationError('Unbalanced single quotes detected'));
     }
 
+    // Ensure double quotes are balanced.
     const doubleQuoteCount = (input.match(/"/g) || []).length;
     if (doubleQuoteCount % 2 !== 0) {
         return err(new SqlValidationError('Unbalanced double quotes detected'));

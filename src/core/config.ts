@@ -75,9 +75,11 @@ let globalConfig: ConfigMap | null = null;
  */
 export function loadConfig(path: string): Result<ConfigMap, Error> {
     try {
+        // Read and parse the JSON file.
         const content = readFileSync(path, 'utf-8');
         const raw = JSON.parse(content);
 
+        // Validate config structure with Zod schema.
         const validation = systemConfigSchema.safeParse(raw);
         if (!validation.success) {
             const issues = validation.error.issues
@@ -86,6 +88,7 @@ export function loadConfig(path: string): Result<ConfigMap, Error> {
             return err(new Error(`Invalid config format: ${issues}`));
         }
 
+        // Convert validated data to ConfigMap.
         const configMap: ConfigMap = new Map();
         for (const [key, value] of Object.entries(validation.data)) {
             configMap.set(key, {
@@ -95,14 +98,16 @@ export function loadConfig(path: string): Result<ConfigMap, Error> {
             });
         }
 
-        // Store globally
+        // Store globally for later access.
         globalConfig = configMap;
 
         return ok(configMap);
     } catch (error) {
+        // Handle JSON parsing errors.
         if (error instanceof SyntaxError) {
             return err(new Error(`Invalid JSON in config file: ${error.message}`));
         }
+        // Handle file not found errors.
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
             return err(new Error(`Config file not found: ${path}`));
         }
@@ -130,6 +135,7 @@ const DEFAULT_CONFIG_PATH = './config.json';
  */
 
 export function loadConfigFromEnv(): Result<ConfigMap, Error> {
+    // Resolve config path from environment or use default.
     const configPath = process.env['RELAY_CONFIG'] ?? DEFAULT_CONFIG_PATH;
     return loadConfig(configPath);
 }
@@ -176,18 +182,22 @@ export function parseClientId(clientId: string): Result<ParsedClientId, Error> {
         return err(new Error('Client ID is required'));
     }
 
+    // Split by hyphen to extract components.
     const parts = clientId.split('-');
     if (parts.length < 2) {
         return err(new Error(`Invalid client ID format: "${clientId}". Expected "SystemId-ClientNumber" (e.g., "MediaDemo-DM1-200")`));
     }
 
+    // Extract client number (last part) and system ID (everything before).
     const clientNumber = parts[parts.length - 1];
     const systemId = parts.slice(0, -1).join('-');
 
+    // Validate client number is numeric.
     if (!clientNumber || !/^\d+$/.test(clientNumber)) {
         return err(new Error(`Invalid client number: "${clientNumber}". Must be numeric (e.g., "100", "200")`));
     }
 
+    // Validate system ID is not empty.
     if (!systemId) {
         return err(new Error(`Invalid system ID in client ID: "${clientId}"`));
     }
@@ -211,20 +221,24 @@ export function parseClientId(clientId: string): Result<ParsedClientId, Error> {
  * ```
  */
 export function resolveClientId(clientId: string): Result<{ url: string; clientNumber: string }, Error> {
+    // Parse the client ID into components.
     const [parsed, parseErr] = parseClientId(clientId);
     if (parseErr) {
         return err(parseErr);
     }
 
+    // Ensure config is loaded.
     if (!globalConfig) {
         return err(new Error('Config not loaded. Call loadConfig() or loadConfigFromEnv() first.'));
     }
 
+    // Lookup system configuration.
     const systemConfig = globalConfig.get(parsed.systemId);
     if (!systemConfig) {
         return err(new Error(`Unknown system ID: "${parsed.systemId}". Available: ${Array.from(globalConfig.keys()).join(', ')}`));
     }
 
+    // Validate ADT URL is configured.
     if (!systemConfig.adt) {
         return err(new Error(`No ADT URL configured for system: "${parsed.systemId}"`));
     }
@@ -265,11 +279,13 @@ export function buildClientConfig(
           { type: 'saml'; username: string; password: string; provider?: string } |
           { type: 'sso'; certificate?: string }
 ): Result<{ url: string; client: string; auth: typeof auth }, Error> {
+    // Resolve client ID to URL and client number.
     const [resolved, resolveErr] = resolveClientId(clientId);
     if (resolveErr) {
         return err(resolveErr);
     }
 
+    // Build complete client configuration.
     return ok({
         url: resolved.url,
         client: resolved.clientNumber,

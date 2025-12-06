@@ -47,6 +47,7 @@ export class SessionManager {
     private config: SessionConfig;
 
     constructor(config?: Partial<SessionConfig>) {
+        // Merge provided config with defaults.
         this.config = { ...DEFAULT_SESSION_CONFIG, ...config };
     }
 
@@ -59,8 +60,10 @@ export class SessionManager {
      * @returns Generated session ID
      */
     createSession(configHash: string, client: unknown, authType: AuthType): string {
+        // Generate unique session identifier.
         const sessionId = this.generateSessionId();
 
+        // Store session entry with client and activity timestamp.
         this.sessionMap.set(sessionId, {
             client,
             lastActivity: new Date(),
@@ -89,8 +92,10 @@ export class SessionManager {
     refreshSession(sessionId: string): boolean {
         const entry = this.sessionMap.get(sessionId);
 
+        // Validate session exists.
         if (!entry) return false;
 
+        // Update activity timestamp.
         entry.lastActivity = new Date();
         return true;
     }

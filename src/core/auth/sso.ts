@@ -23,8 +23,8 @@ export class SsoAuth implements AuthStrategy {
      * @param certificate - Optional certificate path/data (reserved for future use)
      */
     constructor(certificate?: string) {
-        // Store for future implementation
-        // Current implementation relies on system-level SSO configuration
+        // Reserved for future certificate storage.
+        // Current implementation relies on system-level SSO configuration.
     }
 
     /**
@@ -32,11 +32,10 @@ export class SsoAuth implements AuthStrategy {
      * @returns Empty object - SSO uses system-level authentication
      */
     getAuthHeaders(): Record<string, string> {
-        // SSO authentication is handled at the system/transport layer
-        // No explicit headers needed for Kerberos/certificate-based auth
+        // Return empty headers - SSO authentication is handled at the system/transport layer.
         return {};
     }
 
-    // NOTE: SSO does not require cookies or performLogin
-    // Authentication happens automatically via system credentials
+    // NOTE: SSO does not require cookies or performLogin.
+    // Authentication happens automatically via system credentials.
 }

@@ -52,20 +52,24 @@ export async function fetchCsrfToken(
     state: SessionState,
     request: RequestFn
 ): AsyncResult<string, Error> {
+    // Select endpoint based on authentication type.
     const endpoint = state.config.auth.type === 'saml'
         ? '/sap/bc/adt/core/http/sessions'
         : '/sap/bc/adt/compatibility/graph';
 
+    // Select content type based on authentication type.
     const contentType = state.config.auth.type === 'saml'
         ? 'application/vnd.sap.adt.core.http.session.v3+xml'
         : 'application/xml';
 
+    // Build request headers with CSRF token fetch flag.
     const headers = {
         [CSRF_TOKEN_HEADER]: FETCH_CSRF_TOKEN,
         'Content-Type': contentType,
         'Accept': contentType,
     };
 
+    // Execute CSRF token request.
     const [response, requestErr] = await request({
         method: 'GET',
         path: endpoint,
@@ -81,11 +85,13 @@ export async function fetchCsrfToken(
         return err(new Error(`CSRF token fetch failed with status ${response.status}: ${text}`));
     }
 
+    // Extract CSRF token from response headers.
     const token = extractCsrfToken(response.headers);
     if (!token) {
         return err(new Error('No CSRF token returned in response headers'));
     }
 
+    // Update session state with new token.
     state.csrfToken = token;
 
     return ok(token);
@@ -105,6 +111,7 @@ export async function login(
     state: SessionState,
     request: RequestFn
 ): AsyncResult<Session, Error> {
+    // Validate authentication type is supported.
     if (state.config.auth.type === 'saml') {
         return err(new Error('SAML authentication not yet implemented'));
     }
@@ -113,19 +120,23 @@ export async function login(
         return err(new Error('SSO authentication not yet implemented'));
     }
 
+    // Fetch CSRF token from SAP server.
     const [token, tokenErr] = await fetchCsrfToken(state, request);
     if (tokenErr) {
         return err(new Error(`Login failed: ${tokenErr.message}`));
     }
 
+    // Extract username from authentication config.
     const username = state.config.auth.type === 'basic' ? state.config.auth.username : '';
 
+    // Create session object with 8-hour expiration.
     const session: Session = {
         sessionId: token,
         username,
         expiresAt: Date.now() + (8 * 60 * 60 * 1000),
     };
 
+    // Update session state.
     state.session = session;
 
     return ok(session);
@@ -144,6 +155,7 @@ export async function logout(
     state: SessionState,
     request: RequestFn
 ): AsyncResult<void, Error> {
+    // Execute logout request to SAP server.
     const [response, requestErr] = await request({
         method: 'POST',
         path: '/sap/public/bc/icf/logoff',
@@ -158,6 +170,7 @@ export async function logout(
         return err(new Error(`Logout failed with status ${response.status}: ${text}`));
     }
 
+    // Clear local session state.
     state.csrfToken = null;
     state.session = null;
 
@@ -177,11 +190,14 @@ export async function sessionReset(
     state: SessionState,
     request: RequestFn
 ): AsyncResult<void, Error> {
+    // Attempt to logout from current session.
     await logout(state, request);
 
+    // Clear session state regardless of logout result.
     state.csrfToken = null;
     state.session = null;
 
+    // Re-login to establish new session.
     const [, loginErr] = await login(state, request);
     if (loginErr) {
         return err(loginErr);

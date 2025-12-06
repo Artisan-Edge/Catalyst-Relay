@@ -22,11 +22,14 @@ import { SamlAuth } from './saml';
  * });
  */
 export function createAuthStrategy(config: AuthConfig): AuthStrategy {
+    // Create auth handler based on type.
     switch (config.type) {
         case 'basic':
+            // Use basic authentication with username and password.
             return new BasicAuth(config.username, config.password);
 
         case 'saml':
+            // Use SAML authentication with provider configuration.
             return new SamlAuth(
                 config.username,
                 config.password,
@@ -34,6 +37,7 @@ export function createAuthStrategy(config: AuthConfig): AuthStrategy {
             );
 
         case 'sso':
+            // Use SSO authentication with certificate.
             return new SsoAuth(config.certificate);
 
         default:

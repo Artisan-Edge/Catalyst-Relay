@@ -34,17 +34,21 @@ import type { ClientConfig } from '../../types';
  * ```
  */
 export function hashConnectionConfig(config: ClientConfig): string {
+    // Collect base configuration parts for hashing.
     const parts: string[] = [
         config.auth.type,
         config.client,
     ];
 
-    // Add credentials for non-SSO connections
+    // Add credentials for non-SSO connections.
     if (config.auth.type === 'basic' || config.auth.type === 'saml') {
         parts.push(config.auth.username);
         parts.push(config.auth.password);
     }
 
+    // Concatenate parts with delimiter.
     const configStr = parts.join(':');
+
+    // Generate SHA-256 hash of configuration string.
     return createHash('sha256').update(configStr, 'utf-8').digest('hex');
 }

@@ -33,19 +33,20 @@ export function buildRequestHeaders(
     auth?: AuthConfig,
     csrfToken?: string | null
 ): Record<string, string> {
+    // Merge base and custom headers.
     const headers: Record<string, string> = {
         ...baseHeaders,
         ...(customHeaders ?? {}),
     };
 
-    // Add basic auth header if using basic authentication
+    // Add basic auth header if using basic authentication.
     if (auth?.type === 'basic') {
         // Use btoa for base64 encoding (web standard, available in both Node 18+ and Bun)
         const credentials = btoa(`${auth.username}:${auth.password}`);
         headers['Authorization'] = `Basic ${credentials}`;
     }
 
-    // Add CSRF token if we have one (but not the 'fetch' placeholder)
+    // Add CSRF token if we have one (but not the 'fetch' placeholder).
     if (csrfToken && csrfToken !== FETCH_CSRF_TOKEN) {
         headers[CSRF_TOKEN_HEADER] = csrfToken;
     }
@@ -63,11 +64,11 @@ export function buildRequestHeaders(
  * @returns Extracted CSRF token or null if not found
  */
 export function extractCsrfToken(headers: Headers): string | null {
-    // Try both upper and lowercase header names
+    // Try both upper and lowercase header names.
     const token = headers.get(CSRF_TOKEN_HEADER) ||
                   headers.get(CSRF_TOKEN_HEADER.toLowerCase());
 
-    // Ignore the fetch token itself
+    // Ignore the fetch token itself.
     if (!token || token === FETCH_CSRF_TOKEN) {
         return null;
     }

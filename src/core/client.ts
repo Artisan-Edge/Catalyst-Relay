@@ -95,13 +95,14 @@ function buildParams(
 ): URLSearchParams {
     const params = new URLSearchParams();
 
+    // Add any custom parameters from the request.
     if (baseParams) {
         for (const [key, value] of Object.entries(baseParams)) {
             params.append(key, String(value));
         }
     }
 
-    // Always append sap-client parameter
+    // Always append sap-client parameter.
     params.append('sap-client', clientNum);
 
     return params;
@@ -109,8 +110,10 @@ function buildParams(
 
 // Build full URL from base URL and path
 function buildUrl(baseUrl: string, path: string, params?: URLSearchParams): string {
+    // Construct URL from base and path.
     const url = new URL(path, baseUrl);
 
+    // Append query parameters if provided.
     if (params) {
         url.search = params.toString();
     }
@@ -120,13 +123,14 @@ function buildUrl(baseUrl: string, path: string, params?: URLSearchParams): stri
 
 // Create a new ADT client - validates config and returns client instance
 export function createClient(config: ClientConfig): Result<ADTClient, Error> {
-    // Validate config using Zod schema
+    // Validate config using Zod schema.
     const validation = clientConfigSchema.safeParse(config);
     if (!validation.success) {
         const issues = validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
         return err(new Error(`Invalid client configuration: ${issues}`));
     }
 
+    // Initialize client state with config and empty session.
     const state: ClientState = {
         config,
         session: null,
@@ -137,7 +141,7 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
     async function request(options: RequestOptions): AsyncResult<Response, Error> {
         const { method, path, params, headers: customHeaders, body } = options;
 
-        // Build headers with auth and CSRF token
+        // Build headers with auth and CSRF token.
         const headers = buildRequestHeaders(
             BASE_HEADERS,
             customHeaders,
@@ -145,17 +149,18 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
             state.csrfToken
         );
 
-        // Build URL with parameters
+        // Build URL with parameters.
         const urlParams = buildParams(params, config.client);
         const url = buildUrl(config.url, path, urlParams);
 
-        // Build fetch options
+        // Build fetch options with timeout.
         const fetchOptions: RequestInit = {
             method,
             headers,
             signal: AbortSignal.timeout(config.timeout ?? DEFAULT_TIMEOUT),
         };
 
+        // Add request body if provided.
         if (body) {
             fetchOptions.body = body;
         }
@@ -165,22 +170,26 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
         // For now, we rely on the environment configuration
 
         try {
+            // Execute HTTP request.
             const response = await fetch(url, fetchOptions);
 
-            // Check for CSRF token validation failure
+            // Handle CSRF token validation failure with automatic refresh.
             if (response.status === 403) {
                 const text = await response.text();
                 if (text.includes('CSRF token validation failed')) {
+                    // Fetch new CSRF token.
                     const [newToken, tokenErr] = await sessionOps.fetchCsrfToken(state, request);
                     if (tokenErr) {
                         return err(new Error(`CSRF token refresh failed: ${tokenErr.message}`));
                     }
 
+                    // Retry request with new token.
                     headers[CSRF_TOKEN_HEADER] = newToken;
                     const retryResponse = await fetch(url, { ...fetchOptions, headers });
                     return ok(retryResponse);
                 }
 
+                // Return 403 response if not CSRF-related.
                 return ok(new Response(text, {
                     status: response.status,
                     statusText: response.statusText,
@@ -188,14 +197,17 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
                 }));
             }
 
-            // Check for session expiration (500 with specific error)
+            // Handle session expiration with automatic reset.
             if (response.status === 500) {
                 const text = await response.text();
+
+                // Attempt session reset.
                 const [, resetErr] = await sessionOps.sessionReset(state, request);
                 if (resetErr) {
                     return err(new Error(`Session reset failed: ${resetErr.message}`));
                 }
 
+                // Return original 500 response.
                 return ok(new Response(text, {
                     status: response.status,
                     statusText: response.statusText,
@@ -205,6 +217,7 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
 
             return ok(response);
         } catch (error) {
+            // Convert caught errors to Error type.
             if (error instanceof Error) {
                 return err(error);
             }
