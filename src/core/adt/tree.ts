@@ -2,14 +2,13 @@
  * Tree — Hierarchical tree browsing for packages
  */
 
-import { DOMParser } from '@xmldom/xmldom';
-import type { AsyncResult } from '../../types/result';
+import type { Result, AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
 import type { TreeQuery } from '../../types/requests';
 import type { Package, TreeNode } from '../../types/responses';
 import type { AdtRequestor } from './types';
 import { getConfigByType } from './types';
-import { extractError } from '../utils/xml';
+import { extractError, safeParseXml } from '../utils/xml';
 
 /**
  * Virtual folder for tree discovery (internal)
@@ -41,8 +40,8 @@ export async function getTree(
     client: AdtRequestor,
     query: TreeQuery
 ): AsyncResult<TreeNode[], Error> {
+    // Build internal query with package filter.
     const internalQuery: TreeDiscoveryQuery = {};
-
     if (query.package) {
         internalQuery.PACKAGE = {
             name: query.package.startsWith('..') ? query.package : `..${query.package}`,
@@ -50,11 +49,9 @@ export async function getTree(
         };
     }
 
+    // Execute tree discovery and return nodes.
     const [result, resultErr] = await getTreeInternal(client, internalQuery, '*');
-    if (resultErr) {
-        return err(resultErr);
-    }
-
+    if (resultErr) { return err(resultErr); }
     return ok(result.nodes);
 }
 
@@ -68,8 +65,10 @@ export async function getTreeInternal(
     query: TreeDiscoveryQuery,
     searchPattern: string
 ): AsyncResult<{ nodes: TreeNode[]; packages: Package[] }, Error> {
+    // Build XML request body.
     const body = constructTreeBody(query, searchPattern);
 
+    // Execute virtual folders request.
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: '/sap/bc/adt/repository/informationsystem/virtualfolders/contents',
@@ -80,32 +79,26 @@ export async function getTreeInternal(
         body,
     });
 
-    if (requestErr) {
-        return err(requestErr);
-    }
-
+    // Validate successful response.
+    if (requestErr) { return err(requestErr); }
     if (!response.ok) {
         const text = await response.text();
         const errorMsg = extractError(text);
         return err(new Error(`Tree discovery failed: ${errorMsg}`));
     }
 
+    // Parse tree response.
     const text = await response.text();
     const [result, parseErr] = parseTreeResponse(text);
-    if (parseErr) {
-        return err(parseErr);
-    }
-
+    if (parseErr) { return err(parseErr); }
     return ok(result);
 }
 
-/**
- * Construct tree discovery request body
- */
+// Construct tree discovery request body.
 function constructTreeBody(query: TreeDiscoveryQuery, searchPattern: string): string {
+    // Determine which facets are specified vs requested.
     const facets: string[] = [];
     const specified: Record<string, string> = {};
-
     const sortedFacets = ['PACKAGE', 'GROUP', 'TYPE', 'API'];
 
     for (const facet of sortedFacets) {
@@ -120,10 +113,12 @@ function constructTreeBody(query: TreeDiscoveryQuery, searchPattern: string): st
         }
     }
 
+    // Build XML elements for specified facets.
     const specifiedXml = Object.entries(specified)
         .map(([facet, name]) => `<vfs:${facet.toLowerCase()}>${name}</vfs:${facet.toLowerCase()}>`)
         .join('\n                ');
 
+    // Build XML elements for requested facets.
     const facetsXml = facets
         .map(facet => `<vfs:facet>${facet}</vfs:facet>`)
         .join('\n                ');
@@ -140,75 +135,67 @@ function constructTreeBody(query: TreeDiscoveryQuery, searchPattern: string): st
         </vfs:vfsRequest>`;
 }
 
-/**
- * Parse tree discovery response
- */
-function parseTreeResponse(xml: string): [{ nodes: TreeNode[]; packages: Package[] }, null] | [null, Error] {
-    try {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(xml, 'text/xml');
+// Parse tree discovery response.
+function parseTreeResponse(xml: string): Result<{ nodes: TreeNode[]; packages: Package[] }, Error> {
+    // Parse XML response.
+    const [doc, parseErr] = safeParseXml(xml);
+    if (parseErr) { return err(parseErr); }
 
-        const nodes: TreeNode[] = [];
-        const packages: Package[] = [];
+    const nodes: TreeNode[] = [];
+    const packages: Package[] = [];
 
-        const virtualFolders = doc.getElementsByTagName('vfs:virtualFolder');
-        for (let i = 0; i < virtualFolders.length; i++) {
-            const vf = virtualFolders[i];
-            if (!vf) continue;
+    // Process virtual folder elements (packages, groups, etc).
+    const virtualFolders = doc.getElementsByTagName('vfs:virtualFolder');
+    for (let i = 0; i < virtualFolders.length; i++) {
+        const vf = virtualFolders[i];
+        if (!vf) continue;
 
-            const facet = vf.getAttribute('facet');
-            const name = vf.getAttribute('name');
+        const facet = vf.getAttribute('facet');
+        const name = vf.getAttribute('name');
 
-            if (facet === 'PACKAGE' && name) {
-                const desc = vf.getAttribute('description');
-                const pkg: Package = {
-                    name: name.startsWith('..') ? name.substring(2) : name,
-                };
-                if (desc) {
-                    pkg.description = desc;
-                }
-                packages.push(pkg);
+        // Extract package metadata if this is a package facet.
+        if (facet === 'PACKAGE' && name) {
+            const desc = vf.getAttribute('description');
+            const pkg: Package = {
+                name: name.startsWith('..') ? name.substring(2) : name,
+            };
+            if (desc) {
+                pkg.description = desc;
             }
-
-            if (name && facet) {
-                nodes.push({
-                    name: name.startsWith('..') ? name.substring(2) : name,
-                    type: 'folder',
-                    hasChildren: vf.getAttribute('hasChildrenOfSameFacet') === 'true',
-                });
-            }
+            packages.push(pkg);
         }
 
-        const objects = doc.getElementsByTagName('vfs:object');
-        for (let i = 0; i < objects.length; i++) {
-            const obj = objects[i];
-            if (!obj) continue;
+        if (!name || !facet) continue;
 
-            const name = obj.getAttribute('name');
-            const type = obj.getAttribute('type');
-
-            if (!name || !type) {
-                continue;
-            }
-
-            const config = getConfigByType(type);
-            if (!config) {
-                continue;
-            }
-
-            nodes.push({
-                name,
-                type: 'object',
-                objectType: config.label,
-                extension: config.extension,
-            });
-        }
-
-        return [{ nodes, packages }, null];
-    } catch (error) {
-        if (error instanceof Error) {
-            return [null, error];
-        }
-        return [null, new Error('Failed to parse tree response')];
+        // Add folder node (strip '..' prefix from name).
+        nodes.push({
+            name: name.startsWith('..') ? name.substring(2) : name,
+            type: 'folder',
+            hasChildren: vf.getAttribute('hasChildrenOfSameFacet') === 'true',
+        });
     }
+
+    // Process object elements (actual ADT objects).
+    const objects = doc.getElementsByTagName('vfs:object');
+    for (let i = 0; i < objects.length; i++) {
+        const obj = objects[i];
+        if (!obj) continue;
+
+        const name = obj.getAttribute('name');
+        const type = obj.getAttribute('type');
+        if (!name || !type) continue;
+
+        // Look up object type configuration.
+        const config = getConfigByType(type);
+        if (!config) continue;
+
+        nodes.push({
+            name,
+            type: 'object',
+            objectType: config.label,
+            extension: config.extension,
+        });
+    }
+
+    return ok({ nodes, packages });
 }

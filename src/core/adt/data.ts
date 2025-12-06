@@ -24,13 +24,14 @@ export async function previewData(
     client: AdtRequestor,
     query: PreviewQuery
 ): AsyncResult<DataFrame, Error> {
+    // Confirm object is valid for data previews.
     const extension = query.objectType === 'table' ? 'astabldt' : 'asddls';
     const config = getConfigByExtension(extension);
-
     if (!config || !config.dpEndpoint || !config.dpParam) {
         return err(new Error(`Data preview not supported for object type: ${query.objectType}`));
     }
 
+    // Construct SQL query for data preview
     const limit = query.limit ?? 100;
 
     const whereClauses = buildWhereClauses(query.filters);
@@ -42,6 +43,7 @@ export async function previewData(
         return err(new Error(`SQL validation failed: ${validationErr.message}`));
     }
 
+    // Execute data preview request.
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: `/sap/bc/adt/datapreview/${config.dpEndpoint}`,
@@ -55,21 +57,17 @@ export async function previewData(
         body: sqlQuery,
     });
 
-    if (requestErr) {
-        return err(requestErr);
-    }
-
+    // Validate successful response.
+    if (requestErr) { return err(requestErr); }
     if (!response.ok) {
         const text = await response.text();
         const errorMsg = extractError(text);
         return err(new Error(`Data preview failed: ${errorMsg}`));
     }
-
     const text = await response.text();
-    const [dataFrame, parseErr] = parseDataPreview(text, limit, query.objectType === 'table');
-    if (parseErr) {
-        return err(parseErr);
-    }
 
+    // Confirm successful dataframe format
+    const [dataFrame, parseErr] = parseDataPreview(text, limit, query.objectType === 'table');
+    if (parseErr) { return err(parseErr); }
     return ok(dataFrame);
 }
