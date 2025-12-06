@@ -113,26 +113,25 @@ function constructTreeBody(query: TreeDiscoveryQuery, searchPattern: string): st
         }
     }
 
-    // Build XML elements for specified facets.
+    // Build XML elements for specified facets using preselection structure.
     const specifiedXml = Object.entries(specified)
-        .map(([facet, name]) => `<vfs:${facet.toLowerCase()}>${name}</vfs:${facet.toLowerCase()}>`)
-        .join('\n                ');
+        .map(([facet, name]) => `  <vfs:preselection facet="${facet.toLowerCase()}">
+    <vfs:value>${name}</vfs:value>
+  </vfs:preselection>`)
+        .join('\n');
 
-    // Build XML elements for requested facets.
+    // Build XML elements for requested facets (lowercase).
     const facetsXml = facets
-        .map(facet => `<vfs:facet>${facet}</vfs:facet>`)
-        .join('\n                ');
+        .map(facet => `    <vfs:facet>${facet.toLowerCase()}</vfs:facet>`)
+        .join('\n');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-        <vfs:vfsRequest xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders">
-            <vfs:virtualFolder>
-                ${specifiedXml}
-            </vfs:virtualFolder>
-            <vfs:facets>
-                ${facetsXml}
-            </vfs:facets>
-            <vfs:searchPattern>${searchPattern}</vfs:searchPattern>
-        </vfs:vfsRequest>`;
+<vfs:virtualFoldersRequest xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectSearchPattern="${searchPattern}">
+${specifiedXml}
+  <vfs:facetorder>
+${facetsXml}
+  </vfs:facetorder>
+</vfs:virtualFoldersRequest>`;
 }
 
 // Parse tree discovery response.

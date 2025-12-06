@@ -78,7 +78,7 @@ export interface ADTClient {
 
     // Data Preview
     previewData(query: PreviewQuery): AsyncResult<DataFrame>;
-    getDistinctValues(objectName: string, column: string): AsyncResult<DistinctResult>;
+    getDistinctValues(objectName: string, column: string, objectType?: 'table' | 'view'): AsyncResult<DistinctResult>;
     countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number>;
 
     // Search
@@ -434,9 +434,9 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
             return adt.previewData(requestor, query);
         },
 
-        async getDistinctValues(objectName: string, column: string): AsyncResult<DistinctResult> {
+        async getDistinctValues(objectName: string, column: string, objectType: 'table' | 'view' = 'view'): AsyncResult<DistinctResult> {
             if (!state.session) return err(new Error('Not logged in'));
-            return adt.getDistinctValues(requestor, objectName, column);
+            return adt.getDistinctValues(requestor, objectName, column, objectType);
         },
 
         async countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number> {

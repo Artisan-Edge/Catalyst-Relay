@@ -7,10 +7,8 @@ import { ok, err } from '../../types/result';
 import type { DistinctResult } from '../../types/responses';
 import type { AdtRequestor } from './types';
 import { getConfigByExtension } from './types';
-import { extractError } from '../utils/xml';
+import { extractError, safeParseXml } from '../utils/xml';
 import { validateSqlInput } from '../utils/sql';
-import { quoteIdentifier } from './queryBuilder';
-import { parseDataPreview } from './previewParser';
 
 const MAX_ROW_COUNT = 50000;
 
@@ -39,9 +37,9 @@ export async function getDistinctValues(
     }
 
     // Construct SQL query for distinct values with counts.
-    const quotedColumn = quoteIdentifier(column.toUpperCase());
-    const quotedTable = quoteIdentifier(objectName);
-    const sqlQuery = `SELECT ${quotedColumn} AS value, COUNT(*) AS count FROM ${quotedTable} GROUP BY ${quotedColumn}`;
+    // SAP ADT data preview uses ABAP Open SQL which does not support quoted identifiers.
+    const columnName = column.toUpperCase();
+    const sqlQuery = `SELECT ${columnName} AS value, COUNT(*) AS count FROM ${objectName} GROUP BY ${columnName}`;
 
     // Validate SQL query for injection risks.
     const [, validationErr] = validateSqlInput(sqlQuery);
@@ -74,23 +72,33 @@ export async function getDistinctValues(
         return err(new Error(`Distinct values query failed: ${errorMsg}`));
     }
 
-    // Parse XML response.
+    // Parse XML response to extract distinct values directly.
+    // GROUP BY queries return simpler structure without full column metadata.
     const text = await response.text();
-    const [dataFrame, parseErr] = parseDataPreview(text, MAX_ROW_COUNT, objectType === 'table');
+    const [doc, parseErr] = safeParseXml(text);
     if (parseErr) {
         return err(parseErr);
     }
 
-    // Verify expected two-column structure (value and count).
-    if (dataFrame.columns.length !== 2) {
-        return err(new Error('Unexpected data structure from distinct values query'));
-    }
+    // Extract data from dataPreview:dataSet elements.
+    // Each dataSet contains two data elements: value and count.
+    const dataSets = doc.getElementsByTagNameNS('http://www.sap.com/adt/dataPreview', 'dataSet');
+    const values: Array<{ value: unknown; count: number }> = [];
 
-    // Transform rows into value-count pairs.
-    const values = dataFrame.rows.map(row => ({
-        value: row[0],
-        count: parseInt(String(row[1]), 10),
-    }));
+    for (let i = 0; i < dataSets.length; i++) {
+        const dataSet = dataSets[i];
+        if (!dataSet) continue;
+
+        const dataElements = dataSet.getElementsByTagNameNS('http://www.sap.com/adt/dataPreview', 'data');
+        if (dataElements.length < 2) continue;
+
+        const value = dataElements[0]?.textContent ?? '';
+        const countText = dataElements[1]?.textContent?.trim() ?? '0';
+        values.push({
+            value,
+            count: parseInt(countText, 10),
+        });
+    }
 
     const result: DistinctResult = {
         column,

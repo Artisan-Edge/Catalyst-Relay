@@ -78,7 +78,8 @@ describe('Data Preview Workflow', () => {
         if (shouldSkip(client)) return;
 
         // MTEXT is the client description field in T000
-        const [result, err] = await client!.getDistinctValues('T000', 'MTEXT');
+        // Must specify 'table' since T000 is a table, not a CDS view
+        const [result, err] = await client!.getDistinctValues('T000', 'MTEXT', 'table');
 
         expect(err).toBeNull();
         expect(result).toBeDefined();

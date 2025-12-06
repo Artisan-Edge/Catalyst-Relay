@@ -26,7 +26,7 @@ export async function searchObjects(
     const searchPattern = query || '*';
     const objectTypes = types && types.length > 0 ? types : getAllTypes();
 
-    // Construct query parameters.
+    // Construct query parameters (matching Python reference exactly).
     const params: Array<[string, string]> = [
         ['operation', 'quickSearch'],
         ['query', searchPattern],

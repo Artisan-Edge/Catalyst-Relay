@@ -6,10 +6,8 @@ import type { AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
 import type { AdtRequestor } from './types';
 import { getConfigByExtension } from './types';
-import { extractError } from '../utils/xml';
+import { extractError, safeParseXml } from '../utils/xml';
 import { validateSqlInput } from '../utils/sql';
-import { quoteIdentifier } from './queryBuilder';
-import { parseDataPreview } from './previewParser';
 
 /**
  * Count total rows in a table or view
@@ -34,7 +32,8 @@ export async function countRows(
     }
 
     // Build SQL query to count rows.
-    const sqlQuery = `SELECT COUNT(*) AS count FROM ${quoteIdentifier(objectName)}`;
+    // SAP ADT data preview uses ABAP Open SQL which does not support quoted identifiers.
+    const sqlQuery = `SELECT COUNT(*) AS count FROM ${objectName}`;
 
     // Validate SQL query for safety.
     const [, validationErr] = validateSqlInput(sqlQuery);
@@ -68,20 +67,28 @@ export async function countRows(
         return err(new Error(`Row count query failed: ${errorMsg}`));
     }
 
-    // Parse XML response.
+    // Parse XML response to extract count value directly.
+    // COUNT responses have simpler structure without column metadata.
     const text = await response.text();
-    const [dataFrame, parseErr] = parseDataPreview(text, 1, objectType === 'table');
+    const [doc, parseErr] = safeParseXml(text);
     if (parseErr) {
         return err(parseErr);
     }
 
-    // Validate result contains count value.
-    if (dataFrame.rows.length === 0 || !dataFrame.rows[0] || dataFrame.rows[0].length === 0) {
+    // Extract count from dataPreview:data elements.
+    const dataElements = doc.getElementsByTagNameNS('http://www.sap.com/adt/dataPreview', 'data');
+    if (dataElements.length === 0) {
         return err(new Error('No count value returned'));
     }
 
-    // Extract and validate count as integer.
-    const count = parseInt(String(dataFrame.rows[0]![0]), 10);
+    // Get the first data element's text content (the count value).
+    const countText = dataElements[0]?.textContent?.trim();
+    if (!countText) {
+        return err(new Error('Empty count value returned'));
+    }
+
+    // Parse and validate count as integer.
+    const count = parseInt(countText, 10);
     if (isNaN(count)) {
         return err(new Error('Invalid count value returned'));
     }

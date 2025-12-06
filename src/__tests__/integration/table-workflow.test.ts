@@ -24,7 +24,8 @@ import {
 } from './test-helpers';
 import type { ADTClient } from '../../core';
 
-const TEST_NAME = generateTestName('ZSNAP_TABL');
+// SAP table names have a 16-character limit. Use short prefix to stay under.
+const TEST_NAME = generateTestName('ZST');
 
 // Table definition source template
 // NOTE: This is a simplified table structure for testing purposes

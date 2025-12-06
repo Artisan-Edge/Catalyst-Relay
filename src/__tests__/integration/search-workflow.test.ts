@@ -68,20 +68,20 @@ describe('Search Workflow', () => {
         }
     });
 
-    it('should find where T000 is used', async () => {
+    it('should find where P_APJrnlEntrItmAgingGrid4 is used', async () => {
         if (shouldSkip(client)) return;
 
-        // T000 is a standard SAP table (client table) that should have dependencies
+        // Use a CDS view with limited usages to avoid timeout (T000 has too many references)
         const [dependencies, err] = await client!.whereUsed({
-            name: 'T000',
-            extension: 'astabldt'
+            name: 'P_APJrnlEntrItmAgingGrid4',
+            extension: 'asddls'
         });
 
         expect(err).toBeNull();
         expect(dependencies).toBeDefined();
         expect(Array.isArray(dependencies)).toBe(true);
 
-        console.log(`T000 is used in ${dependencies!.length} places`);
+        console.log(`P_APJrnlEntrItmAgingGrid4 is used in ${dependencies!.length} places`);
         if (dependencies!.length > 0) {
             console.log('Sample dependencies:');
             dependencies!.slice(0, 5).forEach(dep => {

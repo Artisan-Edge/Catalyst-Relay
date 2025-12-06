@@ -40,6 +40,7 @@ export async function findWhereUsed(
         path: '/sap/bc/adt/repository/informationsystem/usageReferences',
         params: {
             'uri': uri,
+            'ris_request_type': 'usageReferences',
         },
         headers: {
             'Content-Type': 'application/vnd.sap.adt.repository.usagereferences.request.v1+xml',
