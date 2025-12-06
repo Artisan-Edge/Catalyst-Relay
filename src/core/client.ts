@@ -43,6 +43,7 @@ import {
 } from './utils';
 import { clientConfigSchema } from '../types/config';
 import * as sessionOps from './session/login';
+import * as adt from './adt';
 
 // HTTP request options for internal operations
 interface RequestOptions {
@@ -64,7 +65,9 @@ export interface ADTClient {
 
     // CRAUD Operations
     read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]>;
-    upsert(objects: ObjectContent[], transport: string): AsyncResult<UpsertResult[]>;
+    create(object: ObjectContent, packageName: string, transport?: string): AsyncResult<void>;
+    update(object: ObjectContent, transport?: string): AsyncResult<void>;
+    upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]>;
     activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]>;
     delete(objects: ObjectRef[], transport?: string): AsyncResult<void>;
 
@@ -86,6 +89,7 @@ export interface ADTClient {
 // Internal client state (implements SessionState interface from session/login)
 interface ClientState extends sessionOps.SessionState {
     config: ClientConfig;
+    cookies: Map<string, string>;
 }
 
 // Build URL search parameters with sap-client
@@ -135,19 +139,53 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
         config,
         session: null,
         csrfToken: null,
+        cookies: new Map(),
     };
+
+    // Extract and store cookies from response headers
+    function storeCookies(response: Response): void {
+        const setCookieHeader = response.headers.get('set-cookie');
+        if (!setCookieHeader) return;
+
+        // Parse Set-Cookie header(s) - may be multiple cookies
+        // Format: "name=value; Path=/; HttpOnly" or multiple separated
+        const cookieStrings = setCookieHeader.split(/,(?=\s*\w+=)/);
+        for (const cookieStr of cookieStrings) {
+            const match = cookieStr.match(/^([^=]+)=([^;]*)/);
+            if (match && match[1] && match[2]) {
+                state.cookies.set(match[1].trim(), match[2].trim());
+            }
+        }
+    }
+
+    // Build Cookie header from stored cookies
+    function buildCookieHeader(): string | null {
+        if (state.cookies.size === 0) return null;
+        return Array.from(state.cookies.entries())
+            .map(([name, value]) => `${name}=${value}`)
+            .join('; ');
+    }
 
     // Core HTTP request function with CSRF token injection and automatic retry on 403 errors
     async function request(options: RequestOptions): AsyncResult<Response, Error> {
         const { method, path, params, headers: customHeaders, body } = options;
 
         // Build headers with auth and CSRF token.
+        console.log(`[DEBUG] Request ${method} ${path} - CSRF token in state: ${state.csrfToken?.substring(0, 20) || 'null'}...`);
         const headers = buildRequestHeaders(
             BASE_HEADERS,
             customHeaders,
             config.auth,
             state.csrfToken
         );
+        console.log(`[DEBUG] CSRF header being sent: ${headers['x-csrf-token']?.substring(0, 20) || 'none'}...`);
+
+        // Add stored cookies to request
+        const cookieHeader = buildCookieHeader();
+        if (cookieHeader) {
+            headers['Cookie'] = cookieHeader;
+            console.log(`[DEBUG] Cookies being sent: ${cookieHeader.substring(0, 50)}...`);
+        }
 
         // Build URL with parameters.
         const urlParams = buildParams(params, config.client);
@@ -173,6 +211,9 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
             // Execute HTTP request.
             const response = await fetch(url, fetchOptions);
 
+            // Store any cookies from response
+            storeCookies(response);
+
             // Handle CSRF token validation failure with automatic refresh.
             if (response.status === 403) {
                 const text = await response.text();
@@ -183,9 +224,15 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
                         return err(new Error(`CSRF token refresh failed: ${tokenErr.message}`));
                     }
 
-                    // Retry request with new token.
+                    // Retry request with new token and cookies.
                     headers[CSRF_TOKEN_HEADER] = newToken;
+                    const retryCookieHeader = buildCookieHeader();
+                    if (retryCookieHeader) {
+                        headers['Cookie'] = retryCookieHeader;
+                    }
+                    console.log(`[DEBUG] Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
                     const retryResponse = await fetch(url, { ...fetchOptions, headers });
+                    storeCookies(retryResponse);
                     return ok(retryResponse);
                 }
 
@@ -225,6 +272,9 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
         }
     }
 
+    // Wrap request function as AdtRequestor for ADT operations
+    const requestor: adt.AdtRequestor = { request };
+
     const client: ADTClient = {
         get session() {
             return state.session;
@@ -238,67 +288,170 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
             return sessionOps.logout(state, request);
         },
 
-        // NOTE: All methods below are stubs that check for session and return "Not implemented"
-        // Full implementations will be added in src/core/adt/ modules
+        // ADT Operations - wired to core/adt implementations
 
         async read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+
+            const results: ObjectWithContent[] = [];
+            for (const obj of objects) {
+                const [result, readErr] = await adt.readObject(requestor, obj);
+                if (readErr) return err(readErr);
+                results.push(result);
+            }
+            return ok(results);
         },
 
-        async upsert(objects: ObjectContent[], transport: string): AsyncResult<UpsertResult[]> {
+        async create(object: ObjectContent, packageName: string, transport?: string): AsyncResult<void> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+
+            // Step 1: Create empty object shell
+            const [, createErr] = await adt.createObject(requestor, object, packageName, transport, state.session.username);
+            if (createErr) return err(createErr);
+
+            // Step 2: Populate content via lock → update → unlock
+            const objRef: ObjectRef = { name: object.name, extension: object.extension };
+
+            const [lockHandle, lockErr] = await adt.lockObject(requestor, objRef);
+            if (lockErr) return err(lockErr);
+
+            const [, updateErr] = await adt.updateObject(requestor, object, lockHandle, transport);
+
+            // Always unlock after update attempt
+            const [, unlockErr] = await adt.unlockObject(requestor, objRef, lockHandle);
+
+            if (updateErr) return err(updateErr);
+            if (unlockErr) return err(unlockErr);
+
+            return ok(undefined);
+        },
+
+        async update(object: ObjectContent, transport?: string): AsyncResult<void> {
+            if (!state.session) return err(new Error('Not logged in'));
+
+            const objRef: ObjectRef = { name: object.name, extension: object.extension };
+
+            // Lock object before update
+            const [lockHandle, lockErr] = await adt.lockObject(requestor, objRef);
+            if (lockErr) return err(lockErr);
+
+            // Update object content
+            const [, updateErr] = await adt.updateObject(requestor, object, lockHandle, transport);
+
+            // Always unlock after update attempt
+            const [, unlockErr] = await adt.unlockObject(requestor, objRef, lockHandle);
+
+            // Return first error encountered
+            if (updateErr) return err(updateErr);
+            if (unlockErr) return err(unlockErr);
+
+            return ok(undefined);
+        },
+
+        async upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]> {
+            if (!state.session) return err(new Error('Not logged in'));
+            if (objects.length === 0) return ok([]);
+
+            const results: UpsertResult[] = [];
+            for (const obj of objects) {
+                if (!obj.name || !obj.extension) continue;
+
+                const objRef: ObjectRef = { name: obj.name, extension: obj.extension };
+
+                // Try to read existing object
+                const [existing] = await adt.readObject(requestor, objRef);
+
+                if (existing) {
+                    // Object exists - update it
+                    const [, updateErr] = await client.update(obj, transport);
+                    if (updateErr) return err(updateErr);
+
+                    const result: UpsertResult = {
+                        name: obj.name,
+                        extension: obj.extension,
+                        status: 'updated',
+                    };
+                    if (transport) result.transport = transport;
+                    results.push(result);
+                } else {
+                    // Object doesn't exist - create it
+                    const [, createErr] = await client.create(obj, packageName, transport);
+                    if (createErr) return err(createErr);
+
+                    const result: UpsertResult = {
+                        name: obj.name,
+                        extension: obj.extension,
+                        status: 'created',
+                    };
+                    if (transport) result.transport = transport;
+                    results.push(result);
+                }
+            }
+            return ok(results);
         },
 
         async activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+            return adt.activateObjects(requestor, objects);
         },
 
         async delete(objects: ObjectRef[], transport?: string): AsyncResult<void> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+
+            for (const obj of objects) {
+                // Lock object before deletion
+                const [lockHandle, lockErr] = await adt.lockObject(requestor, obj);
+                if (lockErr) return err(lockErr);
+
+                // Delete object
+                const [, deleteErr] = await adt.deleteObject(requestor, obj, lockHandle, transport);
+                if (deleteErr) {
+                    // Attempt to unlock on failure
+                    await adt.unlockObject(requestor, obj, lockHandle);
+                    return err(deleteErr);
+                }
+            }
+            return ok(undefined);
         },
 
         async getPackages(): AsyncResult<Package[]> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+            return adt.getPackages(requestor);
         },
 
         async getTree(query: TreeQuery): AsyncResult<TreeNode[]> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+            return adt.getTree(requestor, query);
         },
 
         async getTransports(packageName: string): AsyncResult<Transport[]> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+            return adt.getTransports(requestor, packageName);
         },
 
         async previewData(query: PreviewQuery): AsyncResult<DataFrame> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+            return adt.previewData(requestor, query);
         },
 
         async getDistinctValues(objectName: string, column: string): AsyncResult<DistinctResult> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+            return adt.getDistinctValues(requestor, objectName, column);
         },
 
         async countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+            return adt.countRows(requestor, objectName, objectType);
         },
 
         async search(query: string, types?: string[]): AsyncResult<SearchResult[]> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+            return adt.searchObjects(requestor, query, types);
         },
 
         async whereUsed(object: ObjectRef): AsyncResult<Dependency[]> {
             if (!state.session) return err(new Error('Not logged in'));
-            return err(new Error('Not implemented'));
+            return adt.findWhereUsed(requestor, object);
         },
     };
 

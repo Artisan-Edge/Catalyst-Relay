@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { createClient, ok, err } from '../index';
 
 describe('createClient', () => {

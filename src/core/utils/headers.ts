@@ -47,7 +47,8 @@ export function buildRequestHeaders(
     }
 
     // Add CSRF token if we have one (but not the 'fetch' placeholder).
-    if (csrfToken && csrfToken !== FETCH_CSRF_TOKEN) {
+    // Don't overwrite if custom headers already set the CSRF token (e.g., for token refresh).
+    if (csrfToken && csrfToken !== FETCH_CSRF_TOKEN && !customHeaders?.[CSRF_TOKEN_HEADER]) {
         headers[CSRF_TOKEN_HEADER] = csrfToken;
     }
 

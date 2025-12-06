@@ -26,6 +26,10 @@ export async function checkResponse(
     if (!response.ok) {
         const text = await response.text();
         const errorMsg = extractError(text);
+        // Include status and raw text if no message found for debugging
+        if (errorMsg === 'No message found' || errorMsg === 'Failed to parse error XML') {
+            return [null, new Error(`${operation}: HTTP ${response.status} - ${text.substring(0, 500)}`)];
+        }
         return [null, new Error(`${operation}: ${errorMsg}`)];
     }
 

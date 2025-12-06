@@ -10,7 +10,7 @@ import type { AdtRequestor } from './types';
 import { getConfigByExtension } from './types';
 import { extractError } from '../utils/xml';
 import { validateSqlInput } from '../utils/sql';
-import { quoteIdentifier, buildWhereClauses, buildOrderByClauses } from './queryBuilder';
+import { buildWhereClauses, buildOrderByClauses } from './queryBuilder';
 import { parseDataPreview } from './previewParser';
 
 /**
@@ -36,7 +36,8 @@ export async function previewData(
 
     const whereClauses = buildWhereClauses(query.filters);
     const orderByClauses = buildOrderByClauses(query.orderBy);
-    const sqlQuery = `select * from ${quoteIdentifier(query.objectName)}${whereClauses}${orderByClauses}`;
+    // SAP SQL doesn't use quoted identifiers for object names
+    const sqlQuery = `select * from ${query.objectName}${whereClauses}${orderByClauses}`;
 
     const [, validationErr] = validateSqlInput(sqlQuery);
     if (validationErr) {
@@ -44,6 +45,8 @@ export async function previewData(
     }
 
     // Execute data preview request.
+    console.log(`[DEBUG] Data preview: endpoint=${config.dpEndpoint}, param=${config.dpParam}=${query.objectName}`);
+    console.log(`[DEBUG] SQL: ${sqlQuery}`);
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: `/sap/bc/adt/datapreview/${config.dpEndpoint}`,
@@ -61,6 +64,7 @@ export async function previewData(
     if (requestErr) { return err(requestErr); }
     if (!response.ok) {
         const text = await response.text();
+        console.log(`[DEBUG] Data preview error response: ${text.substring(0, 500)}`);
         const errorMsg = extractError(text);
         return err(new Error(`Data preview failed: ${errorMsg}`));
     }
