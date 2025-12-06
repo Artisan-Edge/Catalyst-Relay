@@ -42,7 +42,6 @@ import {
     BASE_HEADERS,
     DEFAULT_TIMEOUT,
     buildRequestHeaders,
-    extractCsrfToken
 } from './utils';
 import { clientConfigSchema } from '../types/config';
 import * as sessionOps from './session/login';
@@ -139,25 +138,32 @@ function buildUrl(baseUrl: string, path: string, params?: URLSearchParams): stri
     return url.toString();
 }
 
-// Create a new ADT client - validates config and returns client instance
-export function createClient(config: ClientConfig): Result<ADTClient, Error> {
-    // Validate config using Zod schema.
-    const validation = clientConfigSchema.safeParse(config);
-    if (!validation.success) {
-        const issues = validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
-        return err(new Error(`Invalid client configuration: ${issues}`));
+/**
+ * ADT Client implementation class.
+ * Methods are defined on the prototype (not recreated per instance).
+ */
+class ADTClientImpl implements ADTClient {
+    private state: ClientState;
+    private requestor: adt.AdtRequestor;
+
+    constructor(config: ClientConfig) {
+        this.state = {
+            config,
+            session: null,
+            csrfToken: null,
+            cookies: new Map(),
+        };
+        // Bind request method for use as requestor
+        this.requestor = { request: this.request.bind(this) };
     }
 
-    // Initialize client state with config and empty session.
-    const state: ClientState = {
-        config,
-        session: null,
-        csrfToken: null,
-        cookies: new Map(),
-    };
+    get session(): Session | null {
+        return this.state.session;
+    }
 
-    // Extract and store cookies from response headers
-    function storeCookies(response: Response): void {
+    // --- Private helpers ---
+
+    private storeCookies(response: Response): void {
         const setCookieHeader = response.headers.get('set-cookie');
         if (!setCookieHeader) return;
 
@@ -167,35 +173,35 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
         for (const cookieStr of cookieStrings) {
             const match = cookieStr.match(/^([^=]+)=([^;]*)/);
             if (match && match[1] && match[2]) {
-                state.cookies.set(match[1].trim(), match[2].trim());
+                this.state.cookies.set(match[1].trim(), match[2].trim());
             }
         }
     }
 
-    // Build Cookie header from stored cookies
-    function buildCookieHeader(): string | null {
-        if (state.cookies.size === 0) return null;
-        return Array.from(state.cookies.entries())
+    private buildCookieHeader(): string | null {
+        if (this.state.cookies.size === 0) return null;
+        return Array.from(this.state.cookies.entries())
             .map(([name, value]) => `${name}=${value}`)
             .join('; ');
     }
 
     // Core HTTP request function with CSRF token injection and automatic retry on 403 errors
-    async function request(options: RequestOptions): AsyncResult<Response, Error> {
+    private async request(options: RequestOptions): AsyncResult<Response, Error> {
         const { method, path, params, headers: customHeaders, body } = options;
+        const { config } = this.state;
 
         // Build headers with auth and CSRF token.
-        console.log(`[DEBUG] Request ${method} ${path} - CSRF token in state: ${state.csrfToken?.substring(0, 20) || 'null'}...`);
+        console.log(`[DEBUG] Request ${method} ${path} - CSRF token in state: ${this.state.csrfToken?.substring(0, 20) || 'null'}...`);
         const headers = buildRequestHeaders(
             BASE_HEADERS,
             customHeaders,
             config.auth,
-            state.csrfToken
+            this.state.csrfToken
         );
         console.log(`[DEBUG] CSRF header being sent: ${headers['x-csrf-token']?.substring(0, 20) || 'none'}...`);
 
         // Add stored cookies to request
-        const cookieHeader = buildCookieHeader();
+        const cookieHeader = this.buildCookieHeader();
         if (cookieHeader) {
             headers['Cookie'] = cookieHeader;
             console.log(`[DEBUG] Cookies being sent: ${cookieHeader.substring(0, 50)}...`);
@@ -217,36 +223,32 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
             fetchOptions.body = body;
         }
 
-        // Handle insecure SSL (dev only)
-        // NOTE: In Node.js, this would require setting NODE_TLS_REJECT_UNAUTHORIZED
-        // For now, we rely on the environment configuration
-
         try {
             // Execute HTTP request.
             const response = await fetch(url, fetchOptions);
 
             // Store any cookies from response
-            storeCookies(response);
+            this.storeCookies(response);
 
             // Handle CSRF token validation failure with automatic refresh.
             if (response.status === 403) {
                 const text = await response.text();
                 if (text.includes('CSRF token validation failed')) {
                     // Fetch new CSRF token.
-                    const [newToken, tokenErr] = await sessionOps.fetchCsrfToken(state, request);
+                    const [newToken, tokenErr] = await sessionOps.fetchCsrfToken(this.state, this.request.bind(this));
                     if (tokenErr) {
                         return err(new Error(`CSRF token refresh failed: ${tokenErr.message}`));
                     }
 
                     // Retry request with new token and cookies.
                     headers[CSRF_TOKEN_HEADER] = newToken;
-                    const retryCookieHeader = buildCookieHeader();
+                    const retryCookieHeader = this.buildCookieHeader();
                     if (retryCookieHeader) {
                         headers['Cookie'] = retryCookieHeader;
                     }
                     console.log(`[DEBUG] Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
                     const retryResponse = await fetch(url, { ...fetchOptions, headers });
-                    storeCookies(retryResponse);
+                    this.storeCookies(retryResponse);
                     return ok(retryResponse);
                 }
 
@@ -263,7 +265,7 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
                 const text = await response.text();
 
                 // Attempt session reset.
-                const [, resetErr] = await sessionOps.sessionReset(state, request);
+                const [, resetErr] = await sessionOps.sessionReset(this.state, this.request.bind(this));
                 if (resetErr) {
                     return err(new Error(`Session reset failed: ${resetErr.message}`));
                 }
@@ -286,210 +288,225 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
         }
     }
 
-    // Wrap request function as AdtRequestor for ADT operations
-    const requestor: adt.AdtRequestor = { request };
+    // --- Lifecycle ---
 
-    const client: ADTClient = {
-        get session() {
-            return state.session;
-        },
+    async login(): AsyncResult<Session> {
+        return sessionOps.login(this.state, this.request.bind(this));
+    }
 
-        async login(): AsyncResult<Session> {
-            return sessionOps.login(state, request);
-        },
+    async logout(): AsyncResult<void> {
+        return sessionOps.logout(this.state, this.request.bind(this));
+    }
 
-        async logout(): AsyncResult<void> {
-            return sessionOps.logout(state, request);
-        },
+    // --- CRAUD Operations ---
 
-        // ADT Operations - wired to core/adt implementations
+    async read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]> {
+        if (!this.state.session) return err(new Error('Not logged in'));
 
-        async read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]> {
-            if (!state.session) return err(new Error('Not logged in'));
+        const results: ObjectWithContent[] = [];
+        for (const obj of objects) {
+            const [result, readErr] = await adt.readObject(this.requestor, obj);
+            if (readErr) return err(readErr);
+            results.push(result);
+        }
+        return ok(results);
+    }
 
-            const results: ObjectWithContent[] = [];
-            for (const obj of objects) {
-                const [result, readErr] = await adt.readObject(requestor, obj);
-                if (readErr) return err(readErr);
+    async create(object: ObjectContent, packageName: string, transport?: string): AsyncResult<void> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+
+        // Step 1: Create empty object shell
+        const [, createErr] = await adt.createObject(this.requestor, object, packageName, transport, this.state.session.username);
+        if (createErr) return err(createErr);
+
+        // Step 2: Populate content via lock → update → unlock
+        const objRef: ObjectRef = { name: object.name, extension: object.extension };
+
+        const [lockHandle, lockErr] = await adt.lockObject(this.requestor, objRef);
+        if (lockErr) return err(lockErr);
+
+        const [, updateErr] = await adt.updateObject(this.requestor, object, lockHandle, transport);
+
+        // Always unlock after update attempt
+        const [, unlockErr] = await adt.unlockObject(this.requestor, objRef, lockHandle);
+
+        if (updateErr) return err(updateErr);
+        if (unlockErr) return err(unlockErr);
+
+        return ok(undefined);
+    }
+
+    async update(object: ObjectContent, transport?: string): AsyncResult<void> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+
+        const objRef: ObjectRef = { name: object.name, extension: object.extension };
+
+        // Lock object before update
+        const [lockHandle, lockErr] = await adt.lockObject(this.requestor, objRef);
+        if (lockErr) return err(lockErr);
+
+        // Update object content
+        const [, updateErr] = await adt.updateObject(this.requestor, object, lockHandle, transport);
+
+        // Always unlock after update attempt
+        const [, unlockErr] = await adt.unlockObject(this.requestor, objRef, lockHandle);
+
+        // Return first error encountered
+        if (updateErr) return err(updateErr);
+        if (unlockErr) return err(unlockErr);
+
+        return ok(undefined);
+    }
+
+    async upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        if (objects.length === 0) return ok([]);
+
+        const results: UpsertResult[] = [];
+        for (const obj of objects) {
+            if (!obj.name || !obj.extension) continue;
+
+            const objRef: ObjectRef = { name: obj.name, extension: obj.extension };
+
+            // Try to read existing object
+            const [existing] = await adt.readObject(this.requestor, objRef);
+
+            if (existing) {
+                // Object exists - update it
+                const [, updateErr] = await this.update(obj, transport);
+                if (updateErr) return err(updateErr);
+
+                const result: UpsertResult = {
+                    name: obj.name,
+                    extension: obj.extension,
+                    status: 'updated',
+                };
+                if (transport) result.transport = transport;
+                results.push(result);
+            } else {
+                // Object doesn't exist - create it
+                const [, createErr] = await this.create(obj, packageName, transport);
+                if (createErr) return err(createErr);
+
+                const result: UpsertResult = {
+                    name: obj.name,
+                    extension: obj.extension,
+                    status: 'created',
+                };
+                if (transport) result.transport = transport;
                 results.push(result);
             }
-            return ok(results);
-        },
+        }
+        return ok(results);
+    }
 
-        async create(object: ObjectContent, packageName: string, transport?: string): AsyncResult<void> {
-            if (!state.session) return err(new Error('Not logged in'));
+    async activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.activateObjects(this.requestor, objects);
+    }
 
-            // Step 1: Create empty object shell
-            const [, createErr] = await adt.createObject(requestor, object, packageName, transport, state.session.username);
-            if (createErr) return err(createErr);
+    async delete(objects: ObjectRef[], transport?: string): AsyncResult<void> {
+        if (!this.state.session) return err(new Error('Not logged in'));
 
-            // Step 2: Populate content via lock → update → unlock
-            const objRef: ObjectRef = { name: object.name, extension: object.extension };
-
-            const [lockHandle, lockErr] = await adt.lockObject(requestor, objRef);
+        for (const obj of objects) {
+            // Lock object before deletion
+            const [lockHandle, lockErr] = await adt.lockObject(this.requestor, obj);
             if (lockErr) return err(lockErr);
 
-            const [, updateErr] = await adt.updateObject(requestor, object, lockHandle, transport);
-
-            // Always unlock after update attempt
-            const [, unlockErr] = await adt.unlockObject(requestor, objRef, lockHandle);
-
-            if (updateErr) return err(updateErr);
-            if (unlockErr) return err(unlockErr);
-
-            return ok(undefined);
-        },
-
-        async update(object: ObjectContent, transport?: string): AsyncResult<void> {
-            if (!state.session) return err(new Error('Not logged in'));
-
-            const objRef: ObjectRef = { name: object.name, extension: object.extension };
-
-            // Lock object before update
-            const [lockHandle, lockErr] = await adt.lockObject(requestor, objRef);
-            if (lockErr) return err(lockErr);
-
-            // Update object content
-            const [, updateErr] = await adt.updateObject(requestor, object, lockHandle, transport);
-
-            // Always unlock after update attempt
-            const [, unlockErr] = await adt.unlockObject(requestor, objRef, lockHandle);
-
-            // Return first error encountered
-            if (updateErr) return err(updateErr);
-            if (unlockErr) return err(unlockErr);
-
-            return ok(undefined);
-        },
-
-        async upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]> {
-            if (!state.session) return err(new Error('Not logged in'));
-            if (objects.length === 0) return ok([]);
-
-            const results: UpsertResult[] = [];
-            for (const obj of objects) {
-                if (!obj.name || !obj.extension) continue;
-
-                const objRef: ObjectRef = { name: obj.name, extension: obj.extension };
-
-                // Try to read existing object
-                const [existing] = await adt.readObject(requestor, objRef);
-
-                if (existing) {
-                    // Object exists - update it
-                    const [, updateErr] = await client.update(obj, transport);
-                    if (updateErr) return err(updateErr);
-
-                    const result: UpsertResult = {
-                        name: obj.name,
-                        extension: obj.extension,
-                        status: 'updated',
-                    };
-                    if (transport) result.transport = transport;
-                    results.push(result);
-                } else {
-                    // Object doesn't exist - create it
-                    const [, createErr] = await client.create(obj, packageName, transport);
-                    if (createErr) return err(createErr);
-
-                    const result: UpsertResult = {
-                        name: obj.name,
-                        extension: obj.extension,
-                        status: 'created',
-                    };
-                    if (transport) result.transport = transport;
-                    results.push(result);
-                }
+            // Delete object
+            const [, deleteErr] = await adt.deleteObject(this.requestor, obj, lockHandle, transport);
+            if (deleteErr) {
+                // Attempt to unlock on failure
+                await adt.unlockObject(this.requestor, obj, lockHandle);
+                return err(deleteErr);
             }
-            return ok(results);
-        },
+        }
+        return ok(undefined);
+    }
 
-        async activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.activateObjects(requestor, objects);
-        },
+    // --- Discovery ---
 
-        async delete(objects: ObjectRef[], transport?: string): AsyncResult<void> {
-            if (!state.session) return err(new Error('Not logged in'));
+    async getPackages(): AsyncResult<Package[]> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.getPackages(this.requestor);
+    }
 
-            for (const obj of objects) {
-                // Lock object before deletion
-                const [lockHandle, lockErr] = await adt.lockObject(requestor, obj);
-                if (lockErr) return err(lockErr);
+    async getTree(query: TreeQuery): AsyncResult<TreeNode[]> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.getTree(this.requestor, query);
+    }
 
-                // Delete object
-                const [, deleteErr] = await adt.deleteObject(requestor, obj, lockHandle, transport);
-                if (deleteErr) {
-                    // Attempt to unlock on failure
-                    await adt.unlockObject(requestor, obj, lockHandle);
-                    return err(deleteErr);
-                }
-            }
-            return ok(undefined);
-        },
+    async getTransports(packageName: string): AsyncResult<Transport[]> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.getTransports(this.requestor, packageName);
+    }
 
-        async getPackages(): AsyncResult<Package[]> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.getPackages(requestor);
-        },
+    // --- Data Preview ---
 
-        async getTree(query: TreeQuery): AsyncResult<TreeNode[]> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.getTree(requestor, query);
-        },
+    async previewData(query: PreviewQuery): AsyncResult<DataFrame> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.previewData(this.requestor, query);
+    }
 
-        async getTransports(packageName: string): AsyncResult<Transport[]> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.getTransports(requestor, packageName);
-        },
+    async getDistinctValues(objectName: string, column: string, objectType: 'table' | 'view' = 'view'): AsyncResult<DistinctResult> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.getDistinctValues(this.requestor, objectName, column, objectType);
+    }
 
-        async previewData(query: PreviewQuery): AsyncResult<DataFrame> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.previewData(requestor, query);
-        },
+    async countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.countRows(this.requestor, objectName, objectType);
+    }
 
-        async getDistinctValues(objectName: string, column: string, objectType: 'table' | 'view' = 'view'): AsyncResult<DistinctResult> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.getDistinctValues(requestor, objectName, column, objectType);
-        },
+    // --- Search ---
 
-        async countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.countRows(requestor, objectName, objectType);
-        },
+    async search(query: string, types?: string[]): AsyncResult<SearchResult[]> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.searchObjects(this.requestor, query, types);
+    }
 
-        async search(query: string, types?: string[]): AsyncResult<SearchResult[]> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.searchObjects(requestor, query, types);
-        },
+    async whereUsed(object: ObjectRef): AsyncResult<Dependency[]> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.findWhereUsed(this.requestor, object);
+    }
 
-        async whereUsed(object: ObjectRef): AsyncResult<Dependency[]> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.findWhereUsed(requestor, object);
-        },
+    // --- Transport Management ---
 
-        async createTransport(transportConfig: TransportConfig): AsyncResult<string> {
-            if (!state.session) return err(new Error('Not logged in'));
-            return adt.createTransport(requestor, transportConfig);
-        },
+    async createTransport(transportConfig: TransportConfig): AsyncResult<string> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.createTransport(this.requestor, transportConfig);
+    }
 
-        async gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]> {
-            if (!state.session) return err(new Error('Not logged in'));
-            if (objects.length === 0) return ok([]);
+    // --- Diff Operations ---
 
-            const results: DiffResult[] = [];
-            for (const obj of objects) {
-                const [result, diffErr] = await adt.gitDiff(requestor, obj);
-                if (diffErr) return err(diffErr);
-                results.push(result);
-            }
-            return ok(results);
-        },
+    async gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        if (objects.length === 0) return ok([]);
 
-        getObjectConfig(): ObjectConfig[] {
-            return Object.values(adt.OBJECT_CONFIG_MAP);
-        },
-    };
+        const results: DiffResult[] = [];
+        for (const obj of objects) {
+            const [result, diffErr] = await adt.gitDiff(this.requestor, obj);
+            if (diffErr) return err(diffErr);
+            results.push(result);
+        }
+        return ok(results);
+    }
 
-    return ok(client);
+    // --- Configuration ---
+
+    getObjectConfig(): ObjectConfig[] {
+        return Object.values(adt.OBJECT_CONFIG_MAP);
+    }
+}
+
+// Create a new ADT client - validates config and returns client instance
+export function createClient(config: ClientConfig): Result<ADTClient, Error> {
+    // Validate config using Zod schema.
+    const validation = clientConfigSchema.safeParse(config);
+    if (!validation.success) {
+        const issues = validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
+        return err(new Error(`Invalid client configuration: ${issues}`));
+    }
+
+    return ok(new ADTClientImpl(config));
 }

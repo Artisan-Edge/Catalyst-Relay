@@ -83,6 +83,9 @@ export type {
     DistinctResult,
     SearchResult,
     Dependency,
+    DiffResult,
+    TransportConfig,
+    ObjectConfig,
 } from './core/adt';
 
 // Result utilities
