@@ -40,29 +40,167 @@ Required:
 - Cross-platform npm packages only
 - Test library imports in Node before publishing
 
+---
+
 ## Project Structure
 
 ```
 src/
 ├── index.ts              # Library exports (re-exports from core/)
 ├── server.ts             # Hono HTTP server (thin wrapper over core/)
-├── core/                 # Pure business logic
+│
+├── core/                 # Pure business logic (one function per file)
 │   ├── index.ts          # Barrel exports
 │   ├── client.ts         # ADT client implementation
-│   ├── auth/             # Authentication (basic, SAML, SSO)
+│   ├── config.ts         # Configuration loading
+│   ├── auth/             # Authentication strategies
 │   ├── session/          # Session management
 │   ├── adt/              # ADT operations (CRAUD, discovery, preview)
 │   └── utils/            # Internal utilities
+│
 ├── types/                # Shared type definitions
 │   ├── index.ts          # Type exports
 │   ├── requests.ts       # Request schemas
 │   ├── responses.ts      # Response schemas
-│   └── config.ts         # Configuration types
+│   ├── config.ts         # Configuration types
+│   └── result.ts         # Go-style error tuples
+│
 ├── server/               # Server-specific code
-│   ├── routes/           # Route handlers
+│   ├── routes/           # Route handlers (one file per route)
+│   │   ├── index.ts      # Route wiring
+│   │   ├── types.ts      # Shared route types
+│   │   ├── auth/         # Auth routes
+│   │   ├── discovery/    # Discovery routes
+│   │   ├── objects/      # CRAUD routes
+│   │   ├── preview/      # Data preview routes
+│   │   └── search/       # Search routes
 │   └── middleware/       # Hono middleware
+│
 └── __tests__/            # Test files (mirror src/ structure)
 ```
+
+---
+
+## Package Organization Patterns
+
+### One File Per Route (Server)
+
+Each HTTP endpoint gets its own file containing:
+1. Colocated request schema (Zod)
+2. Colocated response type
+3. Single handler function
+
+```
+server/routes/
+├── index.ts              # Wires all routes to Hono app
+├── types.ts              # Shared types (ISessionManager, SessionContext)
+├── auth/
+│   ├── login.ts          → POST /login
+│   └── logout.ts         → DELETE /logout
+├── discovery/
+│   ├── packages.ts       → GET /packages
+│   ├── tree.ts           → POST /tree
+│   └── transports.ts     → GET /transports/:package
+├── objects/
+│   ├── read.ts           → POST /objects/read
+│   ├── upsert.ts         → POST /objects/upsert/:package/:transport?
+│   ├── activate.ts       → POST /objects/activate
+│   └── delete.ts         → DELETE /objects/:transport?
+├── preview/
+│   ├── data.ts           → POST /preview/data
+│   ├── distinct.ts       → POST /preview/distinct
+│   └── count.ts          → POST /preview/count
+└── search/
+    ├── search.ts         → POST /search/:query
+    └── whereUsed.ts      → POST /where-used
+```
+
+**Route file pattern:**
+```typescript
+// server/routes/auth/login.ts
+
+import { z } from 'zod';
+import type { ISessionManager } from '../types';
+
+// Request schema (colocated)
+export const loginRequestSchema = z.object({ ... });
+
+// Response type (colocated)
+export interface LoginResponse {
+    sessionId: string;
+    username: string;
+}
+
+// Single handler export
+export function loginHandler(sessionManager: ISessionManager) {
+    return async (c: Context) => { ... };
+}
+```
+
+### One Function Per File (Core)
+
+Each core package follows one-function-per-file with shared types in `types.ts`:
+
+```
+core/adt/
+├── index.ts              # Barrel exports
+├── types.ts              # Shared types (AdtRequestor, ObjectConfig)
+├── helpers.ts            # Internal helpers (not exported from barrel)
+│
+│  # CRAUD Operations
+├── read.ts               → readObject()
+├── create.ts             → createObject()
+├── update.ts             → updateObject()
+├── delete.ts             → deleteObject()
+├── lock.ts               → lockObject(), unlockObject()
+├── activation.ts         → activateObjects()
+│
+│  # Discovery
+├── packages.ts           → getPackages()
+├── tree.ts               → getTree()
+├── transports.ts         → getTransports()
+│
+│  # Data Preview
+├── data.ts               → previewData()
+├── distinct.ts           → getDistinctValues()
+├── count.ts              → countRows()
+├── previewParser.ts      # Internal parser (not exported)
+├── queryBuilder.ts       # SQL utilities
+│
+│  # Search
+├── searchObjects.ts      → searchObjects()
+└── whereUsed.ts          → findWhereUsed()
+```
+
+### Package `types.ts` Rules
+
+Each package's `types.ts` should **ONLY** contain types used in multiple files:
+
+```typescript
+// core/adt/types.ts - GOOD: used by read.ts, create.ts, update.ts, etc.
+export interface AdtRequestor { ... }
+export interface ObjectConfig { ... }
+
+// core/adt/tree.ts - GOOD: internal types stay in file
+interface VirtualFolder { ... }      // Only used in tree.ts
+interface TreeDiscoveryQuery { ... } // Only used in tree.ts
+```
+
+### Import Hierarchy
+
+Files should have a clear traceable import hierarchy with no circular dependencies:
+
+```
+types.ts           (shared types, no imports from package)
+    ↓
+helpers.ts         (internal utilities, imports types)
+    ↓
+individual files   (import from types and helpers)
+    ↓
+index.ts           (barrel exports, imports from all)
+```
+
+---
 
 ## Code Style — Non-Negotiable Rules
 
@@ -113,6 +251,12 @@ Before writing ANY code:
 1. Does this functionality exist? → Reuse it
 2. Will this be used in multiple places? → Make it shared
 3. Am I copy-pasting? → STOP and refactor
+
+### 4. One Function Per File
+
+Each file should generally export one primary function. Exceptions:
+- Tightly coupled functions (e.g., `lockObject()` + `unlockObject()`)
+- Internal helpers only used in that file
 
 ## Naming Conventions
 
@@ -201,6 +345,8 @@ import type { ClientConfig } from '../types';
 const config = data as ClientConfig;
 ```
 
+---
+
 ## API Endpoints (Server Mode)
 
 ### Session Management
@@ -214,9 +360,9 @@ const config = data as ClientConfig;
 
 ### CRAUD Operations
 - `POST /objects/read` — Batch read with content
-- `POST /objects/upsert` — Create/update objects
+- `POST /objects/upsert/:package/:transport?` — Create/update objects
 - `POST /objects/activate` — Activate objects
-- `DELETE /objects` — Delete objects
+- `DELETE /objects/:transport?` — Delete objects
 
 ### Data Preview
 - `POST /preview/data` — Query table/view data
@@ -224,8 +370,10 @@ const config = data as ClientConfig;
 - `POST /preview/count` — Row count
 
 ### Search
-- `POST /search` — Search objects
+- `POST /search/:query` — Search objects
 - `POST /where-used` — Find dependencies
+
+---
 
 ## Testing
 
@@ -299,6 +447,7 @@ The Python reference disables SSL verification (`verify: False`). This is intent
 
 Zod infers `prop?: string | undefined` but interfaces may expect `prop?: string`. Cast after validation:
 ```typescript
+import type { ClientConfig } from '../types';
 const validation = schema.safeParse(body);
 const config = validation.data as ClientConfig;  // Cast needed
 ```
@@ -365,3 +514,18 @@ Matches Python reference behavior. Allows:
 - Single source of truth for system URLs
 - Easy environment switching
 - Client ID as simple string identifier
+
+### Why One File Per Route?
+
+Inspired by SNAP-API Python project:
+- Easy to find/edit specific endpoints
+- Colocated schemas prevent drift
+- Clear ownership and responsibility
+- Minimal merge conflicts
+
+### Why One Function Per File (Core)?
+
+- Clear import hierarchy
+- No circular dependency risks
+- Easy to test in isolation
+- Self-documenting structure
