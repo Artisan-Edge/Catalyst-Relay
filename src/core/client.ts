@@ -46,6 +46,7 @@ import {
 import { clientConfigSchema } from '../types/config';
 import * as sessionOps from './session/login';
 import * as adt from './adt';
+import { Agent } from 'undici';
 
 // HTTP request options for internal operations
 interface RequestOptions {
@@ -145,6 +146,7 @@ function buildUrl(baseUrl: string, path: string, params?: URLSearchParams): stri
 class ADTClientImpl implements ADTClient {
     private state: ClientState;
     private requestor: adt.AdtRequestor;
+    private agent: Agent | undefined;
 
     constructor(config: ClientConfig) {
         this.state = {
@@ -155,6 +157,14 @@ class ADTClientImpl implements ADTClient {
         };
         // Bind request method for use as requestor
         this.requestor = { request: this.request.bind(this) };
+        // Create insecure agent if SSL verification should be skipped
+        if (config.insecure) {
+            this.agent = new Agent({
+                connect: {
+                    rejectUnauthorized: false,
+                },
+            });
+        }
     }
 
     get session(): Session | null {
@@ -211,12 +221,17 @@ class ADTClientImpl implements ADTClient {
         const urlParams = buildParams(params, config.client);
         const url = buildUrl(config.url, path, urlParams);
 
-        // Build fetch options with timeout.
-        const fetchOptions: RequestInit = {
+        // Build fetch options with timeout and optional insecure agent.
+        const fetchOptions: RequestInit & { dispatcher?: Agent } = {
             method,
             headers,
             signal: AbortSignal.timeout(config.timeout ?? DEFAULT_TIMEOUT),
         };
+
+        // Add insecure agent if configured
+        if (this.agent) {
+            fetchOptions.dispatcher = this.agent;
+        }
 
         // Add request body if provided.
         if (body) {
@@ -225,7 +240,7 @@ class ADTClientImpl implements ADTClient {
 
         try {
             // Execute HTTP request.
-            const response = await fetch(url, fetchOptions);
+            const response = await fetch(url, fetchOptions as RequestInit);
 
             // Store any cookies from response
             this.storeCookies(response);
@@ -247,7 +262,7 @@ class ADTClientImpl implements ADTClient {
                         headers['Cookie'] = retryCookieHeader;
                     }
                     console.log(`[DEBUG] Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
-                    const retryResponse = await fetch(url, { ...fetchOptions, headers });
+                    const retryResponse = await fetch(url, { ...fetchOptions, headers } as RequestInit);
                     this.storeCookies(retryResponse);
                     return ok(retryResponse);
                 }
