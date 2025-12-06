@@ -41,3 +41,6 @@ errors/
 *.xml
 *.html
 test.output
+
+# Claude
+settings.local.json
