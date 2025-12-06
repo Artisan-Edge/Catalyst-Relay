@@ -20,6 +20,7 @@ const USERNAME = process.env['SAP_TEST_USERNAME'] ?? '';
 const PACKAGE_NAME = process.env['SAP_TEST_PACKAGE'] ?? '$TMP';
 const TRANSPORT = process.env['SAP_TEST_TRANSPORT'] || undefined;
 const TEST_VIEW_NAME = 'ZSNAP_TEST_' + Date.now().toString(36).toUpperCase();
+const TEST_DCL_NAME = TEST_VIEW_NAME + '_DCL';
 
 // CDS view entity - no sqlViewName annotation needed
 const CDS_SOURCE = `@AccessControl.authorizationCheck: #NOT_REQUIRED
@@ -29,9 +30,18 @@ define view entity ${TEST_VIEW_NAME} as select from t000 {
     mtext
 }`;
 
+// DCL (Access Control) source
+const DCL_SOURCE = `@EndUserText.label: 'Test Access Control'
+@MappingRole: true
+define role ${TEST_DCL_NAME} {
+    grant select on ${TEST_VIEW_NAME}
+    where mandt = aspect user;
+}`;
+
 describe('CDS View Workflow', () => {
     let client: ADTClient;
     let viewCreated = false;
+    let dclCreated = false;
 
     beforeAll(async () => {
         // Check for required credentials
@@ -84,7 +94,18 @@ describe('CDS View Workflow', () => {
     afterAll(async () => {
         if (!client?.session) return;
 
-        // Cleanup: delete test view if created
+        // Cleanup: delete DCL first (dependency), then test view
+        if (dclCreated) {
+            console.log(`Cleaning up: deleting ${TEST_DCL_NAME}`);
+            const [, deleteDclErr] = await client.delete(
+                [{ name: TEST_DCL_NAME, extension: 'asdcls' }],
+                TRANSPORT
+            );
+            if (deleteDclErr) {
+                console.warn(`Failed to delete DCL: ${deleteDclErr.message}`);
+            }
+        }
+
         if (viewCreated) {
             console.log(`Cleaning up: deleting ${TEST_VIEW_NAME}`);
             const [, deleteErr] = await client.delete(
@@ -175,5 +196,60 @@ describe('CDS View Workflow', () => {
         expect(objects).toHaveLength(1);
         expect(objects![0]!.content).toContain('define view');
         console.log(`Read CDS view source: ${objects![0]!.content.substring(0, 50)}...`);
+    });
+
+    it('should create an access control for the CDS view', async () => {
+        if (!client?.session || !viewCreated) {
+            console.log('Skipping - no session or view not created');
+            return;
+        }
+
+        const [, createErr] = await client.create(
+            {
+                name: TEST_DCL_NAME,
+                extension: 'asdcls',
+                content: DCL_SOURCE,
+                description: 'Test DCL created by integration test',
+            },
+            PACKAGE_NAME,
+            TRANSPORT
+        );
+
+        expect(createErr).toBeNull();
+        dclCreated = true;
+        console.log(`Created DCL: ${TEST_DCL_NAME}`);
+    });
+
+    it('should activate the access control', async () => {
+        if (!client?.session || !dclCreated) {
+            console.log('Skipping - no session or DCL not created');
+            return;
+        }
+
+        const [results, activateErr] = await client.activate([
+            { name: TEST_DCL_NAME, extension: 'asdcls' }
+        ]);
+
+        expect(activateErr).toBeNull();
+        expect(results).toHaveLength(1);
+        expect(results![0]!.status).toBe('success');
+        console.log(`Activated DCL: ${TEST_DCL_NAME}`);
+    });
+
+    it('should read the access control source', async () => {
+        if (!client?.session || !dclCreated) {
+            console.log('Skipping - no session or DCL not created');
+            return;
+        }
+
+        const [objects, readErr] = await client.read([
+            { name: TEST_DCL_NAME, extension: 'asdcls' }
+        ]);
+
+        expect(readErr).toBeNull();
+        expect(objects).toHaveLength(1);
+        expect(objects![0]!.content).toContain('define role');
+        expect(objects![0]!.content).toContain(TEST_VIEW_NAME);
+        console.log(`Read DCL source: ${objects![0]!.content.substring(0, 50)}...`);
     });
 });
