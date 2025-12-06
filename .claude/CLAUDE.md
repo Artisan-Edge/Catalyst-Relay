@@ -208,9 +208,27 @@ If requested to do any tasks or answer questions, be aware of these resources. U
 
 | Document | Purpose |
 |----------|---------|
-| `.claude/docs/api-reference.md` | HTTP endpoints (Server Mode) |
+| `.claude/docs/api-reference.md` | HTTP endpoints overview (Server Mode) |
+| `.claude/docs/endpoints/` | In-depth endpoint documentation with examples |
 | `.claude/docs/testing.md` | Running unit and integration tests |
 | `.claude/docs/sap-adt.md` | SAP ADT domain knowledge |
+
+### Endpoint Documentation Pattern
+
+The `.claude/docs/endpoints/` folder contains detailed documentation for each endpoint category. Each file follows this consistent structure:
+
+1. **Title** — Category name (e.g., "Authentication Endpoints")
+2. **Sections TOC** — Always include `## Sections` with anchor links to all sections
+3. **Per-Endpoint Structure:**
+   - Description paragraph
+   - Request table (Method, Path, Auth Required)
+   - Request Body table (Field, Type, Required, Description)
+   - Response table (Field, Type, Description)
+   - Example request/response JSON
+   - Error codes table
+   - Use cases list
+
+**IMPORTANT:** All documentation files must include a `## Sections` table of contents at the top with anchor links to each section.
 
 ---
 
