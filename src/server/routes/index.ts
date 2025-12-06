@@ -20,6 +20,8 @@ import { logoutHandler } from './auth/logout';
 import { packagesHandler } from './discovery/packages';
 import { treeHandler } from './discovery/tree';
 import { transportsHandler } from './discovery/transports';
+import { createTransportHandler } from './discovery/createTransport';
+import { objectConfigHandler } from './discovery/objectConfig';
 
 // Objects routes
 import { readHandler } from './objects/read';
@@ -35,6 +37,9 @@ import { countHandler } from './preview/count';
 // Search routes
 import { searchHandler } from './search/search';
 import { whereUsedHandler } from './search/whereUsed';
+
+// Diff routes
+import { gitDiffHandler } from './diff/gitDiff';
 
 /**
  * Creates and configures all API routes
@@ -57,12 +62,14 @@ export function createRoutes(
     app.delete('/logout', sessionMiddleware, logoutHandler(sessionManager));
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Discovery Routes (session required)
+    // Discovery Routes (session required, except object-config)
     // ─────────────────────────────────────────────────────────────────────────
 
+    app.get('/object-config', objectConfigHandler); // No session required - static config
     app.get('/packages', sessionMiddleware, packagesHandler);
     app.post('/tree', sessionMiddleware, treeHandler);
     app.get('/transports/:package', sessionMiddleware, transportsHandler);
+    app.post('/transports', sessionMiddleware, createTransportHandler);
 
     // ─────────────────────────────────────────────────────────────────────────
     // Object CRAUD Routes (session required)
@@ -87,6 +94,12 @@ export function createRoutes(
 
     app.post('/search/:query', sessionMiddleware, searchHandler);
     app.post('/where-used', sessionMiddleware, whereUsedHandler);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Diff Routes (session required)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    app.post('/git-diff', sessionMiddleware, gitDiffHandler);
 
     return app;
 }

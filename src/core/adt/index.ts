@@ -68,3 +68,11 @@ export { quoteIdentifier, buildWhereClauses, buildOrderByClauses, formatValue } 
 // Search operations
 export { searchObjects } from './searchObjects';
 export { findWhereUsed } from './whereUsed';
+
+// Transport management
+export { createTransport } from './createTransport';
+export type { TransportConfig } from './createTransport';
+
+// Diff operations
+export { gitDiff } from './gitDiff';
+export type { DiffResult, DiffHunk, SimpleDiffHunk, ModifiedDiffHunk } from './gitDiff';

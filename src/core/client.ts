@@ -31,6 +31,9 @@ import type {
     DistinctResult,
     SearchResult,
     Dependency,
+    TransportConfig,
+    DiffResult,
+    ObjectConfig,
 } from './adt';
 import type { Result, AsyncResult } from '../types/result';
 import { ok, err } from '../types/result';
@@ -84,6 +87,15 @@ export interface ADTClient {
     // Search
     search(query: string, types?: string[]): AsyncResult<SearchResult[]>;
     whereUsed(object: ObjectRef): AsyncResult<Dependency[]>;
+
+    // Transport Management
+    createTransport(config: TransportConfig): AsyncResult<string>;
+
+    // Diff Operations
+    gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]>;
+
+    // Configuration
+    getObjectConfig(): ObjectConfig[];
 }
 
 // Internal client state (implements SessionState interface from session/login)
@@ -454,6 +466,28 @@ export function createClient(config: ClientConfig): Result<ADTClient, Error> {
         async whereUsed(object: ObjectRef): AsyncResult<Dependency[]> {
             if (!state.session) return err(new Error('Not logged in'));
             return adt.findWhereUsed(requestor, object);
+        },
+
+        async createTransport(transportConfig: TransportConfig): AsyncResult<string> {
+            if (!state.session) return err(new Error('Not logged in'));
+            return adt.createTransport(requestor, transportConfig);
+        },
+
+        async gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]> {
+            if (!state.session) return err(new Error('Not logged in'));
+            if (objects.length === 0) return ok([]);
+
+            const results: DiffResult[] = [];
+            for (const obj of objects) {
+                const [result, diffErr] = await adt.gitDiff(requestor, obj);
+                if (diffErr) return err(diffErr);
+                results.push(result);
+            }
+            return ok(results);
+        },
+
+        getObjectConfig(): ObjectConfig[] {
+            return Object.values(adt.OBJECT_CONFIG_MAP);
         },
     };
 

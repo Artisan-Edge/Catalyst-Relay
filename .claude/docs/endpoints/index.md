@@ -16,10 +16,11 @@ Comprehensive documentation for all Catalyst-Relay HTTP endpoints.
 | Category | Description |
 |----------|-------------|
 | [Authentication](./auth.md) | Session management (`/login`, `/logout`) |
-| [Discovery](./discovery.md) | Browse SAP metadata (`/packages`, `/tree`, `/transports`) |
+| [Discovery](./discovery.md) | Browse SAP metadata (`/object-config`, `/packages`, `/tree`, `/transports`) |
 | [Objects](./objects.md) | CRAUD operations (`/objects/*`) |
 | [Preview](./preview.md) | Data preview (`/preview/*`) |
 | [Search](./search.md) | Object search (`/search`, `/where-used`) |
+| [Diff](./diff.md) | Content comparison (`/git-diff`) |
 
 ---
 

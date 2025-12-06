@@ -9,6 +9,7 @@ HTTP endpoints available in Server Mode.
 - [CRAUD Operations](#craud-operations)
 - [Data Preview](#data-preview)
 - [Search](#search)
+- [Diff](#diff)
 
 ---
 
@@ -25,9 +26,11 @@ HTTP endpoints available in Server Mode.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/object-config` | List supported object types (no auth) |
 | GET | `/packages` | List available packages |
 | POST | `/tree` | Hierarchical package browser |
 | GET | `/transports/:package` | List transports for a package |
+| POST | `/transports` | Create a new transport request |
 
 ---
 
@@ -58,3 +61,11 @@ HTTP endpoints available in Server Mode.
 |--------|----------|-------------|
 | POST | `/search/:query` | Search objects by query |
 | POST | `/where-used` | Find dependencies |
+
+---
+
+## Diff
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/git-diff` | Compare local content with server |
