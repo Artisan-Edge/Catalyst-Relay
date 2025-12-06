@@ -11,23 +11,18 @@ import { logger } from 'hono/logger';
 import { SessionManager } from './core/session/manager';
 import { startCleanupTask } from './core/session/cleanup';
 import { createSessionMiddleware, errorMiddleware } from './server/middleware';
-import {
-    createAuthRoutes,
-    createDiscoveryRoutes,
-    createObjectRoutes,
-    createPreviewRoutes,
-    createSearchRoutes,
-} from './server/routes';
+import { createRoutes } from './server/routes';
+import type { ISessionManager } from './server/routes';
 
 const app = new Hono();
 
-// Create session manager
-const sessionManager = new SessionManager();
+// Create session manager (cast to ISessionManager for proper typing)
+const sessionManager = new SessionManager() as unknown as ISessionManager;
 
 // Start background cleanup task
 const cleanupHandle = startCleanupTask(
-    sessionManager,
-    sessionManager.getConfig(),
+    sessionManager as unknown as SessionManager,
+    (sessionManager as unknown as SessionManager).getConfig(),
     (sessionId, entry) => {
         console.log(`Session ${sessionId} expired after inactivity`);
     }
@@ -46,27 +41,9 @@ app.get('/health', (c) => {
     return c.json({ status: 'ok', timestamp: Date.now() });
 });
 
-// Mount route modules
-const authRoutes = createAuthRoutes(sessionManager, sessionMiddleware);
-const discoveryRoutes = createDiscoveryRoutes(sessionMiddleware);
-const objectRoutes = createObjectRoutes(sessionMiddleware);
-const previewRoutes = createPreviewRoutes(sessionMiddleware);
-const searchRoutes = createSearchRoutes(sessionMiddleware);
-
-// Auth routes (no prefix)
-app.route('/', authRoutes);
-
-// Discovery routes (mounted at root with specific paths)
-app.route('/', discoveryRoutes);
-
-// Object CRAUD routes
-app.route('/objects', objectRoutes);
-
-// Data preview routes (mounted at root since routes have /dp prefix)
-app.route('/', previewRoutes);
-
-// Search routes (mounted at root for /where-used and /search paths)
-app.route('/', searchRoutes);
+// Mount all API routes
+const routes = createRoutes(sessionManager, sessionMiddleware);
+app.route('/', routes);
 
 // 404 handler
 app.notFound((c) => {

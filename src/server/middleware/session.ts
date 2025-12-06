@@ -6,16 +6,7 @@
 
 import { createMiddleware } from 'hono/factory';
 import type { ADTClient } from '../../core/client';
-
-/**
- * Context variables set by session middleware
- */
-export interface SessionContext {
-    Variables: {
-        client: ADTClient;
-        sessionId: string;
-    };
-}
+import type { ISessionManager, SessionContext } from '../routes/types';
 
 /**
  * Session middleware factory
@@ -33,7 +24,7 @@ export interface SessionContext {
  * app.use('/api/*', middleware);
  * ```
  */
-export function createSessionMiddleware(sessionManager: unknown) {
+export function createSessionMiddleware(sessionManager: ISessionManager) {
     return createMiddleware<SessionContext>(async (c, next) => {
         const sessionId = c.req.header('X-Session-ID');
 
@@ -41,14 +32,7 @@ export function createSessionMiddleware(sessionManager: unknown) {
             return c.json({ success: false as const, error: 'Session ID missing' }, 401);
         }
 
-        // Type assertion needed because sessionManager is unknown
-        // In actual use, it will be SessionManager instance
-        const manager = sessionManager as {
-            getSession: (id: string) => { client: ADTClient; lastActivity: Date } | null;
-            refreshSession: (id: string) => boolean;
-        };
-
-        const session = manager.getSession(sessionId);
+        const session = sessionManager.getSession(sessionId);
 
         if (!session) {
             // 440 is Login Timeout - use 401 as it's a standard code
@@ -63,7 +47,7 @@ export function createSessionMiddleware(sessionManager: unknown) {
         }
 
         // Refresh session activity
-        manager.refreshSession(sessionId);
+        sessionManager.refreshSession(sessionId);
 
         // Attach to context
         c.set('client', session.client);
@@ -73,3 +57,6 @@ export function createSessionMiddleware(sessionManager: unknown) {
         return;
     });
 }
+
+// Re-export SessionContext for convenience
+export type { SessionContext };
