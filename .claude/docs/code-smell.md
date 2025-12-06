@@ -191,6 +191,8 @@ core/adt/
 
 Package `types.ts` should only contain types used in multiple files. Single-use types stay in their file.
 
+**Key rule:** If a type is only returned by one function, it lives in that function's file.
+
 ```typescript
 // BAD - types.ts with everything
 // core/adt/types.ts
@@ -198,7 +200,7 @@ export interface AdtRequestor { ... }           // used by 5 files - OK
 export interface ObjectConfig { ... }           // used by 3 files - OK
 export interface VirtualFolder { ... }          // only used in tree.ts - WRONG
 export interface TreeDiscoveryQuery { ... }     // only used in tree.ts - WRONG
-export interface ActivationResult { ... }       // only used in activation.ts - WRONG
+export interface ActivationResult { ... }       // only returned by activateObjects() - WRONG
 ```
 
 ```typescript
@@ -208,13 +210,17 @@ export interface ActivationResult { ... }       // only used in activation.ts - 
 export interface AdtRequestor { ... }
 export interface ObjectConfig { ... }
 
-// core/adt/tree.ts - internal types stay here
-interface VirtualFolder { ... }
-interface TreeDiscoveryQuery { ... }
+// core/adt/tree.ts - colocated with getTree()
+interface VirtualFolder { ... }           // internal helper type
+interface TreeDiscoveryQuery { ... }      // internal helper type
+export interface TreeNode { ... }         // return type of getTree()
 
-// core/adt/activation.ts - internal types stay here
-interface ActivationResult { ... }
+// core/adt/activation.ts - colocated with activateObjects()
+export interface ActivationResult { ... } // return type of activateObjects()
+export interface ActivationMessage { ... }
 ```
+
+Export return types from the function's file, then re-export from the barrel (`index.ts`) for public API.
 
 ---
 
