@@ -117,9 +117,11 @@ function buildUrl(baseUrl: string, path: string, params?: URLSearchParams): stri
     // Construct URL from base and path.
     const url = new URL(path, baseUrl);
 
-    // Append query parameters if provided.
+    // Merge query parameters: preserve existing ones from path, add new ones.
     if (params) {
-        url.search = params.toString();
+        for (const [key, value] of params.entries()) {
+            url.searchParams.append(key, value);
+        }
     }
 
     return url.toString();

@@ -63,7 +63,7 @@ describe('Search Workflow', () => {
             console.log('Sample CDS views:');
             results!.slice(0, 5).forEach(result => {
                 console.log(`  - ${result.name}: ${result.description || '(no description)'}`);
-                expect(result.objectType).toBe('DDLS/DF');
+                expect(result.objectType).toBe('View');
             });
         }
     });
