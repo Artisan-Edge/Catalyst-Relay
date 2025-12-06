@@ -46,7 +46,7 @@ import {
 import { clientConfigSchema } from '../types/config';
 import * as sessionOps from './session/login';
 import * as adt from './adt';
-import { Agent } from 'undici';
+import { Agent, fetch as undiciFetch } from 'undici';
 
 // HTTP request options for internal operations
 interface RequestOptions {
@@ -162,6 +162,7 @@ class ADTClientImpl implements ADTClient {
             this.agent = new Agent({
                 connect: {
                     rejectUnauthorized: false,
+                    checkServerIdentity: () => undefined, // Skip hostname verification
                 },
             });
         }
@@ -240,7 +241,10 @@ class ADTClientImpl implements ADTClient {
 
         try {
             // Execute HTTP request.
-            const response = await fetch(url, fetchOptions as RequestInit);
+            console.log(`[DEBUG] Fetching URL: ${url}`);
+            console.log(`[DEBUG] Insecure mode: ${!!this.agent}`);
+            // Use undici fetch directly to support dispatcher option for SSL bypass
+            const response = await undiciFetch(url, fetchOptions as Parameters<typeof undiciFetch>[1]) as unknown as Response;
 
             // Store any cookies from response
             this.storeCookies(response);
@@ -262,7 +266,7 @@ class ADTClientImpl implements ADTClient {
                         headers['Cookie'] = retryCookieHeader;
                     }
                     console.log(`[DEBUG] Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
-                    const retryResponse = await fetch(url, { ...fetchOptions, headers } as RequestInit);
+                    const retryResponse = await undiciFetch(url, { ...fetchOptions, headers } as Parameters<typeof undiciFetch>[1]) as unknown as Response;
                     this.storeCookies(retryResponse);
                     return ok(retryResponse);
                 }
@@ -295,8 +299,15 @@ class ADTClientImpl implements ADTClient {
 
             return ok(response);
         } catch (error) {
-            // Convert caught errors to Error type.
+            // Log detailed error info for debugging
             if (error instanceof Error) {
+                console.error(`[DEBUG] Fetch error: ${error.name}: ${error.message}`);
+                if ('cause' in error && error.cause) {
+                    console.error(`[DEBUG] Error cause:`, error.cause);
+                }
+                if ('code' in error) {
+                    console.error(`[DEBUG] Error code: ${(error as NodeJS.ErrnoException).code}`);
+                }
                 return err(error);
             }
             return err(new Error(`Network error: ${String(error)}`));
