@@ -50,6 +50,7 @@ export async function lockObject(
     if (extractErr) {
         return err(new Error(`Failed to extract lock handle: ${extractErr.message}`));
     }
+    console.log(`[DEBUG] Lock acquired: handle=${lockHandle}`);
 
     return ok(lockHandle);
 }

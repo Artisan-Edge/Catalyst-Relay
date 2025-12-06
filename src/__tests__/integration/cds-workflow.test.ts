@@ -19,14 +19,12 @@ const CLIENT_ID = process.env['SAP_TEST_CLIENT_ID'] ?? 'MediaDemo-DM1-200';
 const USERNAME = process.env['SAP_TEST_USERNAME'] ?? '';
 const PACKAGE_NAME = process.env['SAP_TEST_PACKAGE'] ?? '$TMP';
 const TRANSPORT = process.env['SAP_TEST_TRANSPORT'] || undefined;
-const TEST_VIEW_NAME = 'ZSNAP_TEST_VIEW_' + Date.now().toString(36).toUpperCase();
+const TEST_VIEW_NAME = 'ZSNAP_TEST_' + Date.now().toString(36).toUpperCase();
 
-// CDS view source code - simple view on a standard table
-const CDS_SOURCE = `@AbapCatalog.sqlViewName: '${TEST_VIEW_NAME.substring(0, 16)}'
-@AbapCatalog.compiler.compareFilter: true
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Test CDS View'
-define view ${TEST_VIEW_NAME} as select from t000 {
+// CDS view entity - no sqlViewName annotation needed
+const CDS_SOURCE = `@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Test CDS View Entity'
+define view entity ${TEST_VIEW_NAME} as select from t000 {
     key mandt,
     mtext
 }`;
@@ -156,6 +154,11 @@ describe('CDS View Workflow', () => {
         expect(dataFrame).toBeDefined();
         expect(dataFrame!.columns.length).toBeGreaterThan(0);
         console.log(`Preview returned ${dataFrame!.rows.length} rows with columns: ${dataFrame!.columns.map(c => c.name).join(', ')}`);
+        // Show first few rows of data
+        console.log('Sample data:');
+        dataFrame!.rows.slice(0, 3).forEach((row, i) => {
+            console.log(`  Row ${i + 1}: ${JSON.stringify(row)}`);
+        });
     });
 
     it('should read the CDS view source', async () => {

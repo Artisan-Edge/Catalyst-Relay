@@ -36,6 +36,7 @@ export async function updateObject(
     }
 
     // Execute update request to ADT server.
+    console.log(`[DEBUG] Update ${object.name}: content length=${object.content?.length ?? 0}`);
     const [response, requestErr] = await client.request({
         method: 'PUT',
         path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
@@ -43,6 +44,7 @@ export async function updateObject(
         headers: { 'Content-Type': '*/*' },
         body: object.content,
     });
+    console.log(`[DEBUG] Update response: ${response?.status ?? 'no response'}, err=${requestErr?.message ?? 'none'}`);
 
     // Validate successful response.
     const [_, checkErr] = await checkResponse(

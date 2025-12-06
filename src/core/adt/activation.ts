@@ -59,6 +59,8 @@ export async function activateObjects(
     // Validate successful response.
     if (requestErr) { return err(requestErr); }
     const text = await response.text();
+    console.log(`[DEBUG] Activation response status: ${response.status}`);
+    console.log(`[DEBUG] Activation response: ${text.substring(0, 500)}`);
     if (!response.ok) {
         const errorMsg = extractError(text);
         return err(new Error(`Activation failed: ${errorMsg}`));

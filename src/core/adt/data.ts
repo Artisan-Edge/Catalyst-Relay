@@ -56,6 +56,7 @@ export async function previewData(
         },
         headers: {
             'Accept': 'application/vnd.sap.adt.datapreview.table.v1+xml',
+            'Content-Type': 'text/plain',
         },
         body: sqlQuery,
     });
