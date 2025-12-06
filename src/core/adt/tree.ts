@@ -5,10 +5,30 @@
 import type { Result, AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
 import type { TreeQuery } from '../../types/requests';
-import type { Package, TreeNode } from '../../types/responses';
 import type { AdtRequestor } from './types';
 import { getConfigByType } from './types';
 import { extractError, safeParseXml } from '../utils/xml';
+
+/**
+ * Tree node for hierarchical browsing
+ */
+export interface TreeNode {
+    name: string;
+    type: 'folder' | 'object';
+    objectType?: string;
+    extension?: string;
+    hasChildren?: boolean;
+    children?: TreeNode[];
+}
+
+/**
+ * Package info
+ */
+export interface Package {
+    name: string;
+    description?: string;
+    parentPackage?: string;
+}
 
 /**
  * Virtual folder for tree discovery (internal)

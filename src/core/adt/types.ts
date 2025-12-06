@@ -34,6 +34,16 @@ export interface ObjectConfig {
 }
 
 /**
+ * Result of upsert operation
+ */
+export interface UpsertResult {
+    name: string;
+    extension: string;
+    status: 'created' | 'updated' | 'unchanged';
+    transport?: string;
+}
+
+/**
  * Supported object types
  */
 export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'aclass' | 'asprog';

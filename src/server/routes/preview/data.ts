@@ -4,7 +4,7 @@
 
 import { previewQuerySchema } from '../../../types/requests';
 import type { PreviewQuery } from '../../../types/requests';
-import type { DataFrame } from '../../../types/responses';
+import type { DataFrame } from '../../../core/adt/previewParser';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

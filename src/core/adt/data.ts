@@ -5,8 +5,8 @@
 import type { AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
 import type { PreviewQuery } from '../../types/requests';
-import type { DataFrame } from '../../types/responses';
 import type { AdtRequestor } from './types';
+import type { DataFrame } from './previewParser';
 import { getConfigByExtension } from './types';
 import { extractError } from '../utils/xml';
 import { validateSqlInput } from '../utils/sql';

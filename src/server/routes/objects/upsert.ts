@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { objectContentSchema } from '../../../types/requests';
 import type { ObjectContent } from '../../../types/requests';
-import type { UpsertResult } from '../../../types/responses';
+import type { UpsertResult } from '../../../core/adt/types';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

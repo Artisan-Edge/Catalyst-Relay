@@ -2,7 +2,7 @@
  * GET /transports/:package — List transport requests for package
  */
 
-import type { Transport } from '../../../types/responses';
+import type { Transport } from '../../../core/adt/transports';
 import { ApiError } from '../../middleware/error';
 import type { RouteContext } from '../types';
 

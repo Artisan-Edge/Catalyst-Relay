@@ -5,8 +5,18 @@
 import type { Result, AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
 import type { ObjectRef } from '../../types/requests';
-import type { Dependency } from '../../types/responses';
 import type { AdtRequestor } from './types';
+
+/**
+ * Where-used dependency
+ */
+export interface Dependency {
+    name: string;
+    extension: string;
+    package: string;
+    usageType: string;
+}
+
 import { getConfigByType, getConfigByExtension } from './types';
 import { extractError, safeParseXml } from '../utils/xml';
 

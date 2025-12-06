@@ -6,8 +6,22 @@
 
 import type { Result } from '../../types/result';
 import { ok, err } from '../../types/result';
-import type { DataFrame, ColumnInfo } from '../../types/responses';
 import { safeParseXml } from '../utils/xml';
+
+/**
+ * Data preview result (columnar format)
+ */
+export interface DataFrame {
+    columns: ColumnInfo[];
+    rows: unknown[][];
+    totalRows?: number;
+}
+
+export interface ColumnInfo {
+    name: string;
+    dataType: string;
+    label?: string;
+}
 
 /**
  * Parse data preview XML response

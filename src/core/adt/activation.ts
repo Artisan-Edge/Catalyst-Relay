@@ -3,10 +3,26 @@
 import type { Result, AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
 import type { ObjectRef } from '../../types/requests';
-import type { ActivationResult, ActivationMessage } from '../../types/responses';
 import type { AdtRequestor } from './types';
 import { getConfigByExtension } from './types';
 import { extractError, safeParseXml } from '../utils/xml';
+
+/**
+ * Result of activation operation
+ */
+export interface ActivationResult {
+    name: string;
+    extension: string;
+    status: 'success' | 'warning' | 'error';
+    messages: ActivationMessage[];
+}
+
+export interface ActivationMessage {
+    severity: 'error' | 'warning' | 'info';
+    text: string;
+    line?: number;
+    column?: number;
+}
 
 export async function activateObjects(
     client: AdtRequestor,

@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import type { DistinctResult } from '../../../types/responses';
+import type { DistinctResult } from '../../../core/adt/distinct';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

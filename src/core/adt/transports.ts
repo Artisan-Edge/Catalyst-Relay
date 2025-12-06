@@ -4,8 +4,18 @@
 
 import type { Result, AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
-import type { Transport } from '../../types/responses';
 import type { AdtRequestor } from './types';
+
+/**
+ * Transport request
+ */
+export interface Transport {
+    id: string;
+    description: string;
+    owner: string;
+    status: 'modifiable' | 'released';
+}
+
 import { extractError, safeParseXml } from '../utils/xml';
 
 /**

@@ -4,8 +4,8 @@
 
 import type { AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
-import type { Package } from '../../types/responses';
 import type { AdtRequestor } from './types';
+import type { Package } from './tree';
 import { getTreeInternal } from './tree';
 
 /**

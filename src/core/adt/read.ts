@@ -5,9 +5,29 @@
 import type { AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
 import type { ObjectRef } from '../../types/requests';
-import type { ObjectWithContent } from '../../types/responses';
 import type { AdtRequestor } from './types';
 import { checkResponse, requireConfig } from './helpers';
+
+/**
+ * Object metadata
+ */
+export interface ObjectMetadata {
+    name: string;
+    extension: string;
+    package: string;
+    description?: string;
+    createdBy?: string;
+    createdAt?: string;
+    modifiedBy?: string;
+    modifiedAt?: string;
+}
+
+/**
+ * Object with content (read response)
+ */
+export interface ObjectWithContent extends ObjectMetadata {
+    content: string;
+}
 
 /**
  * Read object source content

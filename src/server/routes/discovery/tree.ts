@@ -4,7 +4,7 @@
 
 import { treeQuerySchema } from '../../../types/requests';
 import type { TreeQuery } from '../../../types/requests';
-import type { TreeNode } from '../../../types/responses';
+import type { TreeNode } from '../../../core/adt/tree';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

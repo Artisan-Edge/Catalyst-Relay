@@ -4,8 +4,19 @@
 
 import type { Result, AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
-import type { SearchResult } from '../../types/responses';
 import type { AdtRequestor } from './types';
+
+/**
+ * Search result
+ */
+export interface SearchResult {
+    name: string;
+    extension: string;
+    package: string;
+    description?: string;
+    objectType: string;
+}
+
 import { getConfigByType, getAllTypes } from './types';
 import { extractError, safeParseXml } from '../utils/xml';
 

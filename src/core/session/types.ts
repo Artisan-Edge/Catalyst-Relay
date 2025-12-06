@@ -5,6 +5,18 @@
 import type { AuthType } from '../../types';
 
 /**
+ * Session data returned after successful login
+ */
+export interface Session {
+    /** Unique session identifier */
+    sessionId: string;
+    /** Authenticated username */
+    username: string;
+    /** Session expiration timestamp */
+    expiresAt: number;
+}
+
+/**
  * Session entry stored in memory
  */
 export interface SessionEntry {

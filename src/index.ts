@@ -33,16 +33,18 @@
 export { createClient } from './core';
 export type { ADTClient } from './core';
 
-// Type exports
+// Config types
 export type {
-    // Config
     AuthType,
     AuthConfig,
     BasicAuthConfig,
     SamlAuthConfig,
     SsoAuthConfig,
     ClientConfig,
-    // Requests
+} from './types/config';
+
+// Request types
+export type {
     ObjectRef,
     ObjectContent,
     TreeQuery,
@@ -50,8 +52,24 @@ export type {
     Filter,
     FilterOperator,
     OrderBy,
-    // Responses
-    Session,
+} from './types/requests';
+
+// Response wrappers
+export type {
+    ApiResponse,
+    SuccessResponse,
+    ErrorResponse,
+    ErrorCode,
+} from './types/responses';
+
+// Result types
+export type { Result, AsyncResult } from './types/result';
+
+// Session types
+export type { Session } from './core/session/types';
+
+// ADT domain types
+export type {
     ObjectMetadata,
     ObjectWithContent,
     UpsertResult,
@@ -65,14 +83,7 @@ export type {
     DistinctResult,
     SearchResult,
     Dependency,
-    ApiResponse,
-    SuccessResponse,
-    ErrorResponse,
-    ErrorCode,
-    // Result
-    Result,
-    AsyncResult,
-} from './types';
+} from './core/adt';
 
 // Result utilities
 export { ok, err } from './types/result';

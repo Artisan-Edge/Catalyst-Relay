@@ -11,7 +11,7 @@
  */
 
 // Types and configuration (shared across module)
-export type { AdtRequestor, ObjectConfig, ConfiguredExtension } from './types';
+export type { AdtRequestor, ObjectConfig, ConfiguredExtension, UpsertResult } from './types';
 export {
     OBJECT_CONFIG_MAP,
     ObjectTypeLabel,
@@ -24,6 +24,22 @@ export {
 
 // Read operations
 export { readObject } from './read';
+export type { ObjectMetadata, ObjectWithContent } from './read';
+
+// Activation
+export type { ActivationResult, ActivationMessage } from './activation';
+
+// Discovery types
+export type { TreeNode, Package } from './tree';
+export type { Transport } from './transports';
+
+// Preview types
+export type { DataFrame, ColumnInfo } from './previewParser';
+export type { DistinctResult } from './distinct';
+
+// Search types
+export type { SearchResult } from './searchObjects';
+export type { Dependency } from './whereUsed';
 
 // Lock management
 export { lockObject, unlockObject } from './lock';

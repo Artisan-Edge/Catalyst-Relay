@@ -4,8 +4,19 @@
 
 import type { AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
-import type { DistinctResult } from '../../types/responses';
 import type { AdtRequestor } from './types';
+
+/**
+ * Distinct values result
+ */
+export interface DistinctResult {
+    column: string;
+    values: Array<{
+        value: unknown;
+        count: number;
+    }>;
+}
+
 import { getConfigByExtension } from './types';
 import { extractError, safeParseXml } from '../utils/xml';
 import { validateSqlInput } from '../utils/sql';

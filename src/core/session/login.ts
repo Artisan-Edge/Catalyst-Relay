@@ -12,7 +12,7 @@
  */
 
 import type { AuthConfig } from '../../types/config';
-import type { Session } from '../../types/responses';
+import type { Session } from './types';
 import type { AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
 import {

@@ -2,7 +2,7 @@
  * GET /packages — List all available packages
  */
 
-import type { Package } from '../../../types/responses';
+import type { Package } from '../../../core/adt/tree';
 import { ApiError } from '../../middleware/error';
 import type { RouteContext } from '../types';
 

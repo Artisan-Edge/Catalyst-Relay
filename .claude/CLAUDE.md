@@ -190,15 +190,21 @@ index.ts           (barrel exports, imports from all)
 
 ## Required Reading
 
-**BEFORE modifying any code**, read these docs:
+> **⛔ STOP — DO NOT MODIFY CODE UNTIL YOU HAVE READ THESE DOCS**
+>
+> This is not optional. You MUST read these documents before making ANY code changes.
+> If you skip this step, you WILL introduce anti-patterns that violate project standards.
+> The user will ask if you read these docs. Be honest.
 
 | Document | Purpose |
 |----------|---------|
-| `.claude/docs/code-smell.md` | Anti-patterns to avoid |
-| `.claude/docs/typescript-patterns.md` | Naming, types, imports, async |
+| `.claude/docs/code-smell.md` | **CRITICAL** — Anti-patterns to avoid (bloated types, nested conditionals, etc.) |
+| `.claude/docs/typescript-patterns.md` | Naming, types, imports, async conventions |
 | `.claude/docs/lessons-learned.md` | TypeScript gotchas and architecture decisions |
 
-Violations of documented patterns will be called out immediately.
+**Read these files using the Read tool before writing any code.** Planning a refactor? Read first. Fixing a bug? Read first. Adding a feature? Read first.
+
+Violations of documented patterns will be called out immediately and you will be asked to redo the work.
 
 ---
 
@@ -232,36 +238,4 @@ The `.claude/docs/endpoints/` folder contains detailed documentation for each en
 
 ---
 
-## SAP ADT Domain Knowledge
 
-### Client ID Format
-
-Client IDs follow: `SystemId-ClientNumber` (e.g., `MediaDemo-DM1-200`)
-- `MediaDemo-DM1` → System ID (looks up URL in config.json)
-- `200` → SAP client number (passed as `sap-client` query param)
-
-Multiple SAP clients (100, 200, etc.) share the same server URL.
-
-### Config File
-
-`config.json` maps system IDs to URLs:
-```json
-{
-    "MediaDemo-DM1": {
-        "adt": "https://50.19.106.63:443"
-    }
-}
-```
-
-Use `loadConfigFromEnv()` which defaults to `./config.json` or reads from `RELAY_CONFIG` env var.
-
-### CSRF Token Flow
-
-1. First request sends header `x-csrf-token: fetch`
-2. Server returns token in response header
-3. All subsequent requests include that token
-4. On 403 "CSRF token validation failed" → auto-refresh and retry
-
-### SSL Verification
-
-The Python reference disables SSL verification (`verify: False`). This is intentional for SAP systems with self-signed certs.

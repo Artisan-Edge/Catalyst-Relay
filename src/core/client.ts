@@ -19,8 +19,8 @@ import type {
     TreeQuery,
     PreviewQuery,
 } from '../types/requests';
+import type { Session } from './session/types';
 import type {
-    Session,
     ObjectWithContent,
     UpsertResult,
     ActivationResult,
@@ -31,7 +31,7 @@ import type {
     DistinctResult,
     SearchResult,
     Dependency,
-} from '../types/responses';
+} from './adt';
 import type { Result, AsyncResult } from '../types/result';
 import { ok, err } from '../types/result';
 import {
