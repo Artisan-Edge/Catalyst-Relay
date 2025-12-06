@@ -371,20 +371,8 @@ class ADTClientImpl implements ADTClient {
             // Try to read existing object
             const [existing] = await adt.readObject(this.requestor, objRef);
 
-            if (existing) {
-                // Object exists - update it
-                const [, updateErr] = await this.update(obj, transport);
-                if (updateErr) return err(updateErr);
-
-                const result: UpsertResult = {
-                    name: obj.name,
-                    extension: obj.extension,
-                    status: 'updated',
-                };
-                if (transport) result.transport = transport;
-                results.push(result);
-            } else {
-                // Object doesn't exist - create it
+            // Object doesn't exist - create it
+            if (!existing) {
                 const [, createErr] = await this.create(obj, packageName, transport);
                 if (createErr) return err(createErr);
 
@@ -395,7 +383,20 @@ class ADTClientImpl implements ADTClient {
                 };
                 if (transport) result.transport = transport;
                 results.push(result);
+                continue;
             }
+
+            // Object exists - update it
+            const [, updateErr] = await this.update(obj, transport);
+            if (updateErr) return err(updateErr);
+
+            const result: UpsertResult = {
+                name: obj.name,
+                extension: obj.extension,
+                status: 'updated',
+            };
+            if (transport) result.transport = transport;
+            results.push(result);
         }
         return ok(results);
     }
