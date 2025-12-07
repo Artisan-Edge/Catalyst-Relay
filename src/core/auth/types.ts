@@ -1,4 +1,5 @@
 import type { AsyncResult } from '../../types/result';
+import type { CertificateMaterial } from './sso/types';
 
 /**
  * Authentication type discriminator
@@ -39,11 +40,17 @@ export interface AuthStrategy {
 
     /**
      * Perform login if needed (optional)
-     * Used for SAML headless browser automation
+     * Used for SAML headless browser automation and SSO certificate enrollment
      * @param fetchFn - Fetch function to use for HTTP requests
      * @returns Success/error tuple
      */
     performLogin?(fetchFn: typeof fetch): AsyncResult<void, Error>;
+
+    /**
+     * Get mTLS certificates for SSO authentication (optional)
+     * @returns Certificate material for mTLS or null if not available
+     */
+    getCertificates?(): CertificateMaterial | null;
 }
 
 /**

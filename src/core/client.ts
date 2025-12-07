@@ -4,12 +4,11 @@
  * HTTP client for SAP ADT (ABAP Development Tools) with:
  * - Session management (login/logout)
  * - CSRF token fetching and automatic refresh
- * - Basic authentication (SAML and SSO to be implemented)
+ * - Basic, SAML, and SSO (Kerberos + mTLS) authentication
  * - Automatic retry on 403 CSRF errors
  * - Session reset on 500 errors
  *
  * Uses web standard APIs (fetch, Request, Response) - runtime-agnostic.
- * High-level ADT operations (CRAUD, preview, etc.) are stubs to be implemented.
  */
 
 import type { ClientConfig } from '../types/config';
@@ -49,6 +48,8 @@ import { clientConfigSchema } from '../types/config';
 import * as sessionOps from './session/login';
 import * as adt from './adt';
 import { Agent, fetch as undiciFetch } from 'undici';
+import type { AuthStrategy } from './auth/types';
+import { createAuthStrategy } from './auth/factory';
 
 // HTTP request options for internal operations
 interface RequestOptions {
@@ -104,6 +105,7 @@ export interface ADTClient {
 interface ClientState extends sessionOps.SessionState {
     config: ClientConfig;
     cookies: Map<string, string>;
+    authStrategy: AuthStrategy;
 }
 
 // Build URL search parameters with sap-client
@@ -151,11 +153,22 @@ class ADTClientImpl implements ADTClient {
     private agent: Agent | undefined;
 
     constructor(config: ClientConfig) {
+        // Create auth strategy from config
+        const authOptions: Parameters<typeof createAuthStrategy>[0] = {
+            config: config.auth,
+            baseUrl: config.url,
+        };
+        if (config.insecure) {
+            authOptions.insecure = config.insecure;
+        }
+        const authStrategy = createAuthStrategy(authOptions);
+
         this.state = {
             config,
             session: null,
             csrfToken: null,
             cookies: new Map(),
+            authStrategy,
         };
         // Bind request method for use as requestor
         this.requestor = { request: this.request.bind(this) };
@@ -316,6 +329,34 @@ class ADTClientImpl implements ADTClient {
     // --- Lifecycle ---
 
     async login(): AsyncResult<Session> {
+        const { authStrategy } = this.state;
+
+        // For SSO and SAML, perform initial authentication (certificate enrollment or browser login)
+        if (authStrategy.performLogin) {
+            const [, loginErr] = await authStrategy.performLogin(fetch);
+            if (loginErr) {
+                return err(loginErr);
+            }
+        }
+
+        // For SSO with mTLS, create agent with client certificates
+        if (authStrategy.type === 'sso' && authStrategy.getCertificates) {
+            const certs = authStrategy.getCertificates();
+            if (certs) {
+                this.agent = new Agent({
+                    connect: {
+                        cert: certs.fullChain,
+                        key: certs.privateKey,
+                        rejectUnauthorized: !this.state.config.insecure,
+                        ...(this.state.config.insecure && {
+                            checkServerIdentity: () => undefined,
+                        }),
+                    },
+                });
+                debug('Created mTLS agent with SSO certificates');
+            }
+        }
+
         return sessionOps.login(this.state, this.request.bind(this));
     }
 

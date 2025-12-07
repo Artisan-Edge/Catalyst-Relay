@@ -52,6 +52,15 @@ export interface SamlAuthConfig {
  */
 export interface SsoAuthConfig {
     type: 'sso';
+    /** Secure Login Server URL (e.g., https://sapsso.corp.example.com) */
+    slsUrl: string;
+    /** SLS profile name (default: SAPSSO_P) */
+    profile?: string;
+    /** Kerberos service principal name override */
+    servicePrincipalName?: string;
+    /** Force certificate re-enrollment even if valid cert exists */
+    forceEnroll?: boolean;
+    /** @deprecated Use slsUrl instead */
     certificate?: string;
 }
 
@@ -113,6 +122,10 @@ export const clientConfigSchema = z.object({
         }),
         z.object({
             type: z.literal('sso'),
+            slsUrl: z.string().url(),
+            profile: z.string().optional(),
+            servicePrincipalName: z.string().optional(),
+            forceEnroll: z.boolean().optional(),
             certificate: z.string().optional(),
         }),
     ]),

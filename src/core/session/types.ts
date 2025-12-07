@@ -30,11 +30,16 @@ export interface SessionEntry {
 
 /**
  * Configuration for session manager
+ *
+ * Session timeouts vary by authentication type:
+ * - Basic: 3 hours (SAP server default)
+ * - SSO: 3 hours (certificate-based, same as basic)
+ * - SAML: 30 minutes (IDP session typically shorter)
  */
 export interface SessionConfig {
-    /** Session timeout in seconds for basic/SSO (default: 10800 = 3 hours) */
+    /** Session timeout in seconds for Basic and SSO auth (default: 10800 = 3 hours) */
     sessionTimeout: number;
-    /** Session timeout in seconds for SAML (default: 1800 = 30 minutes) */
+    /** Session timeout in seconds for SAML auth (default: 1800 = 30 minutes) */
     samlSessionTimeout: number;
     /** Cleanup interval in seconds (default: 60) */
     cleanupInterval: number;
@@ -44,7 +49,7 @@ export interface SessionConfig {
  * Default session configuration values
  */
 export const DEFAULT_SESSION_CONFIG: SessionConfig = {
-    sessionTimeout: 10800,        // 3 hours
-    samlSessionTimeout: 1800,     // 30 minutes
+    sessionTimeout: 10800,        // 3 hours (Basic/SSO)
+    samlSessionTimeout: 1800,     // 30 minutes (SAML)
     cleanupInterval: 60,          // 1 minute
 };

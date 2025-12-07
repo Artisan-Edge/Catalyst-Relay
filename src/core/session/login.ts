@@ -5,14 +5,16 @@
  * Used by ADTClient to manage session state.
  *
  * Handles:
- * - CSRF token fetching
- * - Basic authentication login flow
+ * - CSRF token fetching (auth-type-aware endpoints)
+ * - Basic, SAML, and SSO authentication login flows
  * - Session reset on 500 errors
+ * - Auth-type-aware session timeouts
  * - Logout/cleanup
  */
 
-import type { AuthConfig } from '../../types/config';
+import type { AuthConfig, AuthType } from '../../types/config';
 import type { Session } from './types';
+import { DEFAULT_SESSION_CONFIG } from './types';
 import type { AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
 import {
@@ -104,10 +106,57 @@ export async function fetchCsrfToken(
 }
 
 /**
+ * Get session timeout based on authentication type
+ *
+ * @param authType - Authentication type
+ * @returns Session timeout in milliseconds
+ */
+function getSessionTimeout(authType: AuthType): number {
+    switch (authType) {
+        case 'saml':
+            return DEFAULT_SESSION_CONFIG.samlSessionTimeout * 1000;
+        case 'basic':
+        case 'sso':
+            return DEFAULT_SESSION_CONFIG.sessionTimeout * 1000;
+        default: {
+            const _exhaustive: never = authType;
+            return DEFAULT_SESSION_CONFIG.sessionTimeout * 1000;
+        }
+    }
+}
+
+/**
+ * Extract username from authentication config
+ *
+ * @param auth - Authentication config
+ * @returns Username or 'SSO_USER' for SSO
+ */
+function extractUsername(auth: AuthConfig): string {
+    switch (auth.type) {
+        case 'basic':
+        case 'saml':
+            return auth.username;
+        case 'sso':
+            // For SSO, username comes from Kerberos/system
+            return process.env['USERNAME'] ?? process.env['USER'] ?? 'SSO_USER';
+        default: {
+            const _exhaustive: never = auth;
+            return '';
+        }
+    }
+}
+
+/**
  * Login to SAP ADT server
  *
- * Currently supports basic authentication only.
- * SAML and SSO flows are not yet implemented.
+ * Supports all authentication types:
+ * - Basic: Username/password via Authorization header
+ * - SAML: Browser automation (cookies already set by auth strategy)
+ * - SSO: Kerberos/mTLS (certificates already loaded by auth strategy)
+ *
+ * For SAML and SSO, the auth strategy's performLogin() is called
+ * before this function, so authentication is already complete.
+ * This function fetches the CSRF token and creates the session.
  *
  * @param state - Session state to update
  * @param request - HTTP request function from client
@@ -117,29 +166,24 @@ export async function login(
     state: SessionState,
     request: RequestFn
 ): AsyncResult<Session, Error> {
-    // Validate authentication type is supported.
-    if (state.config.auth.type === 'saml') {
-        return err(new Error('SAML authentication not yet implemented'));
-    }
-
-    if (state.config.auth.type === 'sso') {
-        return err(new Error('SSO authentication not yet implemented'));
-    }
-
     // Fetch CSRF token from SAP server.
+    // Endpoint varies by auth type (handled in fetchCsrfToken).
     const [token, tokenErr] = await fetchCsrfToken(state, request);
     if (tokenErr) {
         return err(new Error(`Login failed: ${tokenErr.message}`));
     }
 
     // Extract username from authentication config.
-    const username = state.config.auth.type === 'basic' ? state.config.auth.username : '';
+    const username = extractUsername(state.config.auth);
 
-    // Create session object with 8-hour expiration.
+    // Calculate session expiration based on auth type.
+    const timeout = getSessionTimeout(state.config.auth.type);
+
+    // Create session object.
     const session: Session = {
         sessionId: token,
         username,
-        expiresAt: Date.now() + (8 * 60 * 60 * 1000),
+        expiresAt: Date.now() + timeout,
     };
 
     // Update session state.

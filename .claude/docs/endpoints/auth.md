@@ -219,20 +219,47 @@ SAML-based SSO using browser automation. Requires Playwright to be installed.
 
 ### SSO Auth
 
-Kerberos/certificate-based authentication (Windows only).
+Kerberos-based SSO using mTLS certificates from SAP Secure Login Server (SLS).
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | `"sso"` | Yes | Auth type discriminator |
-| `certificate` | string | No | Certificate path (reserved) |
+| `slsUrl` | string | Yes | SAP Secure Login Server URL |
+| `profile` | string | No | SLS profile name (default: `SAPSSO_P`) |
+| `servicePrincipalName` | string | No | Kerberos SPN override |
+| `forceEnroll` | boolean | No | Force certificate re-enrollment |
 
 **Example:**
 ```json
 {
-    "type": "sso"
+    "type": "sso",
+    "slsUrl": "https://sapsso.corp.example.com"
+}
+```
+
+**Example (Custom Profile):**
+```json
+{
+    "type": "sso",
+    "slsUrl": "https://sapsso.corp.example.com",
+    "profile": "CUSTOM_PROFILE",
+    "forceEnroll": true
 }
 ```
 
 **Session timeout:** 3 hours
 
-**Note:** SSO authentication is currently a placeholder. Full implementation requires Kerberos SSPI (Windows-only).
+**Authentication flow:**
+1. Obtain Kerberos SPNEGO token via Windows SSPI or MIT Kerberos
+2. Authenticate to SLS with SPNEGO token
+3. Generate RSA keypair and CSR
+4. Request certificate from SLS
+5. Use mTLS with obtained certificate for all ADT requests
+
+**Certificate storage:** `./certificates/sso/{username}_full_chain.pem` and `./certificates/sso/{username}_key.pem`
+
+**Requirements:**
+- `kerberos` package must be installed: `npm install kerberos`
+- Windows: Requires Active Directory integration (uses SSPI)
+- Linux/macOS: Requires MIT Kerberos with valid ticket (`kinit`)
+- `insecure: true` typically required (corporate CAs not in trust store)

@@ -12,6 +12,7 @@ TypeScript port of SNAP-Relay-API — middleware bridging frontend applications 
 | Testing | Vitest |
 | Build | tsup |
 | SAML Auth | Playwright (optional peer dep) |
+| SSO Auth | kerberos (optional peer dep, Windows-focused) |
 
 ## Dual-Mode Architecture
 

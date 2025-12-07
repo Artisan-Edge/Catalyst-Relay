@@ -1,7 +1,7 @@
 import type { AuthConfig } from '../../types/config';
 import type { AuthStrategy } from './types';
 import { BasicAuth } from './basic';
-import { SsoAuth } from './sso';
+import { SsoAuth, type SsoAuthConfig } from './sso';
 import { SamlAuth } from './saml';
 
 /**
@@ -12,6 +12,8 @@ export interface CreateAuthOptions {
     config: AuthConfig;
     /** Base URL of the SAP system (required for SAML) */
     baseUrl?: string;
+    /** Skip SSL verification (dev only) */
+    insecure?: boolean;
 }
 
 /**
@@ -37,27 +39,18 @@ export interface CreateAuthOptions {
  *     baseUrl: 'https://sap-system.example.com'
  * });
  *
- * // SAML with custom provider config
+ * // SSO auth (Kerberos + mTLS)
  * const auth = createAuthStrategy({
  *     config: {
- *         type: 'saml',
- *         username: 'user@example.com',
- *         password: 'secret',
- *         providerConfig: {
- *             ignoreHttpsErrors: true,
- *             formSelectors: {
- *                 username: '#custom-user',
- *                 password: '#custom-pass',
- *                 submit: '#custom-submit'
- *             }
- *         }
+ *         type: 'sso',
+ *         slsUrl: 'https://sapsso.corp.example.com'
  *     },
- *     baseUrl: 'https://sap-system.example.com'
+ *     insecure: true
  * });
  * ```
  */
 export function createAuthStrategy(options: CreateAuthOptions): AuthStrategy {
-    const { config, baseUrl } = options;
+    const { config, baseUrl, insecure } = options;
 
     switch (config.type) {
         case 'basic':
@@ -74,8 +67,24 @@ export function createAuthStrategy(options: CreateAuthOptions): AuthStrategy {
                 ...(config.providerConfig && { providerConfig: config.providerConfig }),
             });
 
-        case 'sso':
-            return new SsoAuth(config.certificate);
+        case 'sso': {
+            const ssoConfig: SsoAuthConfig = {
+                slsUrl: config.slsUrl,
+            };
+            if (config.profile) {
+                ssoConfig.profile = config.profile;
+            }
+            if (config.servicePrincipalName) {
+                ssoConfig.servicePrincipalName = config.servicePrincipalName;
+            }
+            if (config.forceEnroll) {
+                ssoConfig.forceEnroll = config.forceEnroll;
+            }
+            if (insecure) {
+                ssoConfig.insecure = insecure;
+            }
+            return new SsoAuth(ssoConfig);
+        }
 
         default: {
             const _exhaustive: never = config;
