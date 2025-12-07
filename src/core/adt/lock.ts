@@ -8,6 +8,7 @@ import type { ObjectRef } from '../../types/requests';
 import type { AdtRequestor } from './types';
 import { extractLockHandle } from '../utils/xml';
 import { checkResponse, requireConfig } from './helpers';
+import { debug } from '../utils/logging';
 
 /**
  * Lock an object for editing
@@ -50,7 +51,7 @@ export async function lockObject(
     if (extractErr) {
         return err(new Error(`Failed to extract lock handle: ${extractErr.message}`));
     }
-    console.log(`[DEBUG] Lock acquired: handle=${lockHandle}`);
+    debug(`Lock acquired: handle=${lockHandle}`);
 
     return ok(lockHandle);
 }

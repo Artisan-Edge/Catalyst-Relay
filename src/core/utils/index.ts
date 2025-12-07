@@ -28,3 +28,11 @@ export {
     buildRequestHeaders,
     extractCsrfToken
 } from './headers';
+
+export {
+    activateLogging,
+    deactivateLogging,
+    isLoggingActive,
+    debug,
+    debugError
+} from './logging';

@@ -6,6 +6,7 @@ import type { ObjectRef } from '../../types/requests';
 import type { AdtRequestor } from './types';
 import { getConfigByExtension } from './types';
 import { extractError, safeParseXml } from '../utils/xml';
+import { debug } from '../utils/logging';
 
 /**
  * Result of activation operation
@@ -75,8 +76,8 @@ export async function activateObjects(
     // Validate successful response.
     if (requestErr) { return err(requestErr); }
     const text = await response.text();
-    console.log(`[DEBUG] Activation response status: ${response.status}`);
-    console.log(`[DEBUG] Activation response: ${text.substring(0, 500)}`);
+    debug(`Activation response status: ${response.status}`);
+    debug(`Activation response: ${text.substring(0, 500)}`);
     if (!response.ok) {
         const errorMsg = extractError(text);
         return err(new Error(`Activation failed: ${errorMsg}`));

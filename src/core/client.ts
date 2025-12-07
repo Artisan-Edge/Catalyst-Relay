@@ -42,6 +42,8 @@ import {
     BASE_HEADERS,
     DEFAULT_TIMEOUT,
     buildRequestHeaders,
+    debug,
+    debugError,
 } from './utils';
 import { clientConfigSchema } from '../types/config';
 import * as sessionOps from './session/login';
@@ -202,20 +204,20 @@ class ADTClientImpl implements ADTClient {
         const { config } = this.state;
 
         // Build headers with auth and CSRF token.
-        console.log(`[DEBUG] Request ${method} ${path} - CSRF token in state: ${this.state.csrfToken?.substring(0, 20) || 'null'}...`);
+        debug(`Request ${method} ${path} - CSRF token in state: ${this.state.csrfToken?.substring(0, 20) || 'null'}...`);
         const headers = buildRequestHeaders(
             BASE_HEADERS,
             customHeaders,
             config.auth,
             this.state.csrfToken
         );
-        console.log(`[DEBUG] CSRF header being sent: ${headers['x-csrf-token']?.substring(0, 20) || 'none'}...`);
+        debug(`CSRF header being sent: ${headers['x-csrf-token']?.substring(0, 20) || 'none'}...`);
 
         // Add stored cookies to request
         const cookieHeader = this.buildCookieHeader();
         if (cookieHeader) {
             headers['Cookie'] = cookieHeader;
-            console.log(`[DEBUG] Cookies being sent: ${cookieHeader.substring(0, 50)}...`);
+            debug(`Cookies being sent: ${cookieHeader.substring(0, 50)}...`);
         }
 
         // Build URL with parameters.
@@ -241,8 +243,8 @@ class ADTClientImpl implements ADTClient {
 
         try {
             // Execute HTTP request.
-            console.log(`[DEBUG] Fetching URL: ${url}`);
-            console.log(`[DEBUG] Insecure mode: ${!!this.agent}`);
+            debug(`Fetching URL: ${url}`);
+            debug(`Insecure mode: ${!!this.agent}`);
             // Use undici fetch directly to support dispatcher option for SSL bypass
             const response = await undiciFetch(url, fetchOptions as Parameters<typeof undiciFetch>[1]) as unknown as Response;
 
@@ -265,7 +267,7 @@ class ADTClientImpl implements ADTClient {
                     if (retryCookieHeader) {
                         headers['Cookie'] = retryCookieHeader;
                     }
-                    console.log(`[DEBUG] Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
+                    debug(`Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
                     const retryResponse = await undiciFetch(url, { ...fetchOptions, headers } as Parameters<typeof undiciFetch>[1]) as unknown as Response;
                     this.storeCookies(retryResponse);
                     return ok(retryResponse);
@@ -301,12 +303,9 @@ class ADTClientImpl implements ADTClient {
         } catch (error) {
             // Log detailed error info for debugging
             if (error instanceof Error) {
-                console.error(`[DEBUG] Fetch error: ${error.name}: ${error.message}`);
-                if ('cause' in error && error.cause) {
-                    console.error(`[DEBUG] Error cause:`, error.cause);
-                }
+                debugError(`Fetch error: ${error.name}: ${error.message}`, error.cause);
                 if ('code' in error) {
-                    console.error(`[DEBUG] Error code: ${(error as NodeJS.ErrnoException).code}`);
+                    debugError(`Error code: ${(error as NodeJS.ErrnoException).code}`);
                 }
                 return err(error);
             }

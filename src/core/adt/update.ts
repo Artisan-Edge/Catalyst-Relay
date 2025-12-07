@@ -7,6 +7,7 @@ import { ok, err } from '../../types/result';
 import type { ObjectContent } from '../../types/requests';
 import type { AdtRequestor } from './types';
 import { checkResponse, requireConfig } from './helpers';
+import { debug } from '../utils/logging';
 
 /**
  * Update an existing object's source content
@@ -36,7 +37,7 @@ export async function updateObject(
     }
 
     // Execute update request to ADT server.
-    console.log(`[DEBUG] Update ${object.name}: content length=${object.content?.length ?? 0}`);
+    debug(`Update ${object.name}: content length=${object.content?.length ?? 0}`);
     const [response, requestErr] = await client.request({
         method: 'PUT',
         path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
@@ -44,7 +45,7 @@ export async function updateObject(
         headers: { 'Content-Type': '*/*' },
         body: object.content,
     });
-    console.log(`[DEBUG] Update response: ${response?.status ?? 'no response'}, err=${requestErr?.message ?? 'none'}`);
+    debug(`Update response: ${response?.status ?? 'no response'}, err=${requestErr?.message ?? 'none'}`);
 
     // Validate successful response.
     const [_, checkErr] = await checkResponse(

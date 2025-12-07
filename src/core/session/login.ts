@@ -18,7 +18,8 @@ import { ok, err } from '../../types/result';
 import {
     FETCH_CSRF_TOKEN,
     CSRF_TOKEN_HEADER,
-    extractCsrfToken
+    extractCsrfToken,
+    debug,
 } from '../utils';
 
 // Request function type signature (provided by client.ts)
@@ -87,17 +88,17 @@ export async function fetchCsrfToken(
 
     // Extract CSRF token from response headers.
     const token = extractCsrfToken(response.headers);
-    console.log(`[DEBUG] CSRF token from headers: ${token ? token.substring(0, 20) + '...' : 'null'}`);
+    debug(`CSRF token from headers: ${token ? token.substring(0, 20) + '...' : 'null'}`);
     if (!token) {
         // Debug: show all headers
-        console.log('[DEBUG] Response headers:');
-        response.headers.forEach((value, key) => console.log(`  ${key}: ${value.substring(0, 50)}`));
+        debug('Response headers:');
+        response.headers.forEach((value, key) => debug(`  ${key}: ${value.substring(0, 50)}`));
         return err(new Error('No CSRF token returned in response headers'));
     }
 
     // Update session state with new token.
     state.csrfToken = token;
-    console.log(`[DEBUG] Stored CSRF token in state: ${state.csrfToken?.substring(0, 20)}...`);
+    debug(`Stored CSRF token in state: ${state.csrfToken?.substring(0, 20)}...`);
 
     return ok(token);
 }

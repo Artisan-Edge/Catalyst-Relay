@@ -29,3 +29,6 @@ export * as session from './session';
 
 // Re-export ADT operations
 export * as adt from './adt';
+
+// Re-export logging utilities
+export { activateLogging, deactivateLogging, isLoggingActive } from './utils/logging';

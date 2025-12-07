@@ -10,6 +10,7 @@ import type { DataFrame } from './previewParser';
 import { getConfigByExtension } from './types';
 import { extractError } from '../utils/xml';
 import { validateSqlInput } from '../utils/sql';
+import { debug } from '../utils/logging';
 import { buildWhereClauses, buildOrderByClauses } from './queryBuilder';
 import { parseDataPreview } from './previewParser';
 
@@ -45,8 +46,8 @@ export async function previewData(
     }
 
     // Execute data preview request.
-    console.log(`[DEBUG] Data preview: endpoint=${config.dpEndpoint}, param=${config.dpParam}=${query.objectName}`);
-    console.log(`[DEBUG] SQL: ${sqlQuery}`);
+    debug(`Data preview: endpoint=${config.dpEndpoint}, param=${config.dpParam}=${query.objectName}`);
+    debug(`SQL: ${sqlQuery}`);
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: `/sap/bc/adt/datapreview/${config.dpEndpoint}`,
@@ -65,7 +66,7 @@ export async function previewData(
     if (requestErr) { return err(requestErr); }
     if (!response.ok) {
         const text = await response.text();
-        console.log(`[DEBUG] Data preview error response: ${text.substring(0, 500)}`);
+        debug(`Data preview error response: ${text.substring(0, 500)}`);
         const errorMsg = extractError(text);
         return err(new Error(`Data preview failed: ${errorMsg}`));
     }
