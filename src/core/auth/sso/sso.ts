@@ -1,4 +1,4 @@
-import type { AuthStrategy } from './types';
+import type { AuthStrategy } from '../types';
 
 /**
  * SSO (Single Sign-On) authentication strategy
@@ -12,7 +12,7 @@ import type { AuthStrategy } from './types';
  * - Kerberos ticket handling
  * - Platform-specific system integration
  *
- * This is a placeholder implementation for MVP.
+ * This is a placeholder implementation.
  * Production use requires additional certificate handling logic.
  */
 export class SsoAuth implements AuthStrategy {
@@ -20,9 +20,9 @@ export class SsoAuth implements AuthStrategy {
 
     /**
      * Create an SSO Auth strategy
-     * @param certificate - Optional certificate path/data (reserved for future use)
+     * @param _certificate - Optional certificate path/data (reserved for future use)
      */
-    constructor(certificate?: string) {
+    constructor(_certificate?: string) {
         // Reserved for future certificate storage.
         // Current implementation relies on system-level SSO configuration.
     }
@@ -32,10 +32,6 @@ export class SsoAuth implements AuthStrategy {
      * @returns Empty object - SSO uses system-level authentication
      */
     getAuthHeaders(): Record<string, string> {
-        // Return empty headers - SSO authentication is handled at the system/transport layer.
         return {};
     }
-
-    // NOTE: SSO does not require cookies or performLogin.
-    // Authentication happens automatically via system credentials.
 }

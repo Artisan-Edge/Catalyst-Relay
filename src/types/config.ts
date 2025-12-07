@@ -15,13 +15,36 @@ export interface BasicAuthConfig {
 }
 
 /**
+ * CSS selectors for SAML login form
+ */
+export interface SamlFormSelectors {
+    /** CSS selector for username input field */
+    username: string;
+    /** CSS selector for password input field */
+    password: string;
+    /** CSS selector for submit button */
+    submit: string;
+}
+
+/**
+ * SAML provider configuration
+ */
+export interface SamlProviderConfig {
+    /** Whether to ignore HTTPS certificate errors */
+    ignoreHttpsErrors: boolean;
+    /** CSS selectors for login form elements */
+    formSelectors: SamlFormSelectors;
+}
+
+/**
  * SAML authentication configuration
  */
 export interface SamlAuthConfig {
     type: 'saml';
     username: string;
     password: string;
-    provider?: string;
+    /** Optional custom provider configuration for non-standard login forms */
+    providerConfig?: SamlProviderConfig;
 }
 
 /**
@@ -54,6 +77,23 @@ export interface ClientConfig {
 }
 
 /**
+ * Zod schema for SAML form selectors
+ */
+const samlFormSelectorsSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(1),
+    submit: z.string().min(1),
+});
+
+/**
+ * Zod schema for SAML provider configuration
+ */
+const samlProviderConfigSchema = z.object({
+    ignoreHttpsErrors: z.boolean(),
+    formSelectors: samlFormSelectorsSchema,
+});
+
+/**
  * Zod schema for runtime validation of ClientConfig
  */
 export const clientConfigSchema = z.object({
@@ -69,7 +109,7 @@ export const clientConfigSchema = z.object({
             type: z.literal('saml'),
             username: z.string().min(1),
             password: z.string().min(1),
-            provider: z.string().optional(),
+            providerConfig: samlProviderConfigSchema.optional(),
         }),
         z.object({
             type: z.literal('sso'),

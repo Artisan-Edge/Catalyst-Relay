@@ -1,4 +1,4 @@
-import type { AuthStrategy } from './types';
+import type { AuthStrategy } from '../types';
 
 /**
  * Basic authentication strategy
@@ -18,19 +18,12 @@ export class BasicAuth implements AuthStrategy {
      * @param password - SAP password
      */
     constructor(username: string, password: string) {
-        // Validate inputs.
         if (!username || !password) {
             throw new Error('BasicAuth requires both username and password');
         }
 
-        // Build credentials string.
         const credentials = `${username}:${password}`;
-
-        // Encode credentials as base64.
-        // NOTE: btoa() is available in Node.js 16+ and all modern browsers
         const encoded = btoa(credentials);
-
-        // Store authorization header.
         this.authHeader = `Basic ${encoded}`;
     }
 
@@ -39,9 +32,8 @@ export class BasicAuth implements AuthStrategy {
      * @returns Headers object with Authorization field
      */
     getAuthHeaders(): Record<string, string> {
-        // Return pre-built authorization header.
         return {
-            'Authorization': this.authHeader,
+            Authorization: this.authHeader,
         };
     }
 }

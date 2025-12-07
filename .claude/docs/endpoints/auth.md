@@ -6,6 +6,7 @@ Session-based authentication for SAP ADT access.
 
 - [POST /login](#post-login)
 - [DELETE /logout](#delete-logout)
+- [Authentication Types](#authentication-types)
 
 ---
 
@@ -25,17 +26,9 @@ Authenticate with an SAP system and create a session. Returns a session ID for u
 |-------|------|----------|-------------|
 | `url` | string | Yes | SAP ADT server URL (e.g., `https://server:443`) |
 | `client` | string | Yes | SAP client number, 1-3 chars (e.g., `100`) |
-| `auth` | object | Yes | Authentication configuration (see variants below) |
+| `auth` | object | Yes | Authentication configuration (see [Authentication Types](#authentication-types)) |
 | `timeout` | number | No | Request timeout in ms (default: 30000) |
 | `insecure` | boolean | No | Skip SSL verification (dev only) |
-
-**Auth Variants:**
-
-| Type | Fields | Description |
-|------|--------|-------------|
-| `basic` | `username`, `password` | Standard SAP credentials |
-| `saml` | `username`, `password`, `provider?` | SAML SSO authentication |
-| `sso` | `certificate?` | Kerberos/certificate auth |
 
 ### Response
 
@@ -47,7 +40,7 @@ Authenticate with an SAP system and create a session. Returns a session ID for u
 
 ### Example
 
-**Request:**
+**Request (Basic Auth):**
 ```json
 {
     "url": "https://sap-dev.example.com:443",
@@ -134,3 +127,112 @@ curl -X DELETE http://localhost:3000/logout \
 - **Clean termination** — Release SAP connections when done
 - **Error recovery** — Logout and re-login to clear stale state
 - **Script cleanup** — Call in finally blocks; continues even if SAP logout fails
+
+---
+
+## Authentication Types
+
+Three authentication methods are supported:
+
+### Basic Auth
+
+Standard SAP username/password authentication.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"basic"` | Yes | Auth type discriminator |
+| `username` | string | Yes | SAP username |
+| `password` | string | Yes | SAP password |
+
+**Example:**
+```json
+{
+    "type": "basic",
+    "username": "DEVELOPER",
+    "password": "secret123"
+}
+```
+
+**Session timeout:** 3 hours
+
+---
+
+### SAML Auth
+
+SAML-based SSO using browser automation. Requires Playwright to be installed.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"saml"` | Yes | Auth type discriminator |
+| `username` | string | Yes | SAML username (often email) |
+| `password` | string | Yes | SAML password |
+| `providerConfig` | object | No | Custom login form configuration |
+
+**providerConfig fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `ignoreHttpsErrors` | boolean | Yes | Skip HTTPS certificate validation |
+| `formSelectors` | object | Yes | CSS selectors for login form |
+| `formSelectors.username` | string | Yes | Selector for username field |
+| `formSelectors.password` | string | Yes | Selector for password field |
+| `formSelectors.submit` | string | Yes | Selector for submit button |
+
+**Example (Standard SAP IDP):**
+```json
+{
+    "type": "saml",
+    "username": "user@example.com",
+    "password": "secret123"
+}
+```
+
+**Example (Custom Login Form):**
+```json
+{
+    "type": "saml",
+    "username": "user@example.com",
+    "password": "secret123",
+    "providerConfig": {
+        "ignoreHttpsErrors": true,
+        "formSelectors": {
+            "username": "#USERNAME_FIELD-inner",
+            "password": "#PASSWORD_FIELD-inner",
+            "submit": "#LOGIN_LINK"
+        }
+    }
+}
+```
+
+**Default form selectors** (standard SAP IDP):
+- `username`: `#j_username`
+- `password`: `#j_password`
+- `submit`: `#logOnFormSubmit`
+
+**Session timeout:** 30 minutes
+
+**Requirements:**
+- Playwright must be installed: `npm install playwright`
+- First run may download Chromium browser
+
+---
+
+### SSO Auth
+
+Kerberos/certificate-based authentication (Windows only).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"sso"` | Yes | Auth type discriminator |
+| `certificate` | string | No | Certificate path (reserved) |
+
+**Example:**
+```json
+{
+    "type": "sso"
+}
+```
+
+**Session timeout:** 3 hours
+
+**Note:** SSO authentication is currently a placeholder. Full implementation requires Kerberos SSPI (Windows-only).

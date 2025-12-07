@@ -11,6 +11,7 @@ TypeScript port of SNAP-Relay-API — middleware bridging frontend applications 
 | Validation | Zod |
 | Testing | Vitest |
 | Build | tsup |
+| SAML Auth | Playwright (optional peer dep) |
 
 ## Dual-Mode Architecture
 
@@ -54,6 +55,21 @@ src/
 │   ├── client.ts         # ADT client implementation
 │   ├── config.ts         # Configuration loading
 │   ├── auth/             # Authentication strategies
+│   │   ├── index.ts      # Barrel exports
+│   │   ├── types.ts      # Shared auth types (AuthStrategy, AuthCookie)
+│   │   ├── factory.ts    # Auth strategy factory
+│   │   ├── basic/        # Basic auth (username/password)
+│   │   │   ├── index.ts
+│   │   │   └── basic.ts
+│   │   ├── saml/         # SAML auth (browser automation)
+│   │   │   ├── index.ts
+│   │   │   ├── saml.ts       # SamlAuth class
+│   │   │   ├── browser.ts    # Playwright login flow
+│   │   │   ├── cookies.ts    # Cookie extraction
+│   │   │   └── types.ts      # SAML types and defaults
+│   │   └── sso/          # SSO auth (Kerberos, placeholder)
+│   │       ├── index.ts
+│   │       └── sso.ts
 │   ├── session/          # Session management
 │   ├── adt/              # ADT operations (CRAUD, discovery, preview)
 │   └── utils/            # Internal utilities

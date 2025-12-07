@@ -5,44 +5,81 @@ import { SsoAuth } from './sso';
 import { SamlAuth } from './saml';
 
 /**
+ * Options for creating an authentication strategy
+ */
+export interface CreateAuthOptions {
+    /** Authentication configuration */
+    config: AuthConfig;
+    /** Base URL of the SAP system (required for SAML) */
+    baseUrl?: string;
+}
+
+/**
  * Create an authentication strategy based on configuration
  *
  * Factory function that instantiates the appropriate auth strategy
  * based on the auth config type (basic, saml, or sso).
  *
- * @param config - Authentication configuration
+ * @param options - Authentication options including config and optional baseUrl
  * @returns Configured authentication strategy
- * @throws Error if config type is invalid
+ * @throws Error if config type is invalid or required fields are missing
  *
  * @example
+ * ```typescript
+ * // Basic auth
  * const auth = createAuthStrategy({
- *     type: 'basic',
- *     username: 'DEVELOPER',
- *     password: 'secret'
+ *     config: { type: 'basic', username: 'DEVELOPER', password: 'secret' }
  * });
+ *
+ * // SAML auth (requires baseUrl)
+ * const auth = createAuthStrategy({
+ *     config: { type: 'saml', username: 'user@example.com', password: 'secret' },
+ *     baseUrl: 'https://sap-system.example.com'
+ * });
+ *
+ * // SAML with custom provider config
+ * const auth = createAuthStrategy({
+ *     config: {
+ *         type: 'saml',
+ *         username: 'user@example.com',
+ *         password: 'secret',
+ *         providerConfig: {
+ *             ignoreHttpsErrors: true,
+ *             formSelectors: {
+ *                 username: '#custom-user',
+ *                 password: '#custom-pass',
+ *                 submit: '#custom-submit'
+ *             }
+ *         }
+ *     },
+ *     baseUrl: 'https://sap-system.example.com'
+ * });
+ * ```
  */
-export function createAuthStrategy(config: AuthConfig): AuthStrategy {
-    // Create auth handler based on type.
+export function createAuthStrategy(options: CreateAuthOptions): AuthStrategy {
+    const { config, baseUrl } = options;
+
     switch (config.type) {
         case 'basic':
-            // Use basic authentication with username and password.
             return new BasicAuth(config.username, config.password);
 
         case 'saml':
-            // Use SAML authentication with provider configuration.
-            return new SamlAuth(
-                config.username,
-                config.password,
-                config.provider
-            );
+            if (!baseUrl) {
+                throw new Error('SAML authentication requires baseUrl');
+            }
+            return new SamlAuth({
+                username: config.username,
+                password: config.password,
+                baseUrl,
+                ...(config.providerConfig && { providerConfig: config.providerConfig }),
+            });
 
         case 'sso':
-            // Use SSO authentication with certificate.
             return new SsoAuth(config.certificate);
 
-        default:
-            // TypeScript exhaustiveness check
+        default: {
             const _exhaustive: never = config;
             throw new Error(`Unknown auth type: ${(_exhaustive as AuthConfig).type}`);
+        }
     }
 }
