@@ -59,6 +59,29 @@ const [session, loginError] = await client.login();
 if (loginError) throw loginError;
 console.log(`Logged in as ${session.username}`);
 
+// --- SAML Authentication (requires playwright) ---
+const [samlClient] = createClient({
+    url: 'https://sap-server:443',
+    client: '100',
+    auth: {
+        type: 'saml',
+        username: 'user@company.com',
+        password: 'pass'
+    },
+    insecure: true
+});
+
+// --- SSO Authentication (requires kerberos) ---
+const [ssoClient] = createClient({
+    url: 'https://sap-server:443',
+    client: '100',
+    auth: {
+        type: 'sso',
+        slsUrl: 'https://sapsso.company.com'
+    },
+    insecure: true
+});
+
 // Read ABAP objects
 const [objects, readError] = await client.read([
     { name: 'ZCL_MY_CLASS', extension: 'aclass' },
@@ -94,9 +117,32 @@ curl -X POST http://localhost:3000/login \
   }'
 
 # Response: { "success": true, "data": { "sessionId": "abc123", "username": "USER" } }
+
+# Login with SAML
+curl -X POST http://localhost:3000/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://sap-server:443",
+    "client": "100",
+    "auth": { "type": "saml", "username": "user@company.com", "password": "pass" }
+  }'
+
+# Login with SSO (Kerberos)
+curl -X POST http://localhost:3000/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://sap-server:443",
+    "client": "100",
+    "auth": { "type": "sso", "slsUrl": "https://sapsso.company.com" }
+  }'
 ```
 
 ## Features
+
+### Authentication
+- **Basic Auth** — Username/password authentication
+- **SAML** — Browser-automated SSO via identity providers (Azure AD, Okta, SAP IDP)
+- **SSO (Kerberos)** — Windows domain authentication via SAP Secure Login Server
 
 ### Session Management
 - Login/logout with session tokens
@@ -376,9 +422,8 @@ The library uses only web standard APIs (`fetch`, `Request`, `Response`, `URL`) 
 
 ## Known Limitations
 
-- **SAML authentication**: Stubbed out, not yet implemented
-- **SSO (Kerberos) authentication**: Stubbed out, not yet implemented
-- Basic authentication is fully functional
+- **SSO (Kerberos)**: Primarily tested on Windows with Active Directory; Linux/macOS requires MIT Kerberos with valid ticket (`kinit`)
+- **SAML**: First run downloads Chromium browser (~150MB) for headless automation
 
 ## Dependencies
 
@@ -389,6 +434,14 @@ The library uses only web standard APIs (`fetch`, `Request`, `Response`, `URL`) 
 | `undici` | HTTP client with SSL bypass support |
 | `@xmldom/xmldom` | XML parsing for ADT responses |
 | `diff` | Text diffing for git-diff feature |
+| `node-forge` | Certificate parsing and RSA key generation (SSO) |
+
+### Optional Peer Dependencies
+
+| Package | Required For | Install |
+|---------|--------------|---------|
+| `playwright` | SAML authentication | `npm install playwright` |
+| `kerberos` | SSO (Kerberos) authentication | `npm install kerberos` |
 
 ## Project Structure
 
@@ -401,6 +454,9 @@ src/
 │   ├── config.ts         # Configuration loading
 │   ├── adt/              # ADT operations
 │   ├── auth/             # Authentication strategies
+│   │   ├── basic/        # Username/password auth
+│   │   ├── saml/         # SAML browser automation
+│   │   └── sso/          # Kerberos + mTLS certificates
 │   ├── session/          # Session management
 │   └── utils/            # Shared utilities
 ├── types/                # TypeScript type definitions

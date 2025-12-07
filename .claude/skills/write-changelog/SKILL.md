@@ -1,3 +1,8 @@
+---
+name: write-changelog
+description: Write changelogs for version updates. Use when asked to document version changes, create release notes, or generate changelog entries for this project.
+---
+
 # write-changelog
 
 ## Project Overview
