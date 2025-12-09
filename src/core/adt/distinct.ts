@@ -92,19 +92,28 @@ export async function getDistinctValues(
     }
 
     // Extract data from dataPreview:dataSet elements.
-    // Each dataSet contains two data elements: value and count.
+    // XML structure is column-oriented: each dataSet is a column, each data element is a row value.
+    // dataSet[0] = "value" column, dataSet[1] = "count" column
     const dataSets = doc.getElementsByTagNameNS('http://www.sap.com/adt/dataPreview', 'dataSet');
     const values: Array<{ value: unknown; count: number }> = [];
 
-    for (let i = 0; i < dataSets.length; i++) {
-        const dataSet = dataSets[i];
-        if (!dataSet) continue;
+    if (dataSets.length < 2) {
+        return ok({ column, values: [] });
+    }
 
-        const dataElements = dataSet.getElementsByTagNameNS('http://www.sap.com/adt/dataPreview', 'data');
-        if (dataElements.length < 2) continue;
+    const valueDataSet = dataSets[0];
+    const countDataSet = dataSets[1];
+    if (!valueDataSet || !countDataSet) {
+        return ok({ column, values: [] });
+    }
 
-        const value = dataElements[0]?.textContent ?? '';
-        const countText = dataElements[1]?.textContent?.trim() ?? '0';
+    const valueElements = valueDataSet.getElementsByTagNameNS('http://www.sap.com/adt/dataPreview', 'data');
+    const countElements = countDataSet.getElementsByTagNameNS('http://www.sap.com/adt/dataPreview', 'data');
+
+    const rowCount = Math.min(valueElements.length, countElements.length);
+    for (let i = 0; i < rowCount; i++) {
+        const value = valueElements[i]?.textContent ?? '';
+        const countText = countElements[i]?.textContent?.trim() ?? '0';
         values.push({
             value,
             count: parseInt(countText, 10),
