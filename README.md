@@ -270,9 +270,9 @@ if (!error) {
 ```typescript
 const [data, error] = await client.previewData({
     objectName: 'T000',
-    columns: ['MANDT', 'MTEXT'],
-    limit: 10,
-    where: "MANDT = '100'"
+    objectType: 'table',
+    sqlQuery: "SELECT MANDT, MTEXT FROM T000 WHERE MANDT = '100'",
+    limit: 10
 });
 ```
 
@@ -327,7 +327,8 @@ curl -X POST http://localhost:3000/preview/data \
   -H "x-session-id: abc123" \
   -d '{
     "objectName": "T000",
-    "columns": ["MANDT", "MTEXT"],
+    "objectType": "table",
+    "sqlQuery": "SELECT MANDT, MTEXT FROM T000 WHERE MANDT = '\''100'\''",
     "limit": 10
   }'
 ```
