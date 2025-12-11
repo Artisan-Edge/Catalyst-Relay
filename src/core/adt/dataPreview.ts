@@ -1,5 +1,5 @@
 /**
- * Data Preview — Query table/view data
+ * Data Preview — Execute SQL queries against table/view data
  */
 
 import type { AsyncResult } from '../../types/result';
@@ -9,45 +9,32 @@ import type { AdtRequestor } from './types';
 import type { DataFrame } from './previewParser';
 import { getConfigByExtension } from './types';
 import { extractError } from '../utils/xml';
-import { validateSqlInput } from '../utils/sql';
 import { debug } from '../utils/logging';
-import { buildWhereClauses, buildOrderByClauses } from './queryBuilder';
 import { parseDataPreview } from './previewParser';
 
 /**
- * Preview table/view data with filters and sorting
+ * Execute SQL query against table/view data
  *
  * @param client - ADT client
- * @param query - Preview query parameters
+ * @param query - Preview query with SQL
  * @returns DataFrame or error
  */
 export async function previewData(
     client: AdtRequestor,
     query: PreviewQuery
 ): AsyncResult<DataFrame, Error> {
-    // Confirm object is valid for data previews.
+    // Get config by objectType.
     const extension = query.objectType === 'table' ? 'astabldt' : 'asddls';
     const config = getConfigByExtension(extension);
-    if (!config || !config.dpEndpoint || !config.dpParam) {
+    if (!config?.dpEndpoint || !config?.dpParam) {
         return err(new Error(`Data preview not supported for object type: ${query.objectType}`));
     }
 
-    // Construct SQL query for data preview
+    // Execute request with caller-provided SQL.
     const limit = query.limit ?? 100;
-
-    const whereClauses = buildWhereClauses(query.filters);
-    const orderByClauses = buildOrderByClauses(query.orderBy);
-    // SAP SQL doesn't use quoted identifiers for object names
-    const sqlQuery = `select * from ${query.objectName}${whereClauses}${orderByClauses}`;
-
-    const [, validationErr] = validateSqlInput(sqlQuery);
-    if (validationErr) {
-        return err(new Error(`SQL validation failed: ${validationErr.message}`));
-    }
-
-    // Execute data preview request.
     debug(`Data preview: endpoint=${config.dpEndpoint}, param=${config.dpParam}=${query.objectName}`);
-    debug(`SQL: ${sqlQuery}`);
+    debug(`SQL: ${query.sqlQuery}`);
+
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: `/sap/bc/adt/datapreview/${config.dpEndpoint}`,
@@ -59,10 +46,10 @@ export async function previewData(
             'Accept': 'application/vnd.sap.adt.datapreview.table.v1+xml',
             'Content-Type': 'text/plain',
         },
-        body: sqlQuery,
+        body: query.sqlQuery,
     });
 
-    // Validate successful response.
+    // Handle errors.
     if (requestErr) { return err(requestErr); }
     if (!response.ok) {
         const text = await response.text();
@@ -70,9 +57,9 @@ export async function previewData(
         const errorMsg = extractError(text);
         return err(new Error(`Data preview failed: ${errorMsg}`));
     }
-    const text = await response.text();
 
-    // Confirm successful dataframe format
+    // Parse response.
+    const text = await response.text();
     const [dataFrame, parseErr] = parseDataPreview(text, limit, query.objectType === 'table');
     if (parseErr) { return err(parseErr); }
     return ok(dataFrame);

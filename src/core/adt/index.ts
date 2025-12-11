@@ -58,12 +58,9 @@ export { getTree } from './tree';
 export { getTransports } from './transports';
 
 // Data preview operations
-export { previewData } from './data';
+export { previewData } from './dataPreview';
 export { getDistinctValues } from './distinct';
 export { countRows } from './count';
-
-// Query building utilities
-export { quoteIdentifier, buildWhereClauses, buildOrderByClauses, formatValue } from './queryBuilder';
 
 // Search operations
 export { searchObjects } from './searchObjects';

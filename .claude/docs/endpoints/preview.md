@@ -12,7 +12,7 @@ Query and preview data from SAP tables and CDS views.
 
 ## POST /preview/data
 
-Query table or CDS view data with filters, sorting, and pagination.
+Execute SQL queries against table or CDS view data.
 
 ### Request
 
@@ -26,25 +26,8 @@ Query table or CDS view data with filters, sorting, and pagination.
 |-------|------|----------|-------------|
 | `objectName` | string | Yes | Table or CDS view name |
 | `objectType` | enum | Yes | `table` or `view` |
-| `filters` | array | No | WHERE clause conditions |
-| `orderBy` | array | No | ORDER BY columns |
+| `sqlQuery` | string | Yes | SQL query to execute |
 | `limit` | number | No | Max rows (default: 100, max: 50000) |
-| `offset` | number | No | Row offset for pagination |
-
-**Filter Object:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `column` | string | Column name |
-| `operator` | enum | `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `like`, `in` |
-| `value` | any | Filter value (string, number, boolean, null) |
-
-**OrderBy Object:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `column` | string | Column name |
-| `direction` | enum | `asc` or `desc` |
 
 ### Response
 
@@ -71,15 +54,8 @@ DataFrame structure:
 {
     "objectName": "MARA",
     "objectType": "table",
-    "filters": [
-        { "column": "MTART", "operator": "eq", "value": "FERT" },
-        { "column": "MATNR", "operator": "like", "value": "A%" }
-    ],
-    "orderBy": [
-        { "column": "MATNR", "direction": "asc" }
-    ],
-    "limit": 50,
-    "offset": 0
+    "sqlQuery": "SELECT MATNR, MTART, MAKTX FROM MARA WHERE MTART = 'FERT' AND MATNR LIKE 'A%' ORDER BY MATNR ASC",
+    "limit": 50
 }
 ```
 
@@ -103,32 +79,48 @@ DataFrame structure:
 }
 ```
 
-### Filter Operators
+### SQL Query Guidelines
 
-| Operator | SQL Equivalent | Example |
-|----------|----------------|---------|
-| `eq` | `= value` | `{ "column": "STATUS", "operator": "eq", "value": "A" }` |
-| `ne` | `<> value` | `{ "column": "STATUS", "operator": "ne", "value": "D" }` |
-| `gt` | `> value` | `{ "column": "PRICE", "operator": "gt", "value": 100 }` |
-| `ge` | `>= value` | `{ "column": "QTY", "operator": "ge", "value": 1 }` |
-| `lt` | `< value` | `{ "column": "PRICE", "operator": "lt", "value": 1000 }` |
-| `le` | `<= value` | `{ "column": "DATE", "operator": "le", "value": "20240101" }` |
-| `like` | `LIKE value` | `{ "column": "NAME", "operator": "like", "value": "TEST%" }` |
-| `in` | `IN (values)` | `{ "column": "TYPE", "operator": "in", "value": "A,B,C" }` |
+The `sqlQuery` parameter accepts ABAP Open SQL syntax. Some notes:
+
+- **No quoted identifiers** — SAP ADT does not support quoted identifiers for object/column names
+- **Case insensitive** — Column and table names are case-insensitive
+- **Standard clauses** — Support for SELECT, WHERE, ORDER BY, GROUP BY, HAVING
+- **Aggregations** — COUNT, SUM, AVG, MIN, MAX, etc.
+
+**Example queries:**
+
+```sql
+-- Simple select all
+SELECT * FROM MARA
+
+-- Filtered with sorting
+SELECT * FROM MARA WHERE MTART = 'FERT' ORDER BY MATNR ASC
+
+-- Specific columns
+SELECT MATNR, MTART FROM MARA WHERE MATNR LIKE 'A%'
+
+-- Aggregation
+SELECT MTART, COUNT(*) AS count FROM MARA GROUP BY MTART
+
+-- Complex conditions
+SELECT * FROM MARA WHERE (MTART = 'FERT' OR MTART = 'HALB') AND MATNR LIKE 'A%'
+```
 
 ### Errors
 
 | Code | Status | Cause |
 |------|--------|-------|
-| `VALIDATION_ERROR` | 400 | Invalid query parameters |
+| `VALIDATION_ERROR` | 400 | Invalid query parameters or missing sqlQuery |
 | `OBJECT_NOT_FOUND` | 404 | Table/view does not exist |
 | `SESSION_NOT_FOUND` | 401 | Invalid session |
-| `UNKNOWN_ERROR` | 500 | Query execution failed |
+| `UNKNOWN_ERROR` | 500 | Query execution failed (check SQL syntax) |
 
 ### Use Cases
 
-- **Data exploration** — Preview table contents with filters
-- **Pagination** — Use `limit` and `offset` for large datasets
+- **SQL Console** — Execute arbitrary queries from Catalyst Edit
+- **Data exploration** — Preview table contents with custom filtering
+- **Aggregation queries** — GROUP BY, COUNT, SUM for data analysis
 - **CDS view testing** — Validate view output during development
 - **Export preparation** — Sample data before full export
 
@@ -149,6 +141,7 @@ Get distinct values for a column with occurrence counts.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `objectName` | string | Yes | Table or view name |
+| `objectType` | enum | No | `table` or `view` (default: `view`) |
 | `column` | string | Yes | Column to analyze |
 
 ### Response
@@ -171,6 +164,7 @@ Each value entry:
 ```json
 {
     "objectName": "MARA",
+    "objectType": "table",
     "column": "MTART"
 }
 ```

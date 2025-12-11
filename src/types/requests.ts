@@ -40,41 +40,10 @@ export interface PreviewQuery {
     objectName: string;
     /** Object type ('table' or 'view') */
     objectType: 'table' | 'view';
-    /** WHERE clause filters */
-    filters?: Filter[];
-    /** ORDER BY columns */
-    orderBy?: OrderBy[];
+    /** SQL query to execute */
+    sqlQuery: string;
     /** Maximum rows to return (default: 100) */
     limit?: number;
-    /** Row offset for pagination */
-    offset?: number;
-}
-
-/**
- * Filter condition for data preview
- */
-export interface Filter {
-    column: string;
-    operator: FilterOperator;
-    value: string | number | boolean | null;
-}
-
-export type FilterOperator =
-    | 'eq'    // Equal
-    | 'ne'    // Not equal
-    | 'gt'    // Greater than
-    | 'ge'    // Greater than or equal
-    | 'lt'    // Less than
-    | 'le'    // Less than or equal
-    | 'like'  // Pattern match
-    | 'in';   // In list
-
-/**
- * Sort specification for data preview
- */
-export interface OrderBy {
-    column: string;
-    direction: 'asc' | 'desc';
 }
 
 // Zod schemas for runtime validation
@@ -95,22 +64,9 @@ export const treeQuerySchema = z.object({
     parentPath: z.string().optional(),
 });
 
-export const filterSchema = z.object({
-    column: z.string().min(1),
-    operator: z.enum(['eq', 'ne', 'gt', 'ge', 'lt', 'le', 'like', 'in']),
-    value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
-});
-
-export const orderBySchema = z.object({
-    column: z.string().min(1),
-    direction: z.enum(['asc', 'desc']),
-});
-
 export const previewQuerySchema = z.object({
     objectName: z.string().min(1),
     objectType: z.enum(['table', 'view']),
-    filters: z.array(filterSchema).optional(),
-    orderBy: z.array(orderBySchema).optional(),
+    sqlQuery: z.string().min(1),
     limit: z.number().positive().max(50000).optional(),
-    offset: z.number().nonnegative().optional(),
 });
