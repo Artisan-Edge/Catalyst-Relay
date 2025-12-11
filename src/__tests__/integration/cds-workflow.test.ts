@@ -168,6 +168,7 @@ describe('CDS View Workflow', () => {
         const [dataFrame, previewErr] = await client.previewData({
             objectName: TEST_VIEW_NAME,
             objectType: 'view',
+            sqlQuery: `SELECT * FROM ${TEST_VIEW_NAME}`,
             limit: 10,
         });
 

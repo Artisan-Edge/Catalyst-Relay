@@ -119,6 +119,7 @@ describe('Table Workflow', () => {
         const [dataFrame, previewErr] = await client!.previewData({
             objectName: TEST_NAME,
             objectType: 'table',
+            sqlQuery: `SELECT * FROM ${TEST_NAME}`,
             limit: 10,
         });
 

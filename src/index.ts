@@ -49,9 +49,6 @@ export type {
     ObjectContent,
     TreeQuery,
     PreviewQuery,
-    Filter,
-    FilterOperator,
-    OrderBy,
 } from './types/requests';
 
 // Response wrappers

@@ -39,6 +39,7 @@ describe('Data Preview Workflow', () => {
         const [dataFrame, err] = await client!.previewData({
             objectName: 'T000',
             objectType: 'table',
+            sqlQuery: 'SELECT * FROM T000',
             limit: 10
         });
 

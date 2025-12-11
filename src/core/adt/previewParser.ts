@@ -26,6 +26,10 @@ export interface ColumnInfo {
 /**
  * Parse data preview XML response
  *
+ * Handles two XML formats:
+ * 1. Regular queries: Have <metadata> elements with column definitions
+ * 2. Aggregate queries (COUNT, GROUP BY): No metadata, infer columns from <dataSet> elements
+ *
  * @param xml - XML response from SAP
  * @param maxRows - Maximum rows to parse
  * @param isTable - Whether source is a table (affects column name attribute)
@@ -42,7 +46,7 @@ export function parseDataPreview(
 
     const namespace = 'http://www.sap.com/adt/dataPreview';
 
-    // Extract column metadata from response.
+    // Extract column metadata from response (if present).
     const metadataElements = doc.getElementsByTagNameNS(namespace, 'metadata');
     const columns: ColumnInfo[] = [];
 
@@ -59,13 +63,27 @@ export function parseDataPreview(
         columns.push({ name, dataType });
     }
 
-    // Validate columns were found.
-    if (columns.length === 0) {
-        return err(new Error('No columns found in preview response'));
-    }
-
     // Extract data values organized by column.
     const dataSetElements = doc.getElementsByTagNameNS(namespace, 'dataSet');
+
+    // If no metadata, infer columns from dataSet elements (aggregate queries).
+    if (columns.length === 0 && dataSetElements.length > 0) {
+        for (let i = 0; i < dataSetElements.length; i++) {
+            const dataSet = dataSetElements[i];
+            if (!dataSet) continue;
+            // Use column index as name for aggregate results.
+            const name = dataSet.getAttributeNS(namespace, 'columnName')
+                || dataSet.getAttribute('columnName')
+                || `column${i}`;
+            columns.push({ name, dataType: 'unknown' });
+        }
+    }
+
+    // Still no columns - return empty DataFrame.
+    if (columns.length === 0) {
+        return ok({ columns: [], rows: [], totalRows: 0 });
+    }
+
     const columnData: string[][] = Array.from({ length: columns.length }, () => []);
 
     for (let i = 0; i < dataSetElements.length; i++) {
