@@ -1,3 +1,7 @@
+/**
+ * Query Builder — Optional helper for building SQL queries for data preview
+ */
+
 import { type Result, ok, err } from '../../types/result';
 import type { PreviewSQL } from '../../types/requests';
 
@@ -112,7 +116,7 @@ export function buildSQLQuery(query: DataPreviewQuery): Result<PreviewSQL> {
 
     // Build the rest of the clauses.
     const [whereClause, groupbyClause, orderbyClause] = [queryFiltersToWhere(filters), fieldsToGroupbyClause(groupingFields), sortingsToOrderBy(sortings)];
-    
+
     const result: PreviewSQL = {
         objectName: query.objectName,
         objectType: query.objectType,

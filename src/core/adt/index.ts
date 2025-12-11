@@ -62,6 +62,10 @@ export { previewData } from './dataPreview';
 export { getDistinctValues } from './distinct';
 export { countRows } from './count';
 
+// Query builder (optional helper)
+export { buildSQLQuery, queryFiltersToWhere, sortingsToOrderBy, fieldsToGroupbyClause } from './queryBuilder';
+export type { DataPreviewQuery, QueryFilter, BasicFilter, BetweenFilter, ListFilter, Sorting, Aggregation } from './queryBuilder';
+
 // Search operations
 export { searchObjects } from './searchObjects';
 export { findWhereUsed } from './whereUsed';
