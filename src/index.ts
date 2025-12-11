@@ -48,7 +48,7 @@ export type {
     ObjectRef,
     ObjectContent,
     TreeQuery,
-    PreviewQuery,
+    PreviewSQL,
 } from './types/requests';
 
 // Response wrappers

@@ -16,7 +16,7 @@ import type {
     ObjectRef,
     ObjectContent,
     TreeQuery,
-    PreviewQuery,
+    PreviewSQL,
 } from '../types/requests';
 import type { Session } from './session/types';
 import type {
@@ -83,7 +83,7 @@ export interface ADTClient {
     getTransports(packageName: string): AsyncResult<Transport[]>;
 
     // Data Preview
-    previewData(query: PreviewQuery): AsyncResult<DataFrame>;
+    previewData(query: PreviewSQL): AsyncResult<DataFrame>;
     getDistinctValues(objectName: string, column: string, objectType?: 'table' | 'view'): AsyncResult<DistinctResult>;
     countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number>;
 
@@ -510,7 +510,7 @@ class ADTClientImpl implements ADTClient {
 
     // --- Data Preview ---
 
-    async previewData(query: PreviewQuery): AsyncResult<DataFrame> {
+    async previewData(query: PreviewSQL): AsyncResult<DataFrame> {
         if (!this.state.session) return err(new Error('Not logged in'));
         return adt.previewData(this.requestor, query);
     }

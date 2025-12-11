@@ -4,7 +4,7 @@
 
 import type { AsyncResult } from '../../types/result';
 import { ok, err } from '../../types/result';
-import type { PreviewQuery } from '../../types/requests';
+import type { PreviewSQL } from '../../types/requests';
 import type { AdtRequestor } from './types';
 import type { DataFrame } from './previewParser';
 import { getConfigByExtension } from './types';
@@ -21,7 +21,7 @@ import { parseDataPreview } from './previewParser';
  */
 export async function previewData(
     client: AdtRequestor,
-    query: PreviewQuery
+    query: PreviewSQL
 ): AsyncResult<DataFrame, Error> {
     // Get config by objectType.
     const extension = query.objectType === 'table' ? 'astabldt' : 'asddls';

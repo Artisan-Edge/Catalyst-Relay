@@ -3,7 +3,7 @@
  */
 
 import { previewQuerySchema } from '../../../types/requests';
-import type { PreviewQuery } from '../../../types/requests';
+import type { PreviewSQL } from '../../../types/requests';
 import type { DataFrame } from '../../../core/adt/previewParser';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
@@ -39,7 +39,7 @@ export async function dataHandler(c: RouteContext) {
     }
 
     // Cast needed due to exactOptionalPropertyTypes + Zod inference
-    const query = validation.data as PreviewQuery;
+    const query = validation.data as PreviewSQL;
     const client = c.get('client');
 
     const [dataFrame, error] = await client.previewData(query);

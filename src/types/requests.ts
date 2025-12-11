@@ -35,7 +35,7 @@ export interface TreeQuery {
 /**
  * Data preview query
  */
-export interface PreviewQuery {
+export interface PreviewSQL {
     /** Object name (table or CDS view) */
     objectName: string;
     /** Object type ('table' or 'view') */

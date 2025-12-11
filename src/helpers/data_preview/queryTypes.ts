@@ -1,6 +1,8 @@
+import { type Result, ok, err } from '../../types/result';
+import type { PreviewSQL } from '../../types/requests';
 
-const quoteString = (value: string | number): string => {
-    return typeof value == "string" ? "'" + value + "'" : "" + value
+function quoteString(value: string | number): string {
+    return typeof value == "string" ? "'" + value + "'" : "" + value;
 }
 
 // Where Clause Types and Converters
@@ -11,7 +13,7 @@ export type BasicFilter = {
     operator: "=" | "<>" | "<" | "<=" | ">" | ">=" | "like" | "not like";
 }
 
-const basicFilterToWhere = (filter: BasicFilter): string => {
+function basicFilterToWhere(filter: BasicFilter): string {
     return `${filter.field} ${filter.operator} ${quoteString(filter.value)}`;
 }
 
@@ -22,7 +24,7 @@ export type BetweenFilter = {
     maximum: string | number;
 }
 
-const betweenFilterToWhere = (filter: BetweenFilter): string => {
+function betweenFilterToWhere(filter: BetweenFilter): string {
     return `${filter.field} between ${quoteString(filter.minimum)} and ${quoteString(filter.maximum)}`;
 }
 
@@ -33,22 +35,22 @@ export type ListFilter = {
     include: boolean;
 }
 
-const listFilterToWhere = (filter: ListFilter): string => {
+function listFilterToWhere(filter: ListFilter): string {
     return `${filter.field} ${filter.include ? "" : "not "}in ( ${filter.values.map(quoteString).join(", ")} )`;
 }
 
 export type QueryFilter = BasicFilter | BetweenFilter | ListFilter;
 
-const queryFilterToWhere = (filter: QueryFilter): string => {
+function queryFilterToWhere(filter: QueryFilter): string {
     if (filter.type === "list") return listFilterToWhere(filter);
     if (filter.type === "between") return betweenFilterToWhere(filter);
     return basicFilterToWhere(filter);
-};
+}
 
-export const queryFiltersToWhere = (filters: QueryFilter[]): string => {
+export function queryFiltersToWhere(filters: QueryFilter[]): string {
     if (filters.length === 0) return "";
-    return `where ${filters.map(queryFilterToWhere).join(" and ")}`;
-};
+    return `\nwhere ${filters.map(queryFilterToWhere).join(" and ")}`;
+}
 
 // Order By Types and Converters
 export type Sorting = {
@@ -56,7 +58,66 @@ export type Sorting = {
     direction: "asc" | "desc";
 }
 
-export const sortingsToOrderBy = (sortings: Sorting[]): string => {
+export function sortingsToOrderBy(sortings: Sorting[]): string {
     if (sortings.length === 0) return "";
-    return `order by ${sortings.map(s => `${s.field} ${s.direction}`).join(", ")}`;
+    return `\norder by ${sortings.map(s => `${s.field} ${s.direction}`).join(", ")}`;
+}
+
+// Aggregation Types
+export type Aggregation = {
+    field: string;
+    function: "count" | "sum" | "avg" | "min" | "max";
+}
+
+export function fieldsToGroupbyClause(fields: string[]): string {
+    if (fields.length === 0) return "";
+    return `\ngroup by ${fields.join(", ")}`;
+}
+
+// Query Type
+export type DataPreviewQuery = {
+    objectName: string;
+    objectType: 'table' | 'view';
+    limit?: number;
+
+    fields: string[];
+    filters?: QueryFilter[];
+    sortings?: Sorting[];
+    aggregations?: Aggregation[];
+}
+
+export function buildSQLQuery(query: DataPreviewQuery): Result<PreviewSQL> {
+    // Isolate filters, sortings, and aggregations with defaults.
+    const [filters, sortings, aggregations] = [query.filters ?? [], query.sortings ?? [], query.aggregations ?? []];
+    const groupingFields = query.fields.filter(f => !aggregations.find(a => a.field === f));
+
+    // Do some validation.
+    if (sortings.filter(s => !query.fields.includes(s.field)).length > 0) {
+        return err(new Error("Sorting fields must be included in the selected fields."));
+    }
+
+    // Build main field selection.
+    let selectClause = "select\n";
+
+    const fieldSelections: string[] = [];
+    for (const field of query.fields) {
+        const isAggregation = aggregations.find(a => a.field === field);
+        if (isAggregation) {
+            fieldSelections.push(`\t${isAggregation.function}( main~${field} ) as ${field}`);
+            continue;
+        }
+        fieldSelections.push(`\tmain~${field}`);
+    }
+    selectClause += fieldSelections.join(",\n") + `\nfrom ${query.objectName} as main\n`;
+
+    // Build the rest of the clauses.
+    const [whereClause, groupbyClause, orderbyClause] = [queryFiltersToWhere(filters), fieldsToGroupbyClause(groupingFields), sortingsToOrderBy(sortings)];
+    
+    const result: PreviewSQL = {
+        objectName: query.objectName,
+        objectType: query.objectType,
+        sqlQuery: `${selectClause}${whereClause}${groupbyClause}${orderbyClause}`,
+    };
+    if (query.limit !== undefined) result.limit = query.limit;
+    return ok(result);
 }
