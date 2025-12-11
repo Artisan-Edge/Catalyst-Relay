@@ -122,7 +122,7 @@ export function buildSQLQuery(query: DataPreviewQuery): Result<PreviewSQL> {
     selectClause += fieldSelections.join(",\n") + `\nfrom ${query.objectName} as main\n`;
 
     // Build the rest of the clauses.
-    const [whereClause, groupbyClause, orderbyClause] = [queryFiltersToWhere(filters), fieldsToGroupbyClause(groupingFields), sortingsToOrderBy(sortings)];
+    const [whereClause, groupbyClause, orderbyClause] = [queryFiltersToWhere(filters), aggregations.length ? fieldsToGroupbyClause(groupingFields) : "", sortingsToOrderBy(sortings)];
 
     const result: PreviewSQL = {
         objectName: query.objectName,

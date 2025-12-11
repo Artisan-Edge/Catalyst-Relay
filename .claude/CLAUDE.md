@@ -164,29 +164,31 @@ core/adt/
 ├── types.ts              # Shared types (AdtRequestor, ObjectConfig)
 ├── helpers.ts            # Internal helpers (not exported from barrel)
 │
-│  # CRAUD Operations
-├── read.ts               → readObject()
-├── create.ts             → createObject()
-├── update.ts             → updateObject()
-├── delete.ts             → deleteObject()
-├── lock.ts               → lockObject(), unlockObject()
-├── activation.ts         → activateObjects()
+├── craud/                # Create, Read, Activate, Update, Delete
+│   ├── read.ts           → readObject()
+│   ├── create.ts         → createObject()
+│   ├── update.ts         → updateObject()
+│   ├── delete.ts         → deleteObject()
+│   ├── lock.ts           → lockObject(), unlockObject()
+│   ├── activation.ts     → activateObjects()
+│   └── gitDiff.ts        → gitDiff()
 │
-│  # Discovery
-├── packages.ts           → getPackages()
-├── tree.ts               → getTree()
-├── transports.ts         → getTransports()
+├── discovery/            # Package/tree browsing, search, where-used
+│   ├── packages.ts       → getPackages()
+│   ├── tree.ts           → getTree()
+│   ├── searchObjects.ts  → searchObjects()
+│   └── whereUsed.ts      → findWhereUsed()
 │
-│  # Data Preview
-├── data.ts               → previewData()
-├── distinct.ts           → getDistinctValues()
-├── count.ts              → countRows()
-├── previewParser.ts      # Internal parser (not exported)
-├── queryBuilder.ts       # SQL utilities
+├── data_extraction/      # Data preview, counts, distinct values
+│   ├── dataPreview.ts    → previewData()
+│   ├── distinct.ts       → getDistinctValues()
+│   ├── count.ts          → countRows()
+│   ├── queryBuilder.ts   → buildSQLQuery() (optional helper)
+│   └── previewParser.ts  # Internal parser (not exported)
 │
-│  # Search
-├── searchObjects.ts      → searchObjects()
-└── whereUsed.ts          → findWhereUsed()
+└── transports/           # Transport request management
+    ├── transports.ts     → getTransports()
+    └── createTransport.ts → createTransport()
 ```
 
 ### Import Hierarchy
@@ -198,10 +200,16 @@ types.ts           (shared types, no imports from package)
     ↓
 helpers.ts         (internal utilities, imports types)
     ↓
-individual files   (import from types and helpers)
+subfolder files    (import ../types and ../helpers)
     ↓
-index.ts           (barrel exports, imports from all)
+index.ts           (barrel exports, imports from subfolders)
 ```
+
+Subfolder files use relative paths to reach shared resources:
+- `../types` for shared types
+- `../helpers` for shared helpers
+- `../../utils/xml` for core utilities
+- `../../../types/result` for global types
 
 ---
 

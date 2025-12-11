@@ -210,12 +210,12 @@ export interface ActivationResult { ... }       // only returned by activateObje
 export interface AdtRequestor { ... }
 export interface ObjectConfig { ... }
 
-// core/adt/tree.ts - colocated with getTree()
+// core/adt/discovery/tree.ts - colocated with getTree()
 interface VirtualFolder { ... }           // internal helper type
 interface TreeDiscoveryQuery { ... }      // internal helper type
 export interface TreeNode { ... }         // return type of getTree()
 
-// core/adt/activation.ts - colocated with activateObjects()
+// core/adt/craud/activation.ts - colocated with activateObjects()
 export interface ActivationResult { ... } // return type of activateObjects()
 export interface ActivationMessage { ... }
 ```
