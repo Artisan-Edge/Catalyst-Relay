@@ -1,12 +1,12 @@
 // ADT Activation — activate ADT objects
 
-import type { Result, AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { ObjectRef } from '../../types/requests';
-import type { AdtRequestor } from './types';
-import { getConfigByExtension } from './types';
-import { extractError, safeParseXml } from '../utils/xml';
-import { debug } from '../utils/logging';
+import type { Result, AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { ObjectRef } from '../../../types/requests';
+import type { AdtRequestor } from '../types';
+import { getConfigByExtension } from '../types';
+import { extractError, safeParseXml } from '../../utils/xml';
+import { debug } from '../../utils/logging';
 
 /**
  * Result of activation operation

@@ -2,12 +2,12 @@
  * Create — Create new SAP development object
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { ObjectContent } from '../../types/requests';
-import type { AdtRequestor } from './types';
-import { escapeXml } from '../utils/xml';
-import { checkResponse, requireConfig } from './helpers';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { ObjectContent } from '../../../types/requests';
+import type { AdtRequestor } from '../types';
+import { escapeXml } from '../../utils/xml';
+import { checkResponse, requireConfig } from '../helpers';
 
 /**
  * Create a new object in SAP

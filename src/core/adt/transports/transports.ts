@@ -2,9 +2,9 @@
  * Transports — List transport requests for a package
  */
 
-import type { Result, AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { AdtRequestor } from './types';
+import type { Result, AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { AdtRequestor } from '../types';
 
 /**
  * Transport request
@@ -16,7 +16,7 @@ export interface Transport {
     status: 'modifiable' | 'released';
 }
 
-import { extractError, safeParseXml } from '../utils/xml';
+import { extractError, safeParseXml } from '../../utils/xml';
 
 /**
  * Get transports for a package

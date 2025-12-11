@@ -2,8 +2,8 @@
  * Query Builder — Optional helper for building SQL queries for data preview
  */
 
-import { type Result, ok, err } from '../../types/result';
-import type { PreviewSQL } from '../../types/requests';
+import { type Result, ok, err } from '../../../types/result';
+import type { PreviewSQL } from '../../../types/requests';
 
 function quoteString(value: string | number): string {
     return typeof value == "string" ? "'" + value + "'" : "" + value;
@@ -78,6 +78,13 @@ export function fieldsToGroupbyClause(fields: string[]): string {
     return `\ngroup by ${fields.join(", ")}`;
 }
 
+export function aggregationToFieldDefinition(aggregation: Aggregation): string {
+    if (aggregation.function === "count") {
+        return `count( distinct main~${aggregation.field} ) as ${aggregation.field}`;
+    }
+    return `${aggregation.function}( main~${aggregation.field} ) as ${aggregation.field}`;
+}
+
 // Query Type
 export type DataPreviewQuery = {
     objectName: string;
@@ -105,9 +112,9 @@ export function buildSQLQuery(query: DataPreviewQuery): Result<PreviewSQL> {
 
     const fieldSelections: string[] = [];
     for (const field of query.fields) {
-        const isAggregation = aggregations.find(a => a.field === field);
-        if (isAggregation) {
-            fieldSelections.push(`\t${isAggregation.function}( main~${field} ) as ${field}`);
+        const aggregation = aggregations.find(a => a.field === field);
+        if (aggregation) {
+            fieldSelections.push(`\t${aggregationToFieldDefinition(aggregation)}`);
             continue;
         }
         fieldSelections.push(`\tmain~${field}`);

@@ -2,11 +2,11 @@
  * Delete — Delete SAP development object
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { ObjectRef } from '../../types/requests';
-import type { AdtRequestor } from './types';
-import { checkResponse, requireConfig } from './helpers';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { ObjectRef } from '../../../types/requests';
+import type { AdtRequestor } from '../types';
+import { checkResponse, requireConfig } from '../helpers';
 
 /**
  * Delete an object from SAP

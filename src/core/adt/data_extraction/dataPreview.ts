@@ -2,14 +2,14 @@
  * Data Preview — Execute SQL queries against table/view data
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { PreviewSQL } from '../../types/requests';
-import type { AdtRequestor } from './types';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { PreviewSQL } from '../../../types/requests';
+import type { AdtRequestor } from '../types';
 import type { DataFrame } from './previewParser';
-import { getConfigByExtension } from './types';
-import { extractError } from '../utils/xml';
-import { debug } from '../utils/logging';
+import { getConfigByExtension } from '../types';
+import { extractError } from '../../utils/xml';
+import { debug } from '../../utils/logging';
 import { parseDataPreview } from './previewParser';
 
 /**

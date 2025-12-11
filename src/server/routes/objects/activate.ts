@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { objectRefSchema } from '../../../types/requests';
-import type { ActivationResult } from '../../../core/adt/activation';
+import type { ActivationResult } from '../../../core/adt/craud/activation';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

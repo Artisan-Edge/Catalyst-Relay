@@ -2,10 +2,10 @@
  * Create Transport — Create a new transport request for a package
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { AdtRequestor } from './types';
-import { dictToAbapXml, extractError } from '../utils/xml';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { AdtRequestor } from '../types';
+import { dictToAbapXml, extractError } from '../../utils/xml';
 
 /**
  * Configuration for creating a transport

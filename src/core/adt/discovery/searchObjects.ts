@@ -2,9 +2,9 @@
  * Search Objects — Quick search by name pattern
  */
 
-import type { Result, AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { AdtRequestor } from './types';
+import type { Result, AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { AdtRequestor } from '../types';
 
 /**
  * Search result
@@ -17,8 +17,8 @@ export interface SearchResult {
     objectType: string;
 }
 
-import { getConfigByType, getAllTypes } from './types';
-import { extractError, safeParseXml } from '../utils/xml';
+import { getConfigByType, getAllTypes } from '../types';
+import { extractError, safeParseXml } from '../../utils/xml';
 
 /**
  * Search for objects by name pattern

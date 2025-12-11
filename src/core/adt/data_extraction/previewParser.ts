@@ -4,9 +4,9 @@
  * Internal helper used by data.ts, distinct.ts, and count.ts
  */
 
-import type { Result } from '../../types/result';
-import { ok, err } from '../../types/result';
-import { safeParseXml } from '../utils/xml';
+import type { Result } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import { safeParseXml } from '../../utils/xml';
 
 /**
  * Data preview result (columnar format)

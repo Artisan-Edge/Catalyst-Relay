@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { objectRefSchema } from '../../../types/requests';
-import type { ObjectWithContent } from '../../../core/adt/read';
+import type { ObjectWithContent } from '../../../core/adt/craud/read';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

@@ -2,12 +2,12 @@
  * Update — Update existing SAP development object
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { ObjectContent } from '../../types/requests';
-import type { AdtRequestor } from './types';
-import { checkResponse, requireConfig } from './helpers';
-import { debug } from '../utils/logging';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { ObjectContent } from '../../../types/requests';
+import type { AdtRequestor } from '../types';
+import { checkResponse, requireConfig } from '../helpers';
+import { debug } from '../../utils/logging';
 
 /**
  * Update an existing object's source content

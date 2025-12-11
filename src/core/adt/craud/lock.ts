@@ -2,13 +2,13 @@
  * Lock/Unlock — Object lock management for editing
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { ObjectRef } from '../../types/requests';
-import type { AdtRequestor } from './types';
-import { extractLockHandle } from '../utils/xml';
-import { checkResponse, requireConfig } from './helpers';
-import { debug } from '../utils/logging';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { ObjectRef } from '../../../types/requests';
+import type { AdtRequestor } from '../types';
+import { extractLockHandle } from '../../utils/xml';
+import { checkResponse, requireConfig } from '../helpers';
+import { debug } from '../../utils/logging';
 
 /**
  * Lock an object for editing

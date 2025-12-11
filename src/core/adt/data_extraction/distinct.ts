@@ -2,9 +2,9 @@
  * Distinct Values — Get distinct column values with counts
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { AdtRequestor } from './types';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { AdtRequestor } from '../types';
 import { previewData } from './dataPreview';
 
 /**

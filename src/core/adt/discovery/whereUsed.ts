@@ -2,10 +2,10 @@
  * Where-Used — Find object dependencies
  */
 
-import type { Result, AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { ObjectRef } from '../../types/requests';
-import type { AdtRequestor } from './types';
+import type { Result, AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { ObjectRef } from '../../../types/requests';
+import type { AdtRequestor } from '../types';
 
 /**
  * Where-used dependency
@@ -17,8 +17,8 @@ export interface Dependency {
     usageType: string;
 }
 
-import { getConfigByType, getConfigByExtension } from './types';
-import { extractError, safeParseXml } from '../utils/xml';
+import { getConfigByType, getConfigByExtension } from '../types';
+import { extractError, safeParseXml } from '../../utils/xml';
 
 /**
  * Find where an object is used (dependencies)

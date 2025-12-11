@@ -5,12 +5,12 @@
  */
 
 import { diffArrays, type ChangeObject } from 'diff';
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { AdtRequestor } from './types';
-import type { ObjectContent } from '../../types/requests';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { AdtRequestor } from '../types';
+import type { ObjectContent } from '../../../types/requests';
 import { readObject } from './read';
-import { getConfigByExtension } from './types';
+import { getConfigByExtension } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types (colocated - only used by this function)

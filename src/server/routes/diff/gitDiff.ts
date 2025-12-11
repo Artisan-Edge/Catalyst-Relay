@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { objectContentSchema } from '../../../types/requests';
 import type { ObjectContent } from '../../../types/requests';
-import type { DiffResult } from '../../../core/adt/gitDiff';
+import type { DiffResult } from '../../../core/adt/craud/gitDiff';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

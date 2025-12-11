@@ -2,9 +2,9 @@
  * Count Rows — Get total row count for table/view
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { AdtRequestor } from './types';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { AdtRequestor } from '../types';
 import { previewData } from './dataPreview';
 
 /**

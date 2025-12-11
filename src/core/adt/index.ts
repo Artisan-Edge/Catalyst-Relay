@@ -23,57 +23,57 @@ export {
 } from './types';
 
 // Read operations
-export { readObject } from './read';
-export type { ObjectMetadata, ObjectWithContent } from './read';
+export { readObject } from './craud/read';
+export type { ObjectMetadata, ObjectWithContent } from './craud/read';
 
 // Activation
-export type { ActivationResult, ActivationMessage } from './activation';
+export type { ActivationResult, ActivationMessage } from './craud/activation';
 
 // Discovery types
-export type { TreeNode, Package } from './tree';
-export type { Transport } from './transports';
+export type { TreeNode, Package } from './discovery/tree';
+export type { Transport } from './transports/transports';
 
 // Preview types
-export type { DataFrame, ColumnInfo } from './previewParser';
-export type { DistinctResult } from './distinct';
+export type { DataFrame, ColumnInfo } from './data_extraction/previewParser';
+export type { DistinctResult } from './data_extraction/distinct';
 
 // Search types
-export type { SearchResult } from './searchObjects';
-export type { Dependency } from './whereUsed';
+export type { SearchResult } from './discovery/searchObjects';
+export type { Dependency } from './discovery/whereUsed';
 
 // Lock management
-export { lockObject, unlockObject } from './lock';
+export { lockObject, unlockObject } from './craud/lock';
 
 // Write operations
-export { createObject } from './create';
-export { updateObject } from './update';
-export { deleteObject } from './delete';
+export { createObject } from './craud/create';
+export { updateObject } from './craud/update';
+export { deleteObject } from './craud/delete';
 
 // Activation
-export { activateObjects } from './activation';
+export { activateObjects } from './craud/activation';
 
 // Discovery operations
-export { getPackages } from './packages';
-export { getTree } from './tree';
-export { getTransports } from './transports';
+export { getPackages } from './discovery/packages';
+export { getTree } from './discovery/tree';
+export { getTransports } from './transports/transports';
 
 // Data preview operations
-export { previewData } from './dataPreview';
-export { getDistinctValues } from './distinct';
-export { countRows } from './count';
+export { previewData } from './data_extraction/dataPreview';
+export { getDistinctValues } from './data_extraction/distinct';
+export { countRows } from './data_extraction/count';
 
 // Query builder (optional helper)
-export { buildSQLQuery, queryFiltersToWhere, sortingsToOrderBy, fieldsToGroupbyClause } from './queryBuilder';
-export type { DataPreviewQuery, QueryFilter, BasicFilter, BetweenFilter, ListFilter, Sorting, Aggregation } from './queryBuilder';
+export { buildSQLQuery, queryFiltersToWhere, sortingsToOrderBy, fieldsToGroupbyClause } from './data_extraction/queryBuilder';
+export type { DataPreviewQuery, QueryFilter, BasicFilter, BetweenFilter, ListFilter, Sorting, Aggregation } from './data_extraction/queryBuilder';
 
 // Search operations
-export { searchObjects } from './searchObjects';
-export { findWhereUsed } from './whereUsed';
+export { searchObjects } from './discovery/searchObjects';
+export { findWhereUsed } from './discovery/whereUsed';
 
 // Transport management
-export { createTransport } from './createTransport';
-export type { TransportConfig } from './createTransport';
+export { createTransport } from './transports/createTransport';
+export type { TransportConfig } from './transports/createTransport';
 
 // Diff operations
-export { gitDiff } from './gitDiff';
-export type { DiffResult, DiffHunk, SimpleDiffHunk, ModifiedDiffHunk } from './gitDiff';
+export { gitDiff } from './craud/gitDiff';
+export type { DiffResult, DiffHunk, SimpleDiffHunk, ModifiedDiffHunk } from './craud/gitDiff';

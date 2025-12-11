@@ -2,9 +2,9 @@
  * Packages — List available packages
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { AdtRequestor } from './types';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { AdtRequestor } from '../types';
 import type { Package } from './tree';
 import { getTreeInternal } from './tree';
 

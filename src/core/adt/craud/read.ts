@@ -2,11 +2,11 @@
  * POST /objects/read — Read object source content
  */
 
-import type { AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { ObjectRef } from '../../types/requests';
-import type { AdtRequestor } from './types';
-import { checkResponse, requireConfig } from './helpers';
+import type { AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { ObjectRef } from '../../../types/requests';
+import type { AdtRequestor } from '../types';
+import { checkResponse, requireConfig } from '../helpers';
 
 /**
  * Object metadata

@@ -2,12 +2,12 @@
  * Tree — Hierarchical tree browsing for packages
  */
 
-import type { Result, AsyncResult } from '../../types/result';
-import { ok, err } from '../../types/result';
-import type { TreeQuery } from '../../types/requests';
-import type { AdtRequestor } from './types';
-import { getConfigByType } from './types';
-import { extractError, safeParseXml } from '../utils/xml';
+import type { Result, AsyncResult } from '../../../types/result';
+import { ok, err } from '../../../types/result';
+import type { TreeQuery } from '../../../types/requests';
+import type { AdtRequestor } from '../types';
+import { getConfigByType } from '../types';
+import { extractError, safeParseXml } from '../../utils/xml';
 
 /**
  * Tree node for hierarchical browsing
