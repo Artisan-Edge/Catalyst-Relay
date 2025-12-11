@@ -4,39 +4,8 @@ SAP-specific concepts and behaviors for working with ADT (ABAP Development Tools
 
 ## Sections
 
-- [Client ID Format](#client-id-format)
-- [Config File](#config-file)
 - [CSRF Token Flow](#csrf-token-flow)
 - [SSL Verification](#ssl-verification)
-
----
-
-## Client ID Format
-
-Client IDs follow: `SystemId-ClientNumber` (e.g., `MediaDemo-DM1-200`)
-
-| Part | Example | Purpose |
-|------|---------|---------|
-| System ID | `MediaDemo-DM1` | Looks up URL in config.json |
-| Client Number | `200` | Passed as `sap-client` query param |
-
-Multiple SAP clients (100, 200, etc.) share the same server URL.
-
----
-
-## Config File
-
-`config.json` maps system IDs to URLs:
-
-```json
-{
-    "MediaDemo-DM1": {
-        "adt": "https://50.19.106.63:443"
-    }
-}
-```
-
-Use `loadConfigFromEnv()` which defaults to `./config.json` or reads from `RELAY_CONFIG` env var.
 
 ---
 

@@ -11,11 +11,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { createClient, loadConfig } from '../../core';
+import { createClient } from '../../core';
 import type { ADTClient } from '../../core';
 
 // Test configuration from environment
-const CLIENT_ID = process.env['SAP_TEST_CLIENT_ID'] ?? 'MediaDemo-DM1-200';
+const ADT_URL = process.env['SAP_TEST_ADT_URL'] ?? '';
+const CLIENT = process.env['SAP_TEST_CLIENT'] ?? '';
 const USERNAME = process.env['SAP_TEST_USERNAME'] ?? '';
 const PACKAGE_NAME = process.env['SAP_TEST_PACKAGE'] ?? '$TMP';
 const TRANSPORT = process.env['SAP_TEST_TRANSPORT'] || undefined;
@@ -44,35 +45,23 @@ describe('CDS View Workflow', () => {
     let dclCreated = false;
 
     beforeAll(async () => {
-        // Check for required credentials
+        // Validate required credentials
         const password = process.env['SAP_PASSWORD'];
+        const missing: string[] = [];
+        if (!ADT_URL) missing.push('SAP_TEST_ADT_URL');
+        if (!CLIENT) missing.push('SAP_TEST_CLIENT');
+        if (!USERNAME) missing.push('SAP_TEST_USERNAME');
+        if (!password) missing.push('SAP_PASSWORD');
 
-        if (!USERNAME || !password) {
-            console.log('Skipping integration tests - SAP_TEST_USERNAME and SAP_PASSWORD not set');
-            return;
+        if (missing.length > 0) {
+            throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
         }
 
-        // Load configuration
-        const [config, configErr] = loadConfig('./config.json');
-        if (configErr) {
-            throw new Error(`Failed to load config: ${configErr.message}`);
-        }
-
-        // Parse client ID to get system and client number
-        const parts = CLIENT_ID.split('-');
-        const clientNumber = parts.pop()!;
-        const systemId = parts.join('-');
-        const systemConfig = config.get(systemId);
-
-        if (!systemConfig?.adt) {
-            throw new Error(`System ${systemId} not found in config`);
-        }
-
-        // Create client
+        // Create client directly from environment variables
         const [newClient, clientErr] = createClient({
-            url: systemConfig.adt,
-            client: clientNumber,
-            auth: { type: 'basic', username: USERNAME, password },
+            url: ADT_URL,
+            client: CLIENT,
+            auth: { type: 'basic', username: USERNAME, password: password! },
             insecure: true,
         });
 
@@ -123,8 +112,7 @@ describe('CDS View Workflow', () => {
 
     it('should create a CDS view', async () => {
         if (!client?.session) {
-            console.log('Skipping - no session');
-            return;
+            throw new Error('No active session - login may have failed');
         }
 
         const [, createErr] = await client.create(
@@ -144,10 +132,8 @@ describe('CDS View Workflow', () => {
     });
 
     it('should activate the CDS view', async () => {
-        if (!client?.session || !viewCreated) {
-            console.log('Skipping - no session or view not created');
-            return;
-        }
+        if (!client?.session) throw new Error('No active session');
+        if (!viewCreated) throw new Error('View was not created - previous test failed');
 
         const [results, activateErr] = await client.activate([
             { name: TEST_VIEW_NAME, extension: 'asddls' }
@@ -160,10 +146,8 @@ describe('CDS View Workflow', () => {
     });
 
     it('should preview data from the CDS view', async () => {
-        if (!client?.session || !viewCreated) {
-            console.log('Skipping - no session or view not created');
-            return;
-        }
+        if (!client?.session) throw new Error('No active session');
+        if (!viewCreated) throw new Error('View was not created - previous test failed');
 
         const [dataFrame, previewErr] = await client.previewData({
             objectName: TEST_VIEW_NAME,
@@ -183,10 +167,8 @@ describe('CDS View Workflow', () => {
     });
 
     it('should read the CDS view source', async () => {
-        if (!client?.session || !viewCreated) {
-            console.log('Skipping - no session or view not created');
-            return;
-        }
+        if (!client?.session) throw new Error('No active session');
+        if (!viewCreated) throw new Error('View was not created - previous test failed');
 
         const [objects, readErr] = await client.read([
             { name: TEST_VIEW_NAME, extension: 'asddls' }
@@ -199,10 +181,8 @@ describe('CDS View Workflow', () => {
     });
 
     it('should create an access control for the CDS view', async () => {
-        if (!client?.session || !viewCreated) {
-            console.log('Skipping - no session or view not created');
-            return;
-        }
+        if (!client?.session) throw new Error('No active session');
+        if (!viewCreated) throw new Error('View was not created - previous test failed');
 
         const [, createErr] = await client.create(
             {
@@ -221,10 +201,8 @@ describe('CDS View Workflow', () => {
     });
 
     it('should activate the access control', async () => {
-        if (!client?.session || !dclCreated) {
-            console.log('Skipping - no session or DCL not created');
-            return;
-        }
+        if (!client?.session) throw new Error('No active session');
+        if (!dclCreated) throw new Error('DCL was not created - previous test failed');
 
         const [results, activateErr] = await client.activate([
             { name: TEST_DCL_NAME, extension: 'asdcls' }
@@ -237,10 +215,8 @@ describe('CDS View Workflow', () => {
     });
 
     it('should read the access control source', async () => {
-        if (!client?.session || !dclCreated) {
-            console.log('Skipping - no session or DCL not created');
-            return;
-        }
+        if (!client?.session) throw new Error('No active session');
+        if (!dclCreated) throw new Error('DCL was not created - previous test failed');
 
         const [objects, readErr] = await client.read([
             { name: TEST_DCL_NAME, extension: 'asdcls' }

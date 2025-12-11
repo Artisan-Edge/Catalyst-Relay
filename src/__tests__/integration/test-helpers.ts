@@ -8,7 +8,7 @@
  * - Skip logic helpers
  */
 
-import { createClient, loadConfig } from '../../core';
+import { createClient } from '../../core';
 import type { ADTClient } from '../../core';
 import type { ObjectRef } from '../../types/requests';
 
@@ -16,8 +16,10 @@ import type { ObjectRef } from '../../types/requests';
  * Test configuration from environment variables
  */
 export const TEST_CONFIG = {
-    /** SAP client ID in format SystemId-ClientNumber (e.g., 'MediaDemo-DM1-200') */
-    clientId: process.env['SAP_TEST_CLIENT_ID'] ?? 'MediaDemo-DM1-200',
+    /** SAP ADT server URL (e.g., 'https://hostname:port') */
+    adtUrl: process.env['SAP_TEST_ADT_URL'] ?? '',
+    /** SAP client number (e.g., '100', '200') */
+    client: process.env['SAP_TEST_CLIENT'] ?? '',
     /** SAP username */
     username: process.env['SAP_TEST_USERNAME'] ?? '',
     /** SAP password */
@@ -26,8 +28,6 @@ export const TEST_CONFIG = {
     package: process.env['SAP_TEST_PACKAGE'] ?? '$TMP',
     /** Transport request (optional, not needed for $TMP) */
     transport: process.env['SAP_TEST_TRANSPORT'] || undefined,
-    /** Config file path */
-    configPath: './config.json',
 };
 
 /**
@@ -44,49 +44,38 @@ export function generateTestName(prefix = 'ZSNAP_TEST'): string {
 }
 
 /**
- * Check if credentials are available
+ * Validate that all required credentials are set
  *
- * @returns true if username and password are set
+ * @throws Error if any required credential is missing
  */
-export function hasCredentials(): boolean {
-    return Boolean(TEST_CONFIG.username && TEST_CONFIG.password);
+export function validateCredentials(): void {
+    const missing: string[] = [];
+    if (!TEST_CONFIG.adtUrl) missing.push('SAP_TEST_ADT_URL');
+    if (!TEST_CONFIG.client) missing.push('SAP_TEST_CLIENT');
+    if (!TEST_CONFIG.username) missing.push('SAP_TEST_USERNAME');
+    if (!TEST_CONFIG.password) missing.push('SAP_PASSWORD');
+
+    if (missing.length > 0) {
+        throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    }
 }
 
 /**
  * Create and login an ADT client
  *
- * Handles configuration loading, client creation, and login.
- * Returns null client if credentials are missing.
+ * Uses environment variables for configuration.
+ * Throws if credentials are missing.
  *
  * @returns [client, error] tuple
  */
 export async function createTestClient(): Promise<[ADTClient | null, Error | null]> {
-    // Check for required credentials
-    if (!hasCredentials()) {
-        console.log('Skipping - SAP_TEST_USERNAME and SAP_PASSWORD not set');
-        return [null, null];
-    }
+    // Validate required credentials - throws if missing
+    validateCredentials();
 
-    // Load configuration
-    const [config, configErr] = loadConfig(TEST_CONFIG.configPath);
-    if (configErr) {
-        return [null, new Error(`Failed to load config: ${configErr.message}`)];
-    }
-
-    // Parse client ID to get system and client number
-    const parts = TEST_CONFIG.clientId.split('-');
-    const clientNumber = parts.pop()!;
-    const systemId = parts.join('-');
-    const systemConfig = config.get(systemId);
-
-    if (!systemConfig?.adt) {
-        return [null, new Error(`System ${systemId} not found in config`)];
-    }
-
-    // Create client
+    // Create client directly from environment variables
     const [client, clientErr] = createClient({
-        url: systemConfig.adt,
-        client: clientNumber,
+        url: TEST_CONFIG.adtUrl,
+        client: TEST_CONFIG.client,
         auth: {
             type: 'basic',
             username: TEST_CONFIG.username,
@@ -113,12 +102,12 @@ export async function createTestClient(): Promise<[ADTClient | null, Error | nul
  * Check if a test should be skipped due to missing session
  *
  * @param client - ADT client (may be null)
- * @returns true if test should be skipped
+ * @throws Error if no session is available
+ * @returns false (never returns true - throws instead)
  */
 export function shouldSkip(client: ADTClient | null): boolean {
     if (!client?.session) {
-        console.log('Skipping - no session');
-        return true;
+        throw new Error('No active session - login may have failed');
     }
     return false;
 }

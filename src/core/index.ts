@@ -9,18 +9,6 @@
 export { createClient } from './client';
 export type { ADTClient } from './client';
 
-// Re-export config utilities
-export {
-    loadConfig,
-    loadConfigFromEnv,
-    getConfig,
-    getSystemConfig,
-    parseClientId,
-    resolveClientId,
-    buildClientConfig,
-} from './config';
-export type { SystemConfig, ConfigMap, ParsedClientId } from './config';
-
 // Re-export auth (when implemented)
 // export * as auth from './auth';
 

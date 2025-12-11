@@ -21,27 +21,24 @@ REM Check if password provided for integration tests
 if "%~1"=="" (
     echo [2/2] Skipping integration tests - no password provided
     echo.
-    echo Usage: test.bat ^<SAP_PASSWORD^> [username] [client_id]
-    echo   SAP_PASSWORD  - Required for integration tests
-    echo   username      - Optional, defaults to SAP_TEST_USERNAME env var
-    echo   client_id     - Optional, defaults to MediaDemo-DM1-200
+    echo Usage: test.bat ^<SAP_PASSWORD^>
+    echo.
+    echo Required in .env file:
+    echo   SAP_TEST_ADT_URL  - SAP ADT server URL
+    echo   SAP_TEST_CLIENT   - SAP client number
+    echo   SAP_TEST_USERNAME - SAP username
     echo.
     echo Unit tests completed successfully!
     exit /b 0
 )
 
-REM Set environment variables for integration tests
+REM Set password from command line argument
 set SAP_PASSWORD=%~1
-if not "%~2"=="" set SAP_TEST_USERNAME=%~2
-if not "%~3"=="" set SAP_TEST_CLIENT_ID=%~3
 
 echo [2/2] Running integration tests...
 echo --------------------------------------------
-echo Client: %SAP_TEST_CLIENT_ID%
-echo User: %SAP_TEST_USERNAME%
-echo.
 
-REM Run all integration tests and save output
+REM Run all integration tests (bun auto-loads .env)
 bun test src/__tests__/integration/ > test.output 2>&1
 set TEST_EXIT_CODE=%errorlevel%
 

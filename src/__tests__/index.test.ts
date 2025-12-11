@@ -4,15 +4,11 @@
  * Tests pure functions that don't require SAP connection:
  * - Client creation validation
  * - Result tuple utilities
- * - Client ID parsing
  * - Object type configuration
  */
 
 import { describe, it, expect } from 'bun:test';
 import { createClient, ok, err } from '../index';
-import {
-    parseClientId,
-} from '../core';
 import {
     getConfigByExtension,
     getConfigByType,
@@ -186,61 +182,6 @@ describe('Result utilities', () => {
             expect(error).toBeInstanceOf(CustomError);
             expect((error as CustomError).code).toBe('E001');
         });
-    });
-});
-
-// =============================================================================
-// Client ID Parsing Tests
-// =============================================================================
-
-describe('parseClientId', () => {
-    it('should parse simple client ID', () => {
-        const [result, error] = parseClientId('System-100');
-        expect(error).toBeNull();
-        expect(result?.systemId).toBe('System');
-        expect(result?.clientNumber).toBe('100');
-    });
-
-    it('should parse client ID with hyphenated system name', () => {
-        const [result, error] = parseClientId('MediaDemo-DM1-200');
-        expect(error).toBeNull();
-        expect(result?.systemId).toBe('MediaDemo-DM1');
-        expect(result?.clientNumber).toBe('200');
-    });
-
-    it('should parse client ID with multiple hyphens', () => {
-        const [result, error] = parseClientId('My-Complex-System-Name-300');
-        expect(error).toBeNull();
-        expect(result?.systemId).toBe('My-Complex-System-Name');
-        expect(result?.clientNumber).toBe('300');
-    });
-
-    it('should return error for empty client ID', () => {
-        const [result, error] = parseClientId('');
-        expect(result).toBeNull();
-        expect(error).toBeInstanceOf(Error);
-        expect(error?.message).toContain('required');
-    });
-
-    it('should return error for client ID without hyphen', () => {
-        const [result, error] = parseClientId('InvalidFormat');
-        expect(result).toBeNull();
-        expect(error).toBeInstanceOf(Error);
-        expect(error?.message).toContain('Invalid client ID format');
-    });
-
-    it('should return error for non-numeric client number', () => {
-        const [result, error] = parseClientId('System-ABC');
-        expect(result).toBeNull();
-        expect(error).toBeInstanceOf(Error);
-        expect(error?.message).toContain('numeric');
-    });
-
-    it('should handle three-digit client numbers', () => {
-        const [result, error] = parseClientId('DEV-001');
-        expect(error).toBeNull();
-        expect(result?.systemId).toBe('DEV');
-        expect(result?.clientNumber).toBe('001');
     });
 });
 

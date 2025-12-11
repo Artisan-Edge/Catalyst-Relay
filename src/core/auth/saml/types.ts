@@ -2,7 +2,6 @@
  * SAML authentication types
  *
  * Defines provider configurations and form selectors for SAML browser automation.
- * Configs are loaded from config.json per-system, not hardcoded.
  */
 
 /**
@@ -34,7 +33,6 @@ export const DEFAULT_FORM_SELECTORS: FormSelectors = {
  * Configuration for a SAML provider
  *
  * Defines how to interact with a specific SAP system's login page.
- * Configured per-system in config.json.
  */
 export interface SamlProviderConfig {
     /** Whether to ignore HTTPS certificate errors */
