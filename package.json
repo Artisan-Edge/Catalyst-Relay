@@ -25,7 +25,7 @@
     "build": "tsup",
     "test": "bun test",
     "test:run": "bun test",
-    "test:node": "node --experimental-strip-types -e \"import('./dist/index.js')\"",
+    "test:node": "node -e \"import('./dist/index.js')\"",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "prepublishOnly": "bun run build && bun run test:node"
