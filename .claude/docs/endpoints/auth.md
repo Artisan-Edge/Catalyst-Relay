@@ -5,7 +5,9 @@ Session-based authentication for SAP ADT access.
 ## Sections
 
 - [POST /login](#post-login)
+  - [Library Usage](#library-usage)
 - [DELETE /logout](#delete-logout)
+  - [Library Usage](#library-usage-1)
 - [Authentication Types](#authentication-types)
 
 ---
@@ -78,6 +80,94 @@ Authenticate with an SAP system and create a session. Returns a session ID for u
 - **Multi-client access** — Same URL, different client numbers (100, 200)
 - **Session reuse** — Identical config returns existing session
 
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+import type { ClientConfig } from 'catalyst-relay';
+
+// Configure the client
+const config: ClientConfig = {
+    url: 'https://sap-dev.example.com:443',
+    client: '100',
+    auth: {
+        type: 'basic',
+        username: 'DEVELOPER',
+        password: 'secret123'
+    },
+    timeout: 30000,      // Optional: request timeout in ms
+    insecure: true       // Optional: skip SSL verification (dev only)
+};
+
+// Create client (synchronous, returns Result tuple)
+const [client, createErr] = createClient(config);
+if (createErr) {
+    console.error('Failed to create client:', createErr.message);
+    return;
+}
+
+// Login (async, returns AsyncResult<Session>)
+const [session, loginErr] = await client.login();
+if (loginErr) {
+    console.error('Login failed:', loginErr.message);
+    return;
+}
+
+console.log('Logged in as:', session.username);
+console.log('Session expires:', new Date(session.expiresAt));
+```
+
+**Error handling:**
+The library uses Go-style error tuples. Always check for errors:
+```typescript
+if (loginErr) {
+    console.error('Login failed:', loginErr.message);
+    return;
+}
+```
+
+**SAML example:**
+```typescript
+const config: ClientConfig = {
+    url: 'https://sap-dev.example.com:443',
+    client: '100',
+    auth: {
+        type: 'saml',
+        username: 'user@example.com',
+        password: 'secret123',
+        providerConfig: {  // Optional: custom form selectors
+            ignoreHttpsErrors: true,
+            formSelectors: {
+                username: '#j_username',
+                password: '#j_password',
+                submit: '#logOnFormSubmit'
+            }
+        }
+    }
+};
+
+const [client, createErr] = createClient(config);
+const [session, loginErr] = await client.login();
+```
+
+**SSO example:**
+```typescript
+const config: ClientConfig = {
+    url: 'https://sap-dev.example.com:443',
+    client: '100',
+    auth: {
+        type: 'sso',
+        slsUrl: 'https://sapsso.corp.example.com',
+        profile: 'SAPSSO_P',           // Optional
+        forceEnroll: false              // Optional
+    },
+    insecure: true  // Typically required for corporate CAs
+};
+
+const [client, createErr] = createClient(config);
+const [session, loginErr] = await client.login();
+```
+
 ---
 
 ## DELETE /logout
@@ -127,6 +217,83 @@ curl -X DELETE http://localhost:3000/logout \
 - **Clean termination** — Release SAP connections when done
 - **Error recovery** — Logout and re-login to clear stale state
 - **Script cleanup** — Call in finally blocks; continues even if SAP logout fails
+
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+import type { ClientConfig } from 'catalyst-relay';
+
+// Assume client is already created and logged in
+const config: ClientConfig = {
+    url: 'https://sap-dev.example.com:443',
+    client: '100',
+    auth: {
+        type: 'basic',
+        username: 'DEVELOPER',
+        password: 'secret123'
+    }
+};
+
+const [client, createErr] = createClient(config);
+if (createErr) {
+    console.error('Failed to create client:', createErr.message);
+    return;
+}
+
+const [session, loginErr] = await client.login();
+if (loginErr) {
+    console.error('Login failed:', loginErr.message);
+    return;
+}
+
+// ... perform operations ...
+
+// Logout (async, returns AsyncResult<void>)
+const [, logoutErr] = await client.logout();
+if (logoutErr) {
+    console.error('Logout failed:', logoutErr.message);
+    // Note: logout errors are often non-fatal
+}
+
+console.log('Successfully logged out');
+```
+
+**Error handling:**
+The library uses Go-style error tuples. Always check for errors:
+```typescript
+if (logoutErr) {
+    console.error('Logout failed:', logoutErr.message);
+    return;
+}
+```
+
+**Script cleanup pattern:**
+```typescript
+const [client, createErr] = createClient(config);
+const [session, loginErr] = await client.login();
+
+try {
+    // Perform operations
+    const [packages, err] = await client.getPackages();
+    // ... more operations ...
+} finally {
+    // Always logout, even if operations fail
+    await client.logout();
+}
+```
+
+**Error recovery pattern:**
+```typescript
+// If something goes wrong, logout and re-login
+const [, operationErr] = await client.someOperation();
+if (operationErr) {
+    console.error('Operation failed, attempting recovery');
+    await client.logout();
+    const [session, loginErr] = await client.login();
+    // Retry operation
+}
+```
 
 ---
 

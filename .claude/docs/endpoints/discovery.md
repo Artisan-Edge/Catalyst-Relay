@@ -5,10 +5,15 @@ Browse SAP packages, objects, and transports.
 ## Sections
 
 - [GET /object-config](#get-object-config)
+  - [Library Usage](#library-usage)
 - [GET /packages](#get-packages)
+  - [Library Usage](#library-usage-1)
 - [POST /tree](#post-tree)
+  - [Library Usage](#library-usage-2)
 - [GET /transports/:package](#get-transportspackage)
+  - [Library Usage](#library-usage-3)
 - [POST /transports](#post-transports)
+  - [Library Usage](#library-usage-4)
 
 ---
 
@@ -87,6 +92,49 @@ curl http://localhost:3000/object-config
 - **Feature detection** — Check which object types support data preview
 - **UI configuration** — Build object type selectors
 
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+
+const client = createClient({ baseUrl: 'https://sap-server.com' });
+
+// Synchronous method - returns ObjectConfig[] directly
+const configs = client.getObjectConfig();
+
+// Access configuration properties
+configs.forEach(config => {
+  console.log(`${config.label} (${config.extension})`);
+  console.log(`  Type: ${config.type}`);
+  console.log(`  Endpoint: ${config.endpoint}`);
+  if (config.dpEndpoint) {
+    console.log(`  Data Preview: ${config.dpEndpoint}`);
+  }
+});
+
+// Find config by extension
+const viewConfig = configs.find(c => c.extension === 'asddls');
+```
+
+**Return Type:**
+```typescript
+interface ObjectConfig {
+  endpoint: string;
+  nameSpace: string;
+  rootName: string;
+  type: string;
+  label: string;
+  extension: string;
+  dpEndpoint?: string;
+  dpParam?: string;
+}
+```
+
+**Notes:**
+- No authentication required
+- Synchronous method (no async/await or Result tuple)
+- Returns configuration array directly
+
 ---
 
 ## GET /packages
@@ -145,6 +193,53 @@ curl http://localhost:3000/packages \
 - **Package picker UI** — Populate dropdown for package selection
 - **Discover structure** — Map package hierarchy via `parentPackage`
 - **Find local objects** — `$TMP` contains temporary/local objects
+
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+import type { Package } from 'catalyst-relay';
+
+const client = createClient({ baseUrl: 'https://sap-server.com' });
+
+// Login first
+await client.login({ username: 'USER', password: 'PASS' });
+
+// Get packages - returns AsyncResult tuple
+const [packages, err] = await client.getPackages();
+
+if (err) {
+  console.error('Failed to fetch packages:', err.message);
+  return;
+}
+
+// Process packages
+packages.forEach(pkg => {
+  console.log(`${pkg.name}: ${pkg.description || 'No description'}`);
+  if (pkg.parentPackage) {
+    console.log(`  Parent: ${pkg.parentPackage}`);
+  }
+});
+
+// Filter for specific packages
+const devPackages = packages.filter(p => p.name.startsWith('Z'));
+```
+
+**Return Type:**
+```typescript
+type AsyncResult<Package[]> = Promise<[Package[], null] | [null, Error]>;
+
+interface Package {
+  name: string;
+  description?: string;
+  parentPackage?: string;
+}
+```
+
+**Notes:**
+- Requires authentication (call `client.login()` first)
+- Returns AsyncResult tuple for error handling
+- Destructure as `[data, error]` and check `error` first
 
 ---
 
@@ -236,6 +331,77 @@ Array of tree nodes:
 - **Object discovery** — Browse objects by type/category
 - **Navigation** — Drill into package structure
 
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+import type { TreeQuery, TreeNode } from 'catalyst-relay';
+
+const client = createClient({ baseUrl: 'https://sap-server.com' });
+
+// Login first
+await client.login({ username: 'USER', password: 'PASS' });
+
+// Get root level tree for a package
+const query: TreeQuery = {
+  package: '$TMP'
+};
+
+const [nodes, err] = await client.getTree(query);
+
+if (err) {
+  console.error('Failed to fetch tree:', err.message);
+  return;
+}
+
+// Process tree nodes
+nodes.forEach(node => {
+  if (node.type === 'folder') {
+    console.log(`📁 ${node.name}`);
+    if (node.hasChildren) {
+      console.log('  (has children - lazy load)');
+    }
+  } else {
+    console.log(`📄 ${node.name} (${node.objectType})`);
+  }
+});
+
+// Get nested tree (lazy loading)
+const nestedQuery: TreeQuery = {
+  package: '$TMP',
+  folderType: 'TYPE',
+  parentPath: 'Source Code Library'
+};
+
+const [nestedNodes, nestedErr] = await client.getTree(nestedQuery);
+```
+
+**Type Definitions:**
+```typescript
+interface TreeQuery {
+  package?: string;
+  folderType?: 'PACKAGE' | 'TYPE' | 'GROUP' | 'API';
+  parentPath?: string;
+}
+
+interface TreeNode {
+  name: string;
+  type: 'folder' | 'object';
+  objectType?: string;
+  extension?: string;
+  hasChildren?: boolean;
+  children?: TreeNode[];
+}
+
+type AsyncResult<TreeNode[]> = Promise<[TreeNode[], null] | [null, Error]>;
+```
+
+**Notes:**
+- Requires authentication
+- Use `folderType` and `parentPath` for nested queries
+- Check `hasChildren` to implement lazy loading
+- Returns AsyncResult tuple
+
 ---
 
 ## GET /transports/:package
@@ -312,6 +478,57 @@ curl http://localhost:3000/transports/ZDEV \
 - **Status check** — Filter by `modifiable` for active transports
 - **Ownership** — Filter transports by owner
 
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+import type { Transport } from 'catalyst-relay';
+
+const client = createClient({ baseUrl: 'https://sap-server.com' });
+
+// Login first
+await client.login({ username: 'USER', password: 'PASS' });
+
+// Get transports for a package
+const [transports, err] = await client.getTransports('ZDEV');
+
+if (err) {
+  console.error('Failed to fetch transports:', err.message);
+  return;
+}
+
+// Process transports
+transports.forEach(transport => {
+  console.log(`${transport.id}: ${transport.description}`);
+  console.log(`  Owner: ${transport.owner}`);
+  console.log(`  Status: ${transport.status}`);
+});
+
+// Filter for modifiable transports only
+const modifiableTransports = transports.filter(t => t.status === 'modifiable');
+
+// Find transport by owner
+const myTransports = transports.filter(t => t.owner === 'DEVELOPER');
+```
+
+**Return Type:**
+```typescript
+type AsyncResult<Transport[]> = Promise<[Transport[], null] | [null, Error]>;
+
+interface Transport {
+  id: string;
+  description: string;
+  owner: string;
+  status: 'modifiable' | 'released';
+}
+```
+
+**Notes:**
+- Requires authentication
+- Package name is required parameter
+- Returns AsyncResult tuple
+- Filter by `status === 'modifiable'` to find active transports
+
 ---
 
 ## POST /transports
@@ -373,3 +590,57 @@ curl -X POST http://localhost:3000/transports \
 - **New transport** — Create transport before upsert to non-$TMP package
 - **Batch operations** — Create dedicated transport for related changes
 - **Workflow automation** — Programmatically create transports
+
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+import type { TransportConfig } from 'catalyst-relay';
+
+const client = createClient({ baseUrl: 'https://sap-server.com' });
+
+// Login first
+await client.login({ username: 'USER', password: 'PASS' });
+
+// Create a new transport
+const config: TransportConfig = {
+  package: 'ZDEV',
+  description: 'New feature implementation'
+};
+
+const [transportId, err] = await client.createTransport(config);
+
+if (err) {
+  console.error('Failed to create transport:', err.message);
+  return;
+}
+
+console.log(`Created transport: ${transportId}`);
+
+// Use the transport in subsequent operations
+// For example, with upsertObject:
+const [result, upsertErr] = await client.upsertObject({
+  package: 'ZDEV',
+  transport: transportId,
+  objectType: 'DDLS/DF',
+  objectName: 'ZNEW_VIEW',
+  content: '...'
+});
+```
+
+**Type Definitions:**
+```typescript
+interface TransportConfig {
+  package: string;
+  description: string;
+}
+
+type AsyncResult<string> = Promise<[string, null] | [null, Error]>;
+```
+
+**Notes:**
+- Requires authentication
+- Returns transport ID as string on success
+- Returns AsyncResult tuple
+- Use returned transport ID for subsequent upsert/delete operations
+- Required when working with packages other than `$TMP`

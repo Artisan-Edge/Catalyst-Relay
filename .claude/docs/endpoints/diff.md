@@ -5,6 +5,7 @@ Compare local content with server content using Myers diff algorithm.
 ## Sections
 
 - [POST /git-diff](#post-git-diff)
+  - [Library Usage](#library-usage)
 
 ---
 
@@ -126,3 +127,145 @@ curl -X POST http://localhost:3000/git-diff \
 - **Conflict detection** — Identify differences after concurrent edits
 - **Code review** — Display side-by-side or unified diff view
 - **Sync status** — Check if local files match server versions
+
+### Library Usage
+
+When using Catalyst-Relay as a library, call `client.gitDiff()` to compare local content with server content.
+
+**Method Signature:**
+
+```typescript
+client.gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]>
+```
+
+**Types:**
+
+```typescript
+import type { ObjectContent, DiffResult, DiffHunk } from 'catalyst-relay';
+
+// Input type
+interface ObjectContent {
+    name: string;           // Object name (e.g., 'ZTEST_VIEW')
+    extension: string;      // File extension (e.g., 'asddls')
+    content: string;        // Local content to compare
+    description?: string;   // Optional description
+}
+
+// Return types
+interface DiffResult {
+    name: string;
+    extension: string;
+    label: string;          // Human-readable type label
+    diffs: DiffHunk[];
+}
+
+// DiffHunk types:
+// - SimpleDiffHunk (addition/deletion)
+type SimpleDiffHunk = {
+    type: 'addition' | 'deletion';
+    length: number;
+    diffStart: number;      // Starting line in diff output (0-indexed)
+    localStart: number;     // Starting line in local file (0-indexed)
+    changes: string[];      // Array of added/removed lines
+}
+
+// - ModifiedDiffHunk
+type ModifiedDiffHunk = {
+    type: 'modification';
+    length: number;
+    diffStart: number;
+    localStart: number;
+    changes: [string[], string[]];  // [serverLines, localLines]
+}
+
+type DiffHunk = SimpleDiffHunk | ModifiedDiffHunk;
+```
+
+**Example Usage:**
+
+```typescript
+import { createClient, type ObjectContent } from 'catalyst-relay';
+
+const client = createClient({
+    host: 'https://sap-server.example.com',
+    port: 443,
+    auth: { type: 'basic', username: 'DEVELOPER', password: 'password123' }
+});
+
+const objects: ObjectContent[] = [
+    {
+        name: 'ZTEST_VIEW',
+        extension: 'asddls',
+        content: `@AbapCatalog.viewEnhancementCategory: [#NONE]
+define view ZTEST_VIEW as select from mara {
+  key matnr,
+  mtart,
+  matkl
+}`
+    }
+];
+
+const [diffs, err] = await client.gitDiff(objects);
+
+if (err) {
+    console.error('Diff failed:', err.message);
+    return;
+}
+
+// Process diff results
+for (const diff of diffs) {
+    if (diff.diffs.length === 0) {
+        console.log(`${diff.name}: No changes`);
+    } else {
+        console.log(`${diff.name}: ${diff.diffs.length} change(s)`);
+        for (const hunk of diff.diffs) {
+            console.log(`  ${hunk.type} at line ${hunk.localStart}`);
+        }
+    }
+}
+```
+
+**Checking for specific change types:**
+
+```typescript
+const [diffs, err] = await client.gitDiff(objects);
+if (err) throw err;
+
+for (const diff of diffs) {
+    for (const hunk of diff.diffs) {
+        if (hunk.type === 'addition') {
+            console.log(`Added ${hunk.length} lines at ${hunk.localStart}:`);
+            console.log(hunk.changes.join('\n'));
+        } else if (hunk.type === 'deletion') {
+            console.log(`Deleted ${hunk.length} lines at ${hunk.localStart}:`);
+            console.log(hunk.changes.join('\n'));
+        } else if (hunk.type === 'modification') {
+            const [serverLines, localLines] = hunk.changes;
+            console.log(`Modified ${hunk.length} lines at ${hunk.localStart}:`);
+            console.log('Server version:', serverLines.join('\n'));
+            console.log('Local version:', localLines.join('\n'));
+        }
+    }
+}
+```
+
+**Error Handling:**
+
+```typescript
+const [diffs, err] = await client.gitDiff(objects);
+
+if (err) {
+    // Object doesn't exist on server
+    if (err.message.includes('not found')) {
+        console.error('Object does not exist on server');
+        return;
+    }
+
+    // Other errors
+    console.error('Diff operation failed:', err.message);
+    return;
+}
+
+// Process successful result
+console.log(`Successfully compared ${diffs.length} object(s)`);
+```
