@@ -64,7 +64,7 @@ export { countRows } from './data_extraction/count';
 
 // Query builder (optional helper)
 export { buildSQLQuery, queryFiltersToWhere, sortingsToOrderBy, fieldsToGroupbyClause } from './data_extraction/queryBuilder';
-export type { DataPreviewQuery, QueryFilter, BasicFilter, BetweenFilter, ListFilter, Sorting, Aggregation } from './data_extraction/queryBuilder';
+export type { DataPreviewQuery, QueryFilter, BasicFilter, BetweenFilter, ListFilter, Sorting, Aggregation, Parameter } from './data_extraction/queryBuilder';
 
 // Search operations
 export { searchObjects } from './discovery/searchObjects';
