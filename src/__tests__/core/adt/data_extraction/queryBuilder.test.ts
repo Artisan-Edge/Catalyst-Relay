@@ -18,6 +18,7 @@ import {
     sortingsToOrderBy,
     fieldsToGroupbyClause,
     aggregationToFieldDefinition,
+    parametersToSQLParams,
     buildSQLQuery,
     type BasicFilter,
     type BetweenFilter,
@@ -25,6 +26,7 @@ import {
     type QueryFilter,
     type Sorting,
     type Aggregation,
+    type Parameter,
     type DataPreviewQuery,
 } from '../../../../core/adt/data_extraction/queryBuilder';
 
@@ -329,6 +331,48 @@ describe('fieldsToGroupbyClause', () => {
 });
 
 // =============================================================================
+// Parameter Tests
+// =============================================================================
+
+describe('parametersToSQLParams', () => {
+    it('should return empty string for empty parameters', () => {
+        const result = parametersToSQLParams([]);
+        expect(result).toBe('');
+    });
+
+    it('should generate single string parameter', () => {
+        const params: Parameter[] = [{ name: 'P_BUKRS', value: '1000' }];
+        const result = parametersToSQLParams(params);
+        expect(result).toBe("( P_BUKRS = '1000')");
+    });
+
+    it('should generate single numeric parameter', () => {
+        const params: Parameter[] = [{ name: 'P_YEAR', value: 2024 }];
+        const result = parametersToSQLParams(params);
+        expect(result).toBe('( P_YEAR = 2024)');
+    });
+
+    it('should generate multiple parameters', () => {
+        const params: Parameter[] = [
+            { name: 'P_BUKRS', value: '1000' },
+            { name: 'P_GJAHR', value: 2024 },
+        ];
+        const result = parametersToSQLParams(params);
+        expect(result).toBe("( P_BUKRS = '1000', P_GJAHR = 2024)");
+    });
+
+    it('should handle three parameters', () => {
+        const params: Parameter[] = [
+            { name: 'P_MANDT', value: '100' },
+            { name: 'P_BUKRS', value: '1000' },
+            { name: 'P_GJAHR', value: 2024 },
+        ];
+        const result = parametersToSQLParams(params);
+        expect(result).toBe("( P_MANDT = '100', P_BUKRS = '1000', P_GJAHR = 2024)");
+    });
+});
+
+// =============================================================================
 // Aggregation Tests
 // =============================================================================
 
@@ -458,6 +502,81 @@ describe('buildSQLQuery', () => {
 
             expect(error).toBeNull();
             expect(result?.sqlQuery).toContain("where MANDT = '100' and USTYP in ( 'A', 'B' )");
+        });
+    });
+
+    describe('queries with parameters', () => {
+        it('should include parameters in FROM clause for CDS view', () => {
+            const query: DataPreviewQuery = {
+                objectName: 'I_COSTCENTER',
+                objectType: 'view',
+                fields: ['CostCenter', 'CompanyCode'],
+                parameters: [{ name: 'P_LANGUAGE', value: 'EN' }],
+            };
+            const [result, error] = buildSQLQuery(query);
+
+            expect(error).toBeNull();
+            expect(result?.sqlQuery).toContain("from I_COSTCENTER( P_LANGUAGE = 'EN') as main");
+        });
+
+        it('should include multiple parameters', () => {
+            const query: DataPreviewQuery = {
+                objectName: 'I_GLACCOUNTBALANCE',
+                objectType: 'view',
+                fields: ['GLAccount', 'AmountInCompanyCodeCurrency'],
+                parameters: [
+                    { name: 'P_FROMPERIOD', value: '001' },
+                    { name: 'P_TOPERIOD', value: '012' },
+                ],
+            };
+            const [result, error] = buildSQLQuery(query);
+
+            expect(error).toBeNull();
+            expect(result?.sqlQuery).toContain("from I_GLACCOUNTBALANCE( P_FROMPERIOD = '001', P_TOPERIOD = '012') as main");
+        });
+
+        it('should include numeric parameters', () => {
+            const query: DataPreviewQuery = {
+                objectName: 'I_FISCALYEARPERIOD',
+                objectType: 'view',
+                fields: ['FiscalYear', 'FiscalPeriod'],
+                parameters: [{ name: 'P_FISCALYEAR', value: 2024 }],
+            };
+            const [result, error] = buildSQLQuery(query);
+
+            expect(error).toBeNull();
+            expect(result?.sqlQuery).toContain('from I_FISCALYEARPERIOD( P_FISCALYEAR = 2024) as main');
+        });
+
+        it('should work without parameters (empty array)', () => {
+            const query: DataPreviewQuery = {
+                objectName: 'T000',
+                objectType: 'table',
+                fields: ['MANDT'],
+                parameters: [],
+            };
+            const [result, error] = buildSQLQuery(query);
+
+            expect(error).toBeNull();
+            expect(result?.sqlQuery).toContain('from T000 as main');
+            expect(result?.sqlQuery).not.toContain('( ');
+        });
+
+        it('should combine parameters with filters', () => {
+            const query: DataPreviewQuery = {
+                objectName: 'I_COSTCENTER',
+                objectType: 'view',
+                fields: ['CostCenter', 'CompanyCode'],
+                parameters: [{ name: 'P_LANGUAGE', value: 'EN' }],
+                filters: [
+                    { type: 'basic', field: 'CompanyCode', value: '1000', operator: '=' },
+                ],
+            };
+            const [result, error] = buildSQLQuery(query);
+
+            expect(error).toBeNull();
+            expect(result?.sqlQuery).toContain("from I_COSTCENTER( P_LANGUAGE = 'EN') as main");
+            expect(result?.sqlQuery).toContain("where CompanyCode = '1000'");
         });
     });
 
@@ -676,6 +795,61 @@ from BKPF as main
 where MANDT = '100'
 group by BUKRS, GJAHR
 order by BUKRS asc, GJAHR desc`
+            );
+        });
+    });
+
+    describe('exact SQL output with parameters', () => {
+        it('should generate exact SQL for parameterized CDS view', () => {
+            const query: DataPreviewQuery = {
+                objectName: 'I_COSTCENTER',
+                objectType: 'view',
+                fields: ['CostCenter', 'CompanyCode', 'ValidityEndDate'],
+                parameters: [
+                    { name: 'P_LANGUAGE', value: 'EN' },
+                ],
+            };
+            const [result, error] = buildSQLQuery(query);
+
+            expect(error).toBeNull();
+            expect(result?.sqlQuery).toBe(
+`select
+\tmain~CostCenter,
+\tmain~CompanyCode,
+\tmain~ValidityEndDate
+from I_COSTCENTER( P_LANGUAGE = 'EN') as main
+`
+            );
+        });
+
+        it('should generate exact SQL with parameters, filters, and sorting', () => {
+            const query: DataPreviewQuery = {
+                objectName: 'I_GLACCOUNTBALANCE',
+                objectType: 'view',
+                fields: ['CompanyCode', 'GLAccount', 'AmountInCompanyCodeCurrency'],
+                parameters: [
+                    { name: 'P_FROMPERIOD', value: '001' },
+                    { name: 'P_TOPERIOD', value: '012' },
+                ],
+                filters: [
+                    { type: 'basic', field: 'CompanyCode', value: '1000', operator: '=' },
+                ],
+                sortings: [
+                    { field: 'GLAccount', direction: 'asc' },
+                ],
+            };
+            const [result, error] = buildSQLQuery(query);
+
+            expect(error).toBeNull();
+            expect(result?.sqlQuery).toBe(
+`select
+\tmain~CompanyCode,
+\tmain~GLAccount,
+\tmain~AmountInCompanyCodeCurrency
+from I_GLACCOUNTBALANCE( P_FROMPERIOD = '001', P_TOPERIOD = '012') as main
+
+where CompanyCode = '1000'
+order by GLAccount asc`
             );
         });
     });

@@ -85,5 +85,9 @@ export type {
     ObjectConfig,
 } from './core/adt';
 
+// Query builder (optional helper for data preview)
+export { buildSQLQuery } from './core/adt';
+export type { DataPreviewQuery, QueryFilter, BasicFilter, BetweenFilter, ListFilter, Sorting, Aggregation } from './core/adt';
+
 // Result utilities
 export { ok, err } from './types/result';

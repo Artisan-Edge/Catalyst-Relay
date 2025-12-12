@@ -5,7 +5,7 @@
 import { type Result, ok, err } from '../../../types/result';
 import type { PreviewSQL } from '../../../types/requests';
 
-function quoteString(value: string | number): string {
+export function quoteString(value: string | number): string {
     return typeof value == "string" ? "'" + value + "'" : "" + value;
 }
 
@@ -17,7 +17,7 @@ export type BasicFilter = {
     operator: "=" | "<>" | "<" | "<=" | ">" | ">=" | "like" | "not like";
 }
 
-function basicFilterToWhere(filter: BasicFilter): string {
+export function basicFilterToWhere(filter: BasicFilter): string {
     return `${filter.field} ${filter.operator} ${quoteString(filter.value)}`;
 }
 
@@ -28,7 +28,7 @@ export type BetweenFilter = {
     maximum: string | number;
 }
 
-function betweenFilterToWhere(filter: BetweenFilter): string {
+export function betweenFilterToWhere(filter: BetweenFilter): string {
     return `${filter.field} between ${quoteString(filter.minimum)} and ${quoteString(filter.maximum)}`;
 }
 
@@ -39,7 +39,7 @@ export type ListFilter = {
     include: boolean;
 }
 
-function listFilterToWhere(filter: ListFilter): string {
+export function listFilterToWhere(filter: ListFilter): string {
     return `${filter.field} ${filter.include ? "" : "not "}in ( ${filter.values.map(quoteString).join(", ")} )`;
 }
 
@@ -85,6 +85,17 @@ export function aggregationToFieldDefinition(aggregation: Aggregation): string {
     return `${aggregation.function}( main~${aggregation.field} ) as ${aggregation.field}`;
 }
 
+// Parameter Types
+export type Parameter = {
+    name: string;
+    value: string | number;
+}
+
+export function parametersToSQLParams(params: Parameter[]): string {
+    if (params.length === 0) return "";
+    return `( ${params.map(p => `${p.name} = ${quoteString(p.value)}`).join(", ")})`;
+}
+
 // Query Type
 export type DataPreviewQuery = {
     objectName: string;
@@ -92,6 +103,7 @@ export type DataPreviewQuery = {
     limit?: number;
 
     fields: string[];
+    parameters?: Parameter[];
     filters?: QueryFilter[];
     sortings?: Sorting[];
     aggregations?: Aggregation[];
@@ -99,7 +111,7 @@ export type DataPreviewQuery = {
 
 export function buildSQLQuery(query: DataPreviewQuery): Result<PreviewSQL> {
     // Isolate filters, sortings, and aggregations with defaults.
-    const [filters, sortings, aggregations] = [query.filters ?? [], query.sortings ?? [], query.aggregations ?? []];
+    const [parameters, filters, sortings, aggregations] = [query.parameters ?? [], query.filters ?? [], query.sortings ?? [], query.aggregations ?? []];
     const groupingFields = query.fields.filter(f => !aggregations.find(a => a.field === f));
 
     // Do some validation.
@@ -119,7 +131,7 @@ export function buildSQLQuery(query: DataPreviewQuery): Result<PreviewSQL> {
         }
         fieldSelections.push(`\tmain~${field}`);
     }
-    selectClause += fieldSelections.join(",\n") + `\nfrom ${query.objectName} as main\n`;
+    selectClause += fieldSelections.join(",\n") + `\nfrom ${query.objectName}${parametersToSQLParams(parameters)} as main\n`;
 
     // Build the rest of the clauses.
     const [whereClause, groupbyClause, orderbyClause] = [queryFiltersToWhere(filters), aggregations.length ? fieldsToGroupbyClause(groupingFields) : "", sortingsToOrderBy(sortings)];
