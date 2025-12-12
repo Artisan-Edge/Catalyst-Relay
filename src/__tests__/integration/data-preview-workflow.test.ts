@@ -1,12 +1,12 @@
 /**
  * Integration Test: Data Preview Workflow
  *
- * Tests data preview operations on standard SAP tables (read-only):
+ * Tests data preview operations on standard SAP tables and CDS views (read-only):
  * - previewData: Query table data with limit
  * - countRows: Count total rows in a table
- * - getDistinctValues: Get distinct values for a column
+ * - getDistinctValues: Get distinct values for a column (table and CDS view)
  *
- * Uses T000 standard table (client table) which exists in all SAP systems.
+ * Uses T000 standard table and I_JournalEntry CDS view which exist in all SAP systems.
  *
  * Requires environment variables:
  * - SAP_TEST_USERNAME: SAP username
@@ -80,7 +80,7 @@ describe('Data Preview Workflow', () => {
 
         // MTEXT is the client description field in T000
         // Must specify 'table' since T000 is a table, not a CDS view
-        const [result, err] = await client!.getDistinctValues('T000', 'MTEXT', 'table');
+        const [result, err] = await client!.getDistinctValues('T000', [], 'MTEXT', 'table');
 
         expect(err).toBeNull();
         expect(result).toBeDefined();
@@ -91,8 +91,29 @@ describe('Data Preview Workflow', () => {
         console.log(`Found ${result!.values.length} distinct MTEXT values`);
         if (result!.values.length > 0) {
             console.log('Sample values:');
-            result!.values.slice(0, 5).forEach(value => {
-                console.log(`  - ${value}`);
+            result!.values.slice(0, 5).forEach(({ value, count }) => {
+                console.log(`  - "${value}" (count: ${count})`);
+            });
+        }
+    });
+
+    it('should get distinct CompanyCode values from I_JournalEntry CDS view', async () => {
+        if (shouldSkip(client)) return;
+
+        // I_JournalEntry is a standard SAP CDS view for journal entries
+        const [result, err] = await client!.getDistinctValues('I_JOURNALENTRY', [], 'CompanyCode', 'view');
+
+        expect(err).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.column).toBe('CompanyCode');
+        expect(result!.values).toBeDefined();
+        expect(Array.isArray(result!.values)).toBe(true);
+
+        console.log(`Found ${result!.values.length} distinct CompanyCode values from I_JournalEntry`);
+        if (result!.values.length > 0) {
+            console.log('Sample values:');
+            result!.values.slice(0, 5).forEach(({ value, count }) => {
+                console.log(`  - "${value}" (count: ${count})`);
             });
         }
     });

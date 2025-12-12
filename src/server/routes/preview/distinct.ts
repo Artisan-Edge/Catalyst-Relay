@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import type { DistinctResult } from '../../../core/adt/distinct';
+import type { DistinctResult } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';
@@ -12,8 +12,14 @@ import type { RouteContext } from '../types';
 // Request Schema (colocated)
 // ─────────────────────────────────────────────────────────────────────────────
 
+const parameterSchema = z.object({
+    name: z.string().min(1),
+    value: z.string(),
+});
+
 export const distinctRequestSchema = z.object({
     objectName: z.string().min(1),
+    parameters: z.array(parameterSchema).optional().default([]),
     column: z.string().min(1),
 });
 
@@ -40,10 +46,10 @@ export async function distinctHandler(c: RouteContext) {
         );
     }
 
-    const { objectName, column } = validation.data;
+    const { objectName, parameters, column } = validation.data;
     const client = c.get('client');
 
-    const [distinctResult, error] = await client.getDistinctValues(objectName, column);
+    const [distinctResult, error] = await client.getDistinctValues(objectName, parameters, column);
 
     if (error) {
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);

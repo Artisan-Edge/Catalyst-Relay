@@ -33,6 +33,7 @@ import type {
     TransportConfig,
     DiffResult,
     ObjectConfig,
+    Parameter,
 } from './adt';
 import type { Result, AsyncResult } from '../types/result';
 import { ok, err } from '../types/result';
@@ -84,7 +85,7 @@ export interface ADTClient {
 
     // Data Preview
     previewData(query: PreviewSQL): AsyncResult<DataFrame>;
-    getDistinctValues(objectName: string, column: string, objectType?: 'table' | 'view'): AsyncResult<DistinctResult>;
+    getDistinctValues(objectName: string, parameters: Parameter[], column: string, objectType?: 'table' | 'view'): AsyncResult<DistinctResult>;
     countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number>;
 
     // Search
@@ -515,9 +516,9 @@ class ADTClientImpl implements ADTClient {
         return adt.previewData(this.requestor, query);
     }
 
-    async getDistinctValues(objectName: string, column: string, objectType: 'table' | 'view' = 'view'): AsyncResult<DistinctResult> {
+    async getDistinctValues(objectName: string, parameters: Parameter[], column: string, objectType: 'table' | 'view' = 'view'): AsyncResult<DistinctResult> {
         if (!this.state.session) return err(new Error('Not logged in'));
-        return adt.getDistinctValues(this.requestor, objectName, column, objectType);
+        return adt.getDistinctValues(this.requestor, objectName, parameters, column, objectType);
     }
 
     async countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number> {

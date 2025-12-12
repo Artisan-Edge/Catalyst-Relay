@@ -142,7 +142,15 @@ Get distinct values for a column with occurrence counts.
 |-------|------|----------|-------------|
 | `objectName` | string | Yes | Table or view name |
 | `objectType` | enum | No | `table` or `view` (default: `view`) |
+| `parameters` | array | No | CDS view parameters (default: `[]`) |
 | `column` | string | Yes | Column to analyze |
+
+**Parameter Object:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Parameter name |
+| `value` | string | Yes | Parameter value |
 
 ### Response
 
@@ -160,12 +168,24 @@ Each value entry:
 
 ### Example
 
-**Request:**
+**Request (table):**
 ```json
 {
     "objectName": "MARA",
     "objectType": "table",
     "column": "MTART"
+}
+```
+
+**Request (CDS view with parameters):**
+```json
+{
+    "objectName": "I_JOURNALENTRY",
+    "objectType": "view",
+    "parameters": [
+        { "name": "P_FISCALYEAR", "value": "2024" }
+    ],
+    "column": "CompanyCode"
 }
 ```
 

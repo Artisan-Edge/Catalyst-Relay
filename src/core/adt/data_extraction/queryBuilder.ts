@@ -59,7 +59,7 @@ export function queryFiltersToWhere(filters: QueryFilter[]): string {
 // Order By Types and Converters
 export type Sorting = {
     field: string;
-    direction: "asc" | "desc";
+    direction: "ascending" | "descending";
 }
 
 export function sortingsToOrderBy(sortings: Sorting[]): string {
