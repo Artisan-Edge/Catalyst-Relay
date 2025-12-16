@@ -263,4 +263,15 @@ The `.claude/docs/endpoints/` folder contains detailed documentation for each en
 
 ---
 
+## Claude-Specific Rules
+
+### Shell Commands
+
+- **Do NOT use `/d` with `cd` commands** — It doesn't work on this machine. Use plain `cd` or run commands directly with absolute paths.
+
+### TypeScript Errors
+
+- **Always resolve ALL TypeScript errors** — Even if errors are unrelated to your changes, you must fix them before completing your task. Run `bun run typecheck` and ensure it passes with zero errors.
+
+---
 

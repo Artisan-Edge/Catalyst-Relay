@@ -117,6 +117,41 @@ describe('Upsert Workflow', () => {
         console.log(`Updated CDS view via upsert: ${TEST_NAME}`);
     });
 
+    it('should return unchanged when content matches (whitespace normalized)', async () => {
+        if (shouldSkip(client) || !objectCreated) {
+            console.log('Skipping - no session or object not created');
+            return;
+        }
+
+        // Add extra whitespace variations that should normalize to same content
+        const SOURCE_V2_WHITESPACE = `@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Upsert Test View - Updated'
+define view entity ${TEST_NAME} as select from t000 {
+    key mandt,
+    mtext
+}`;
+
+        const [results, err] = await client!.upsert(
+            [
+                {
+                    name: TEST_NAME,
+                    extension: 'asddls',
+                    content: SOURCE_V2_WHITESPACE,
+                    description: 'Test view for upsert - should be unchanged',
+                },
+            ],
+            TEST_CONFIG.package,
+            TEST_CONFIG.transport
+        );
+
+        expect(err).toBeNull();
+        expect(results).toHaveLength(1);
+        expect(results![0]!.name).toBe(TEST_NAME);
+        expect(results![0]!.extension).toBe('asddls');
+        expect(results![0]!.status).toBe('unchanged');
+        console.log(`Skipped update (unchanged): ${TEST_NAME}`);
+    });
+
     it('should read and verify content matches latest version', async () => {
         if (shouldSkip(client) || !objectCreated) {
             console.log('Skipping - no session or object not created');

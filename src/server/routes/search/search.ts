@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import type { SearchResult } from '../../../core/adt/searchObjects';
+import type { SearchResult } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

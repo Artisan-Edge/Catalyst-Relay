@@ -27,7 +27,7 @@ HTTP endpoints available in Server Mode.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/object-config` | List supported object types (no auth) |
-| GET | `/packages` | List available packages |
+| GET | `/packages?filter=` | List packages (filter: `Z*`, `$TMP`, etc.) |
 | POST | `/tree` | Hierarchical package browser |
 | GET | `/transports/:package` | List transports for a package |
 | POST | `/transports` | Create a new transport request |
