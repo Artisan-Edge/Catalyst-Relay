@@ -278,34 +278,34 @@ describe('sortingsToOrderBy', () => {
     });
 
     it('should generate single ascending sort', () => {
-        const sortings: Sorting[] = [{ field: 'NAME', direction: 'asc' }];
+        const sortings: Sorting[] = [{ field: 'NAME', direction: 'ascending' }];
         const result = sortingsToOrderBy(sortings);
-        expect(result).toBe('\norder by NAME asc');
+        expect(result).toBe('\norder by NAME ascending');
     });
 
     it('should generate single descending sort', () => {
-        const sortings: Sorting[] = [{ field: 'DATE', direction: 'desc' }];
+        const sortings: Sorting[] = [{ field: 'DATE', direction: 'descending' }];
         const result = sortingsToOrderBy(sortings);
-        expect(result).toBe('\norder by DATE desc');
+        expect(result).toBe('\norder by DATE descending');
     });
 
     it('should generate multiple sortings', () => {
         const sortings: Sorting[] = [
-            { field: 'STATUS', direction: 'asc' },
-            { field: 'DATE', direction: 'desc' },
+            { field: 'STATUS', direction: 'ascending' },
+            { field: 'DATE', direction: 'descending' },
         ];
         const result = sortingsToOrderBy(sortings);
-        expect(result).toBe('\norder by STATUS asc, DATE desc');
+        expect(result).toBe('\norder by STATUS ascending, DATE descending');
     });
 
     it('should handle three sortings', () => {
         const sortings: Sorting[] = [
-            { field: 'A', direction: 'asc' },
-            { field: 'B', direction: 'desc' },
-            { field: 'C', direction: 'asc' },
+            { field: 'A', direction: 'ascending' },
+            { field: 'B', direction: 'descending' },
+            { field: 'C', direction: 'ascending' },
         ];
         const result = sortingsToOrderBy(sortings);
-        expect(result).toBe('\norder by A asc, B desc, C asc');
+        expect(result).toBe('\norder by A ascending, B descending, C ascending');
     });
 });
 
@@ -586,12 +586,12 @@ describe('buildSQLQuery', () => {
                 objectName: 'T000',
                 objectType: 'table',
                 fields: ['MANDT', 'CCCATEGORY'],
-                sortings: [{ field: 'MANDT', direction: 'asc' }],
+                sortings: [{ field: 'MANDT', direction: 'ascending' }],
             };
             const [result, error] = buildSQLQuery(query);
 
             expect(error).toBeNull();
-            expect(result?.sqlQuery).toContain('order by MANDT asc');
+            expect(result?.sqlQuery).toContain('order by MANDT ascending');
         });
 
         it('should include multiple sortings', () => {
@@ -600,14 +600,14 @@ describe('buildSQLQuery', () => {
                 objectType: 'table',
                 fields: ['MANDT', 'CCCATEGORY', 'CCNOCLIIND'],
                 sortings: [
-                    { field: 'MANDT', direction: 'asc' },
-                    { field: 'CCCATEGORY', direction: 'desc' },
+                    { field: 'MANDT', direction: 'ascending' },
+                    { field: 'CCCATEGORY', direction: 'descending' },
                 ],
             };
             const [result, error] = buildSQLQuery(query);
 
             expect(error).toBeNull();
-            expect(result?.sqlQuery).toContain('order by MANDT asc, CCCATEGORY desc');
+            expect(result?.sqlQuery).toContain('order by MANDT ascending, CCCATEGORY descending');
         });
 
         it('should return error when sorting field not in selected fields', () => {
@@ -615,7 +615,7 @@ describe('buildSQLQuery', () => {
                 objectName: 'T000',
                 objectType: 'table',
                 fields: ['MANDT'],
-                sortings: [{ field: 'CCCATEGORY', direction: 'asc' }],
+                sortings: [{ field: 'CCCATEGORY', direction: 'ascending' }],
             };
             const [result, error] = buildSQLQuery(query);
 
@@ -679,7 +679,7 @@ describe('buildSQLQuery', () => {
                     { type: 'basic', field: 'MANDT', value: '100', operator: '=' },
                     { type: 'basic', field: 'GJAHR', value: 2024, operator: '=' },
                 ],
-                sortings: [{ field: 'BUKRS', direction: 'asc' }],
+                sortings: [{ field: 'BUKRS', direction: 'ascending' }],
                 aggregations: [{ field: 'DMBTR', function: 'sum' }],
                 limit: 1000,
             };
@@ -697,7 +697,7 @@ describe('buildSQLQuery', () => {
             expect(sql).toContain('from BSEG as main');
             expect(sql).toContain("where MANDT = '100' and GJAHR = 2024");
             expect(sql).toContain('group by BUKRS');
-            expect(sql).toContain('order by BUKRS asc');
+            expect(sql).toContain('order by BUKRS ascending');
         });
 
         it('should handle query with all optional parameters empty', () => {
@@ -748,7 +748,7 @@ from T000 as main
                     { type: 'basic', field: 'USTYP', value: 'A', operator: '<>' },
                 ],
                 sortings: [
-                    { field: 'BNAME', direction: 'asc' },
+                    { field: 'BNAME', direction: 'ascending' },
                 ],
             };
             const [result, error] = buildSQLQuery(query);
@@ -762,7 +762,7 @@ from T000 as main
 from USR02 as main
 
 where MANDT = '100' and USTYP <> 'A'
-order by BNAME asc`
+order by BNAME ascending`
             );
         });
 
@@ -775,8 +775,8 @@ order by BNAME asc`
                     { type: 'basic', field: 'MANDT', value: '100', operator: '=' },
                 ],
                 sortings: [
-                    { field: 'BUKRS', direction: 'asc' },
-                    { field: 'GJAHR', direction: 'desc' },
+                    { field: 'BUKRS', direction: 'ascending' },
+                    { field: 'GJAHR', direction: 'descending' },
                 ],
                 aggregations: [
                     { field: 'BELNR', function: 'count' },
@@ -794,7 +794,7 @@ from BKPF as main
 
 where MANDT = '100'
 group by BUKRS, GJAHR
-order by BUKRS asc, GJAHR desc`
+order by BUKRS ascending, GJAHR descending`
             );
         });
     });
@@ -835,7 +835,7 @@ from I_COSTCENTER( P_LANGUAGE = 'EN') as main
                     { type: 'basic', field: 'CompanyCode', value: '1000', operator: '=' },
                 ],
                 sortings: [
-                    { field: 'GLAccount', direction: 'asc' },
+                    { field: 'GLAccount', direction: 'ascending' },
                 ],
             };
             const [result, error] = buildSQLQuery(query);
@@ -849,7 +849,7 @@ from I_COSTCENTER( P_LANGUAGE = 'EN') as main
 from I_GLACCOUNTBALANCE( P_FROMPERIOD = '001', P_TOPERIOD = '012') as main
 
 where CompanyCode = '1000'
-order by GLAccount asc`
+order by GLAccount ascending`
             );
         });
     });
@@ -861,7 +861,7 @@ order by GLAccount asc`
                 objectType: 'table',
                 fields: ['A', 'B'],
                 filters: [{ type: 'basic', field: 'C', value: '1', operator: '=' }],
-                sortings: [{ field: 'A', direction: 'asc' }],
+                sortings: [{ field: 'A', direction: 'ascending' }],
                 aggregations: [{ field: 'B', function: 'count' }],
             };
             const [result, error] = buildSQLQuery(query);

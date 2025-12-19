@@ -40,6 +40,7 @@ bun.lockb
 errors/
 *.xml
 *.html
+*.tgz
 test.output
 
 # Claude

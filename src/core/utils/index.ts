@@ -36,3 +36,5 @@ export {
     debug,
     debugError
 } from './logging';
+
+export { normalizeContent } from './content';

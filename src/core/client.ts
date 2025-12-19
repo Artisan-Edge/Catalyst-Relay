@@ -44,6 +44,7 @@ import {
     buildRequestHeaders,
     debug,
     debugError,
+    normalizeContent,
 } from './utils';
 import { clientConfigSchema } from '../types/config';
 import * as sessionOps from './session/login';
@@ -79,7 +80,7 @@ export interface ADTClient {
     delete(objects: ObjectRef[], transport?: string): AsyncResult<void>;
 
     // Discovery
-    getPackages(): AsyncResult<Package[]>;
+    getPackages(filter?: string): AsyncResult<Package[]>;
     getTree(query: TreeQuery): AsyncResult<TreeNode[]>;
     getTransports(packageName: string): AsyncResult<Transport[]>;
 
@@ -239,15 +240,20 @@ class ADTClientImpl implements ADTClient {
         const url = buildUrl(config.url, path, urlParams);
 
         // Build fetch options with timeout and optional insecure agent.
-        const fetchOptions: RequestInit & { dispatcher?: Agent } = {
+        const fetchOptions: RequestInit & { dispatcher?: Agent; tls?: { rejectUnauthorized: boolean } } = {
             method,
             headers,
             signal: AbortSignal.timeout(config.timeout ?? DEFAULT_TIMEOUT),
         };
 
-        // Add insecure agent if configured
+        // Add insecure agent if configured (for undici/Node.js)
         if (this.agent) {
             fetchOptions.dispatcher = this.agent;
+        }
+
+        // Add Bun-specific TLS bypass (Bun ignores undici dispatcher)
+        if (config.insecure) {
+            fetchOptions.tls = { rejectUnauthorized: false };
         }
 
         // Add request body if provided.
@@ -453,7 +459,22 @@ class ADTClientImpl implements ADTClient {
                 continue;
             }
 
-            // Object exists - update it
+            // Compare normalized content to avoid unnecessary updates
+            const serverContent = normalizeContent(existing.content);
+            const localContent = normalizeContent(obj.content);
+
+            if (serverContent === localContent) {
+                const result: UpsertResult = {
+                    name: obj.name,
+                    extension: obj.extension,
+                    status: 'unchanged',
+                };
+                if (transport) result.transport = transport;
+                results.push(result);
+                continue;
+            }
+
+            // Content differs - update it
             const [, updateErr] = await this.update(obj, transport);
             if (updateErr) return err(updateErr);
 
@@ -494,9 +515,9 @@ class ADTClientImpl implements ADTClient {
 
     // --- Discovery ---
 
-    async getPackages(): AsyncResult<Package[]> {
+    async getPackages(filter?: string): AsyncResult<Package[]> {
         if (!this.state.session) return err(new Error('Not logged in'));
-        return adt.getPackages(this.requestor);
+        return adt.getPackages(this.requestor, filter);
     }
 
     async getTree(query: TreeQuery): AsyncResult<TreeNode[]> {

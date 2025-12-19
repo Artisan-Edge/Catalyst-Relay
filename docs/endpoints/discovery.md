@@ -139,13 +139,19 @@ interface ObjectConfig {
 
 ## GET /packages
 
-List all available packages in the SAP system.
+List available packages in the SAP system, optionally filtered by name pattern.
 
 ### Request
 
 | Method | Path | Auth Required |
 |--------|------|---------------|
 | GET | `/packages` | Yes |
+
+### Query Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `filter` | string | No | `*` | Package name pattern (e.g., `Z*`, `$TMP`, `ZSNAP*`) |
 
 ### Request Body
 
@@ -163,9 +169,15 @@ Array of package objects:
 
 ### Example
 
-**Request:**
+**Request (all packages - slow):**
 ```bash
 curl http://localhost:3000/packages \
+  -H "X-Session-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+```
+
+**Request (filtered - fast):**
+```bash
+curl "http://localhost:3000/packages?filter=Z*" \
   -H "X-Session-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 ```
 
@@ -174,9 +186,9 @@ curl http://localhost:3000/packages \
 {
     "success": true,
     "data": [
-        { "name": "$TMP", "description": "Local objects" },
         { "name": "ZDEV", "description": "Development package", "parentPackage": "ZROOT" },
-        { "name": "ZPROD", "description": "Production package" }
+        { "name": "ZPROD", "description": "Production package" },
+        { "name": "ZSNAP", "description": "SNAP objects" }
     ]
 }
 ```
@@ -205,24 +217,26 @@ const client = createClient({ baseUrl: 'https://sap-server.com' });
 // Login first
 await client.login({ username: 'USER', password: 'PASS' });
 
-// Get packages - returns AsyncResult tuple
-const [packages, err] = await client.getPackages();
+// Get all packages (slow - returns hundreds of packages)
+const [allPackages, err1] = await client.getPackages();
 
-if (err) {
-  console.error('Failed to fetch packages:', err.message);
+// Get filtered packages (fast - recommended)
+const [customPackages, err2] = await client.getPackages('Z*');      // Custom packages
+const [localPackages, err3] = await client.getPackages('$TMP');     // Local only
+const [snapPackages, err4] = await client.getPackages('ZSNAP*');    // Specific prefix
+
+if (err2) {
+  console.error('Failed to fetch packages:', err2.message);
   return;
 }
 
 // Process packages
-packages.forEach(pkg => {
+customPackages.forEach(pkg => {
   console.log(`${pkg.name}: ${pkg.description || 'No description'}`);
   if (pkg.parentPackage) {
     console.log(`  Parent: ${pkg.parentPackage}`);
   }
 });
-
-// Filter for specific packages
-const devPackages = packages.filter(p => p.name.startsWith('Z'));
 ```
 
 **Return Type:**
@@ -239,7 +253,8 @@ interface Package {
 **Notes:**
 - Requires authentication (call `client.login()` first)
 - Returns AsyncResult tuple for error handling
-- Destructure as `[data, error]` and check `error` first
+- Use filter parameter (`'Z*'`, `'$TMP'`, etc.) for faster queries
+- Without filter, returns all packages which can be slow on large systems
 
 ---
 

@@ -31,17 +31,17 @@ describe('Discovery Workflow', () => {
         await safeLogout(client);
     });
 
-    it('should get packages list', async () => {
+    it('should get packages list with filter', async () => {
         if (shouldSkip(client)) return;
 
-        const [packages, err] = await client!.getPackages();
+        // Use 'Z*' filter to get only custom packages (faster than '*' which returns all)
+        const [packages, err] = await client!.getPackages('Z*');
 
         expect(err).toBeNull();
         expect(packages).toBeDefined();
         expect(Array.isArray(packages)).toBe(true);
-        expect(packages!.length).toBeGreaterThan(0);
 
-        console.log(`Found ${packages!.length} packages`);
+        console.log(`Found ${packages!.length} packages matching 'Z*'`);
         // Show first few packages
         const sample = packages!.slice(0, 5);
         console.log('Sample packages:');

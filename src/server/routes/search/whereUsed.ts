@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { objectRefSchema } from '../../../types/requests';
-import type { Dependency } from '../../../core/adt/whereUsed';
+import type { Dependency } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';
