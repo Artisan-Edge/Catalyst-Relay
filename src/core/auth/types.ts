@@ -51,6 +51,13 @@ export interface AuthStrategy {
      * @returns Certificate material for mTLS or null if not available
      */
     getCertificates?(): CertificateMaterial | null;
+
+    /**
+     * Get SAP system username for SAML authentication (optional)
+     * Used for object creation (adtcore:responsible) instead of the SAML email.
+     * @returns SAP username or undefined if not applicable
+     */
+    getSapUser?(): string;
 }
 
 /**

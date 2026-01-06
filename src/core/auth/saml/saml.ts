@@ -47,10 +47,12 @@ import { toAuthCookies, formatCookieHeader } from './cookies';
  * Configuration for SAML authentication
  */
 export interface SamlAuthConfig {
-    /** SAML username (often an email address) */
+    /** SAML username (often an email address) - used for browser login */
     username: string;
     /** SAML password */
     password: string;
+    /** SAP system username - used for object creation (adtcore:responsible) */
+    sapUser: string;
     /** SAP system base URL */
     baseUrl: string;
     /** Optional custom provider configuration */
@@ -74,10 +76,22 @@ export class SamlAuth implements AuthStrategy {
         if (!config.username || !config.password) {
             throw new Error('SamlAuth requires both username and password');
         }
+        if (!config.sapUser) {
+            throw new Error('SamlAuth requires sapUser (SAP system username for object creation)');
+        }
         if (!config.baseUrl) {
             throw new Error('SamlAuth requires baseUrl');
         }
         this.config = config;
+    }
+
+    /**
+     * Get SAP system username
+     *
+     * Used for object creation (adtcore:responsible) instead of the SAML email.
+     */
+    getSapUser(): string {
+        return this.config.sapUser;
     }
 
     /**

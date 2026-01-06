@@ -129,13 +129,15 @@ function getSessionTimeout(authType: AuthType): number {
  * Extract username from authentication config
  *
  * @param auth - Authentication config
- * @returns Username or 'SSO_USER' for SSO
+ * @returns Username for session (SAP user for SAML, username for basic, system user for SSO)
  */
 function extractUsername(auth: AuthConfig): string {
     switch (auth.type) {
         case 'basic':
-        case 'saml':
             return auth.username;
+        case 'saml':
+            // For SAML, use sapUser (actual SAP username) not username (email for browser login)
+            return auth.sapUser;
         case 'sso':
             // For SSO, username comes from Kerberos/system
             return process.env['USERNAME'] ?? process.env['USER'] ?? 'SSO_USER';
