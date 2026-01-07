@@ -346,6 +346,15 @@ class ADTClientImpl implements ADTClient {
             }
         }
 
+        // For SAML, transfer cookies from auth strategy to client cookie store
+        if (authStrategy.type === 'saml' && authStrategy.getCookies) {
+            const cookies = authStrategy.getCookies();
+            for (const cookie of cookies) {
+                this.state.cookies.set(cookie.name, cookie.value);
+            }
+            debug(`Transferred ${cookies.length} SAML cookies to client`);
+        }
+
         // For SSO with mTLS, create agent with client certificates
         if (authStrategy.type === 'sso' && authStrategy.getCertificates) {
             const certs = authStrategy.getCertificates();

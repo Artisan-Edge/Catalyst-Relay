@@ -41,8 +41,12 @@ export interface SamlProviderConfig {
  */
 export interface SamlAuthConfig {
     type: 'saml';
+    /** SAML username (often an email address) - used for browser login */
     username: string;
+    /** SAML password */
     password: string;
+    /** SAP system username - used for object creation (adtcore:responsible) */
+    sapUser: string;
     /** Optional custom provider configuration for non-standard login forms */
     providerConfig?: SamlProviderConfig;
 }
@@ -118,6 +122,7 @@ export const clientConfigSchema = z.object({
             type: z.literal('saml'),
             username: z.string().min(1),
             password: z.string().min(1),
+            sapUser: z.string().min(1),
             providerConfig: samlProviderConfigSchema.optional(),
         }),
         z.object({
