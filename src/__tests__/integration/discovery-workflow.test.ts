@@ -50,6 +50,31 @@ describe('Discovery Workflow', () => {
         });
     });
 
+    it('should return only packages matching the Z* filter', async () => {
+        if (shouldSkip(client)) return;
+
+        const [packages, err] = await client!.getPackages('Z*');
+
+        expect(err).toBeNull();
+        expect(packages).toBeDefined();
+
+        // Identify packages that don't match the filter
+        const nonMatchingPackages = packages!.filter(
+            pkg => !pkg.name.toUpperCase().startsWith('Z')
+        );
+
+        // Log non-matching packages for debugging
+        if (nonMatchingPackages.length > 0) {
+            console.log(`WARNING: Found ${nonMatchingPackages.length} packages NOT matching 'Z*' filter:`);
+            nonMatchingPackages.forEach(pkg => {
+                console.log(`  - ${pkg.name}: ${pkg.description || '(no description)'}`);
+            });
+        }
+
+        // Verify all packages match the filter
+        expect(nonMatchingPackages).toEqual([]);
+    });
+
     it('should get tree for $TMP package', async () => {
         if (shouldSkip(client)) return;
 
