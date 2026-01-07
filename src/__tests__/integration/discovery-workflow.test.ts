@@ -106,8 +106,22 @@ describe('Discovery Workflow', () => {
         if (transports!.length > 0) {
             console.log('Sample transports:');
             transports!.slice(0, 5).forEach(transport => {
-                console.log(`  - ${transport.id}: ${transport.description || '(no description)'}`);
+                console.log(`  - ${transport.id}: ${transport.description || '(no description)'} (owner: ${transport.owner})`);
             });
+        }
+
+        // Verify the expected test transport is present
+        if (TEST_CONFIG.transport) {
+            const expectedTransport = TEST_CONFIG.transport;
+            const found = transports!.some(t => t.id === expectedTransport);
+            expect(found).toBe(true);
+            if (!found) {
+                console.error(`Expected transport ${expectedTransport} not found in results`);
+                console.error('Available transports:', transports!.map(t => t.id));
+            }
+        } else {
+            // If no transport configured, at least expect some transports exist
+            expect(transports!.length).toBeGreaterThan(0);
         }
     });
 });

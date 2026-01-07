@@ -1,5 +1,5 @@
 /**
- * GET /transports/:package — List transport requests for package
+ * GET /transports/:package — List transport requests for a package
  */
 
 import type { Transport } from '../../../core/adt';
