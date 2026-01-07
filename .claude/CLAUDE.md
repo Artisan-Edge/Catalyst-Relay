@@ -213,53 +213,116 @@ Subfolder files use relative paths to reach shared resources:
 
 ---
 
-## Required Reading
+## TypeScript Gotchas
 
-> **⛔ STOP — DO NOT MODIFY CODE UNTIL YOU HAVE READ THESE DOCS**
->
-> This is not optional. You MUST read these documents before making ANY code changes.
-> If you skip this step, you WILL introduce anti-patterns that violate project standards.
-> The user will ask if you read these docs. Be honest.
+Project-specific TypeScript issues discovered while building Catalyst-Relay.
 
-| Document | Purpose |
-|----------|---------|
-| `.claude/docs/code-smell.md` | **CRITICAL** — Anti-patterns to avoid (bloated types, nested conditionals, etc.) |
-| `.claude/docs/typescript-patterns.md` | Naming, types, imports, async conventions |
-| `.claude/docs/lessons-learned.md` | TypeScript gotchas and architecture decisions |
+### exactOptionalPropertyTypes + Zod
 
-**Read these files using the Read tool before writing any code.** Planning a refactor? Read first. Fixing a bug? Read first. Adding a feature? Read first.
+Zod infers `prop?: string | undefined` but interfaces may expect `prop?: string`. Cast after validation.
 
-Violations of documented patterns will be called out immediately and you will be asked to redo the work.
+```typescript
+// BAD - type mismatch with exactOptionalPropertyTypes
+const config = schema.parse(body);  // Zod adds | undefined to optional props
+
+// GOOD - cast to your interface after validation
+import type { ClientConfig } from '../types';
+const validation = schema.safeParse(body);
+const config = validation.data as ClientConfig;
+```
+
+### process.env Access
+
+Use bracket notation for index signatures with `noUncheckedIndexedAccess`.
+
+```typescript
+// BAD - TS error with noUncheckedIndexedAccess
+const path = process.env.RELAY_CONFIG;
+
+// GOOD - bracket notation works
+const path = process.env['RELAY_CONFIG'];
+```
+
+### Hono Status Codes
+
+Hono's `c.json()` only accepts standard HTTP status codes. Non-standard codes like 440 cause TS errors.
+
+```typescript
+// BAD - 440 not in ContentfulStatusCode
+return c.json({ error: 'Session expired' }, 440);
+
+// GOOD - use standard code with error code in body
+return c.json({ error: 'Session expired', code: 'SESSION_EXPIRED' }, 401);
+```
+
+### Middleware Return Types
+
+Hono middleware must explicitly return after `await next()`.
+
+```typescript
+// BAD - implicit return causes TS error
+export const middleware = createMiddleware(async (c, next) => {
+    await next();
+});
+
+// GOOD - explicit return
+export const middleware = createMiddleware(async (c, next) => {
+    await next();
+    return;  // Required for TS
+});
+```
+
+### Literal Types in JSON Responses
+
+Use `as const` for discriminated unions in response objects.
+
+```typescript
+// BAD - success inferred as boolean, not literal false
+return c.json({ success: false, error: msg }, 400);
+
+// GOOD - literal type preserved
+return c.json({ success: false as const, error: msg }, 400);
+```
 
 ---
 
-## Situational Reading
+## Architecture Decisions
 
-If requested to do any tasks or answer questions, be aware of these resources. Use if pertinent:
+### Why Error Tuples?
+
+Go-style `[result, error]` tuples instead of try/catch:
+
+- Forces explicit error handling at call site
+- No try/catch soup
+- TypeScript narrows types after null check
+
+```typescript
+const [client, error] = await createClient(config);
+if (error) return handleError(error);
+// client is guaranteed non-null here
+```
+
+### Why Separate core/ and server/?
+
+- `core/` = pure functions, testable, library-consumable
+- `server/` = HTTP concerns only (routes, middleware)
+- Consumers can import `core/` directly without server overhead
+
+### Why One File Per Route/Function?
+
+- Easy to find/edit specific code
+- Colocated schemas prevent drift
+- Clear ownership and minimal merge conflicts
+
+---
+
+## Reference Documentation
 
 | Document | Purpose |
 |----------|---------|
-| `.claude/docs/api-reference.md` | HTTP endpoints overview (Server Mode) |
-| `.claude/docs/endpoints/` | In-depth endpoint documentation with examples |
-| `.claude/docs/testing.md` | Running unit and integration tests |
-| `.claude/docs/sap-adt.md` | SAP ADT domain knowledge |
-
-### Endpoint Documentation Pattern
-
-The `.claude/docs/endpoints/` folder contains detailed documentation for each endpoint category. Each file follows this consistent structure:
-
-1. **Title** — Category name (e.g., "Authentication Endpoints")
-2. **Sections TOC** — Always include `## Sections` with anchor links to all sections
-3. **Per-Endpoint Structure:**
-   - Description paragraph
-   - Request table (Method, Path, Auth Required)
-   - Request Body table (Field, Type, Required, Description)
-   - Response table (Field, Type, Description)
-   - Example request/response JSON
-   - Error codes table
-   - Use cases list
-
-**IMPORTANT:** All documentation files must include a `## Sections` table of contents at the top with anchor links to each section.
+| `docs/api-reference.md` | HTTP endpoints overview (Server Mode) |
+| `docs/endpoints/` | In-depth endpoint documentation with examples |
+| `docs/sap-adt.md` | SAP ADT domain knowledge (CSRF tokens, SSL) |
 
 ---
 
