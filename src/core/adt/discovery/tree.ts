@@ -155,13 +155,25 @@ ${facetsXml}
 }
 
 // Parse tree discovery response.
-function parseTreeResponse(xml: string): Result<{ nodes: TreeNode[]; packages: Package[] }, Error> {
+function parseTreeResponse(xml: string, query: TreeDiscoveryQuery): Result<{ nodes: TreeNode[]; packages: Package[] }, Error> {
     // Parse XML response.
     const [doc, parseErr] = safeParseXml(xml);
     if (parseErr) { return err(parseErr); }
 
     const nodes: TreeNode[] = [];
     const packages: Package[] = [];
+
+    // Build set of parent folder markers to filter out.
+    // When querying children of a folder, SAP returns the parent as "..<name>" which we should skip.
+    const parentMarkers = new Set<string>();
+    for (const facet of ['PACKAGE', 'GROUP', 'TYPE', 'API'] as const) {
+        const value = query[facet];
+        if (value) {
+            // The parent marker is the name with ".." prefix
+            const markerName = value.name.startsWith('..') ? value.name : `..${ value.name}`;
+            parentMarkers.add(markerName);
+        }
+    }
 
     // Process virtual folder elements (packages, groups, etc).
     const virtualFolders = doc.getElementsByTagName('vfs:virtualFolder');
@@ -172,8 +184,13 @@ function parseTreeResponse(xml: string): Result<{ nodes: TreeNode[]; packages: P
         const facet = vf.getAttribute('facet');
         const name = vf.getAttribute('name');
 
+        if (!name || !facet) continue;
+
+        // Skip parent folder markers (e.g., "..ZPACKAGE" when querying children of ZPACKAGE).
+        if (parentMarkers.has(name)) continue;
+
         // Extract package metadata if this is a package facet.
-        if (facet === 'PACKAGE' && name) {
+        if (facet === 'PACKAGE') {
             const desc = vf.getAttribute('description');
             const pkg: Package = {
                 name: name.startsWith('..') ? name.substring(2) : name,
@@ -183,8 +200,6 @@ function parseTreeResponse(xml: string): Result<{ nodes: TreeNode[]; packages: P
             }
             packages.push(pkg);
         }
-
-        if (!name || !facet) continue;
 
         // Add folder node (strip '..' prefix from name).
         nodes.push({
