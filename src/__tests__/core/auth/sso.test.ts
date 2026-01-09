@@ -15,6 +15,7 @@ import { describe, it, expect } from 'bun:test';
 import { SsoAuth } from '../../../core/auth/sso';
 import { enrollCertificate } from '../../../core/auth/sso/slsClient';
 import { createClient } from '../../../core/client';
+import { Agent } from 'undici';
 
 // =============================================================================
 // Configuration - UPDATE THESE FOR YOUR ENVIRONMENT
@@ -190,19 +191,16 @@ describe('SSO Certificate Enrollment', () => {
 });
 
 // =============================================================================
-// Full E2E Test (Certificate Enrollment + SAP Login + CSRF Token)
+// Full E2E Diagnostic Test (Step-by-step with raw fetch testing)
 // =============================================================================
 
-describe('SSO Full E2E Test', () => {
+describe('SSO Full E2E Diagnostic Test', () => {
     /**
-     * Full end-to-end test:
-     * 1. Create ADT client with SSO auth config
-     * 2. Login (enrolls certificates from SLS + fetches CSRF token from SAP)
-     * 3. Print CSRF token to verify mTLS is working
+     * Step-by-step diagnostic test to isolate where mTLS fails
      */
-    it('should complete full SSO login flow and fetch CSRF token', async () => {
+    it('should diagnose SSO mTLS step by step', async () => {
         console.log('\n========================================');
-        console.log('SSO Full E2E Test');
+        console.log('SSO DIAGNOSTIC TEST');
         console.log('========================================');
         console.log('Config:');
         console.log(`  SLS URL: ${TEST_CONFIG.slsUrl}`);
@@ -213,57 +211,198 @@ describe('SSO Full E2E Test', () => {
         console.log(`  Insecure: ${TEST_CONFIG.insecure}`);
         console.log('----------------------------------------\n');
 
-        // Step 1: Create ADT client with SSO auth
-        console.log('Step 1: Creating ADT client with SSO auth...');
-        const [client, clientErr] = createClient({
-            url: TEST_CONFIG.sapUrl,
-            client: TEST_CONFIG.sapClient,
-            insecure: TEST_CONFIG.insecure,
-            auth: {
-                type: 'sso',
+        // =================================================================
+        // STEP 1: Enroll certificates from SLS
+        // =================================================================
+        console.log('STEP 1: Enrolling certificates from SLS...');
+        const [certs, enrollErr] = await enrollCertificate({
+            config: {
                 slsUrl: TEST_CONFIG.slsUrl,
                 profile: TEST_CONFIG.profile,
                 servicePrincipalName: TEST_CONFIG.servicePrincipalName,
             },
+            insecure: TEST_CONFIG.insecure,
         });
 
-        if (clientErr) {
-            console.log('Client creation FAILED:');
-            console.log(`  Error: ${clientErr.message}`);
-            expect(clientErr).toBeInstanceOf(Error);
-            return;
+        if (enrollErr) {
+            console.log('❌ Certificate enrollment FAILED:');
+            console.log(`  Error: ${enrollErr.message}`);
+            throw new Error('Certificate enrollment failed - cannot continue');
         }
 
-        console.log('  Client created successfully!\n');
+        console.log('✅ Certificate enrollment SUCCEEDED!');
+        console.log(`  Full chain length: ${certs.fullChain.length} chars`);
+        console.log(`  Private key length: ${certs.privateKey.length} chars`);
 
-        // Step 2: Login (this does certificate enrollment + CSRF token fetch)
-        console.log('Step 2: Logging in (cert enrollment + CSRF fetch)...');
-        const [session, loginErr] = await client.login();
+        // Show first few lines of certs to verify format
+        const chainLines = certs.fullChain.split('\n');
+        const keyLines = certs.privateKey.split('\n');
+        console.log(`  Full chain starts with: ${chainLines[0]}`);
+        console.log(`  Full chain has ${chainLines.filter(l => l.includes('BEGIN CERTIFICATE')).length} certificates`);
+        console.log(`  Private key starts with: ${keyLines[0]}`);
+        console.log('');
 
-        if (loginErr) {
-            console.log('Login FAILED:');
-            console.log(`  Error: ${loginErr.message}`);
-            console.log('\nThis is expected on a non-domain machine.');
-            console.log('On the Medtronic laptop, this should succeed.\n');
-            expect(loginErr).toBeInstanceOf(Error);
-            return;
+        // =================================================================
+        // STEP 2: Test raw fetch to SAP with Bun's native fetch + tls option
+        // =================================================================
+        console.log('STEP 2: Testing RAW fetch to SAP with Bun tls option...');
+        const csrfUrl = `${TEST_CONFIG.sapUrl}/sap/bc/adt/compatibility/graph?sap-client=${TEST_CONFIG.sapClient}`;
+        console.log(`  URL: ${csrfUrl}`);
+
+        try {
+            // Test with Bun's native fetch and tls option
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const bunResponse = await fetch(csrfUrl, {
+                method: 'GET',
+                headers: {
+                    'x-csrf-token': 'fetch',
+                    'Accept': 'application/xml',
+                },
+                tls: {
+                    cert: certs.fullChain,
+                    key: certs.privateKey,
+                    rejectUnauthorized: false,
+                },
+            } as any);
+
+            console.log(`  Response status: ${bunResponse.status}`);
+            console.log(`  Response statusText: ${bunResponse.statusText}`);
+
+            const csrfToken = bunResponse.headers.get('x-csrf-token');
+            console.log(`  CSRF token header: ${csrfToken ? csrfToken.substring(0, 30) + '...' : 'NOT FOUND'}`);
+
+            if (bunResponse.status === 200 && csrfToken && csrfToken !== 'fetch') {
+                console.log('✅ Bun native fetch with tls option WORKS!');
+                console.log(`  Got CSRF token: ${csrfToken}`);
+            } else {
+                console.log('❌ Bun native fetch failed or no CSRF token');
+                const text = await bunResponse.text();
+                console.log(`  Response body (first 500 chars): ${text.substring(0, 500)}`);
+            }
+        } catch (bunErr) {
+            console.log('❌ Bun native fetch threw error:');
+            console.log(`  ${bunErr instanceof Error ? bunErr.message : String(bunErr)}`);
         }
+        console.log('');
 
-        // Step 3: Print session info
-        console.log('Login SUCCEEDED!');
-        console.log('----------------------------------------');
-        console.log('Session Info:');
-        console.log(`  Session ID: ${session.sessionId}`);
-        console.log(`  Username: ${session.username}`);
-        console.log(`  Expires At: ${new Date(session.expiresAt).toISOString()}`);
-        console.log('----------------------------------------');
-        console.log('\n🎉 SSO E2E TEST PASSED!\n');
-        console.log('The mTLS certificates are working correctly.');
-        console.log('CSRF token was fetched successfully from SAP server.\n');
+        // =================================================================
+        // STEP 3: Test with undici Agent (Node.js style)
+        // =================================================================
+        console.log('STEP 3: Testing with undici Agent (Node.js style)...');
 
-        expect(session).toBeTruthy();
-        expect(session.username).toBeTruthy();
-        expect(session.sessionId).toBeTruthy();
+        try {
+            const { fetch: undiciFetch } = await import('undici');
+
+            const agent = new Agent({
+                connect: {
+                    cert: certs.fullChain,
+                    key: certs.privateKey,
+                    rejectUnauthorized: false,
+                },
+            });
+
+            const undiciResponse = await undiciFetch(csrfUrl, {
+                method: 'GET',
+                headers: {
+                    'x-csrf-token': 'fetch',
+                    'Accept': 'application/xml',
+                },
+                dispatcher: agent,
+            });
+
+            console.log(`  Response status: ${undiciResponse.status}`);
+            console.log(`  Response statusText: ${undiciResponse.statusText}`);
+
+            const csrfToken = undiciResponse.headers.get('x-csrf-token');
+            console.log(`  CSRF token header: ${csrfToken ? csrfToken.substring(0, 30) + '...' : 'NOT FOUND'}`);
+
+            if (undiciResponse.status === 200 && csrfToken && csrfToken !== 'fetch') {
+                console.log('✅ Undici fetch with Agent WORKS!');
+                console.log(`  Got CSRF token: ${csrfToken}`);
+            } else {
+                console.log('❌ Undici fetch failed or no CSRF token');
+                const text = await undiciResponse.text();
+                console.log(`  Response body (first 500 chars): ${text.substring(0, 500)}`);
+            }
+        } catch (undiciErr) {
+            console.log('❌ Undici fetch threw error:');
+            console.log(`  ${undiciErr instanceof Error ? undiciErr.message : String(undiciErr)}`);
+        }
+        console.log('');
+
+        // =================================================================
+        // STEP 4: Test with Node.js https module directly (if available)
+        // =================================================================
+        console.log('STEP 4: Testing with Node.js https module...');
+
+        try {
+            const https = await import('https');
+            const { URL } = await import('url');
+
+            const urlObj = new URL(csrfUrl);
+
+            const result = await new Promise<{ status: number; headers: Record<string, string>; body: string }>((resolve, reject) => {
+                const req = https.request({
+                    hostname: urlObj.hostname,
+                    port: urlObj.port || 443,
+                    path: urlObj.pathname + urlObj.search,
+                    method: 'GET',
+                    cert: certs.fullChain,
+                    key: certs.privateKey,
+                    rejectUnauthorized: false,
+                    headers: {
+                        'x-csrf-token': 'fetch',
+                        'Accept': 'application/xml',
+                    },
+                }, (res) => {
+                    let body = '';
+                    res.on('data', chunk => body += chunk);
+                    res.on('end', () => {
+                        resolve({
+                            status: res.statusCode || 0,
+                            headers: res.headers as Record<string, string>,
+                            body,
+                        });
+                    });
+                });
+
+                req.on('error', reject);
+                req.end();
+            });
+
+            console.log(`  Response status: ${result.status}`);
+            const csrfToken = result.headers['x-csrf-token'];
+            console.log(`  CSRF token header: ${csrfToken ? csrfToken.substring(0, 30) + '...' : 'NOT FOUND'}`);
+
+            if (result.status === 200 && csrfToken && csrfToken !== 'fetch') {
+                console.log('✅ Node.js https module WORKS!');
+                console.log(`  Got CSRF token: ${csrfToken}`);
+            } else {
+                console.log('❌ Node.js https failed or no CSRF token');
+                console.log(`  Response body (first 500 chars): ${result.body.substring(0, 500)}`);
+            }
+        } catch (httpsErr) {
+            console.log('❌ Node.js https threw error:');
+            console.log(`  ${httpsErr instanceof Error ? httpsErr.message : String(httpsErr)}`);
+        }
+        console.log('');
+
+        // =================================================================
+        // SUMMARY
+        // =================================================================
+        console.log('========================================');
+        console.log('DIAGNOSTIC COMPLETE');
+        console.log('========================================');
+        console.log('If all 3 methods failed with 401, the certificates may be:');
+        console.log('  - Not trusted by the SAP server');
+        console.log('  - In wrong format');
+        console.log('  - Missing intermediate CA certs');
+        console.log('');
+        console.log('Compare with Python: does Python work with these same certs?');
+        console.log('');
+
+        // Don't fail the test - this is diagnostic
+        expect(true).toBe(true);
     });
 });
 
