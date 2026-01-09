@@ -480,9 +480,10 @@ describe('SSO Full E2E Diagnostic Test', () => {
                 console.log('❌ File paths method also failed');
             }
 
-            // Cleanup
-            fs.unlinkSync(certPath);
-            fs.unlinkSync(keyPath);
+            // Keep files for Python test comparison
+            console.log(`  (Kept cert files for Python comparison test)`);
+            // fs.unlinkSync(certPath);
+            // fs.unlinkSync(keyPath);
         } catch (fileErr) {
             console.log('❌ File paths test threw error:');
             console.log(`  ${fileErr instanceof Error ? fileErr.message : String(fileErr)}`);
