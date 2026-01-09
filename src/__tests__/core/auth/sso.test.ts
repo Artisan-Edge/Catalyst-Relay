@@ -544,6 +544,69 @@ describe('SSO Full E2E Diagnostic Test', () => {
 });
 
 // =============================================================================
+// ADT Client Login Test (uses actual client.login())
+// =============================================================================
+
+describe('SSO ADT Client Login', () => {
+    /**
+     * This test uses the actual ADT client to verify the full login flow
+     */
+    it('should login using ADT client with SSO auth', async () => {
+        console.log('\n========================================');
+        console.log('ADT CLIENT LOGIN TEST');
+        console.log('========================================');
+        console.log('This test uses createClient() and login() - same as the extension\n');
+
+        // Create client with SSO auth
+        console.log('Step 1: Creating ADT client...');
+        const [client, clientErr] = createClient({
+            url: TEST_CONFIG.sapUrl,
+            client: TEST_CONFIG.sapClient,
+            insecure: TEST_CONFIG.insecure,
+            auth: {
+                type: 'sso',
+                slsUrl: TEST_CONFIG.slsUrl,
+                profile: TEST_CONFIG.profile,
+                servicePrincipalName: TEST_CONFIG.servicePrincipalName,
+            },
+        });
+
+        if (clientErr) {
+            console.log(`❌ Client creation failed: ${clientErr.message}`);
+            expect(clientErr).toBeInstanceOf(Error);
+            return;
+        }
+        console.log('✅ Client created\n');
+
+        // Call login() - this does cert enrollment + CSRF fetch
+        console.log('Step 2: Calling client.login()...');
+        console.log('  This will:');
+        console.log('  1. Call authStrategy.performLogin() - enroll certs from SLS');
+        console.log('  2. Store certs in client.ssoCerts');
+        console.log('  3. Call sessionOps.login() - fetch CSRF token using stored certs\n');
+
+        const [session, loginErr] = await client.login();
+
+        if (loginErr) {
+            console.log('❌ Login FAILED:');
+            console.log(`  Error: ${loginErr.message}`);
+            console.log('\nIf cert enrollment succeeded but CSRF fetch failed,');
+            console.log('the certs are not being passed to httpsRequest() correctly.\n');
+            expect(loginErr).toBeInstanceOf(Error);
+            return;
+        }
+
+        console.log('✅ Login SUCCEEDED!');
+        console.log(`  Session ID: ${session.sessionId}`);
+        console.log(`  Username: ${session.username}`);
+        console.log(`  Expires: ${new Date(session.expiresAt).toISOString()}\n`);
+
+        expect(session.sessionId).toBeTruthy();
+        expect(session.username).toBeTruthy();
+    });
+});
+
+// =============================================================================
 // Manual Test Runner
 // =============================================================================
 
