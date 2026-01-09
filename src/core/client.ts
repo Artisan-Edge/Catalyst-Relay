@@ -53,6 +53,29 @@ import { Agent, fetch as undiciFetch } from 'undici';
 import type { AuthStrategy } from './auth/types';
 import { createAuthStrategy } from './auth/factory';
 
+// Detect if running in Bun (Bun's fetch supports tls option for mTLS)
+const isBun = typeof globalThis.Bun !== 'undefined';
+
+/**
+ * Extended fetch options for mTLS support across runtimes
+ *
+ * Why this exists:
+ * - Node.js (undici): Uses `dispatcher` option with an Agent for mTLS
+ * - Bun: Uses `tls: { cert, key }` option (ignores undici's dispatcher)
+ *
+ * We detect the runtime and use the appropriate fetch implementation.
+ */
+type BunTlsOptions = {
+    cert?: string;
+    key?: string;
+    rejectUnauthorized?: boolean;
+};
+
+type ExtendedFetchOptions = RequestInit & {
+    dispatcher?: Agent;
+    tls?: BunTlsOptions;
+};
+
 // HTTP request options for internal operations
 interface RequestOptions {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -243,22 +266,21 @@ class ADTClientImpl implements ADTClient {
         const url = buildUrl(config.url, path, urlParams);
 
         // Build fetch options with timeout and optional insecure agent.
-        // Extended type for Bun/Electron TLS compatibility (cert/key for mTLS)
-        const fetchOptions: RequestInit & { dispatcher?: Agent; tls?: { rejectUnauthorized?: boolean; cert?: string; key?: string } } = {
+        const fetchOptions: ExtendedFetchOptions = {
             method,
             headers,
             signal: AbortSignal.timeout(config.timeout ?? DEFAULT_TIMEOUT),
         };
 
         // Add insecure agent if configured (for undici/Node.js)
+        // This is ignored in Bun, but we set it for Node.js compatibility
         if (this.agent) {
             fetchOptions.dispatcher = this.agent;
         }
 
-        // For Bun/Electron compatibility: pass TLS options directly
-        // (undici dispatcher is ignored in these environments)
+        // For Bun: pass TLS options directly (Bun ignores undici's dispatcher)
         // This is equivalent to Python's httpx `cert=` and `verify=` kwargs
-        if (config.insecure || this.ssoCerts) {
+        if (isBun && (config.insecure || this.ssoCerts)) {
             fetchOptions.tls = {
                 ...(config.insecure && { rejectUnauthorized: false }),
                 // Pass client certificates for mTLS (SSO authentication)
@@ -267,6 +289,7 @@ class ADTClientImpl implements ADTClient {
                     key: this.ssoCerts.key,
                 }),
             };
+            debug(`Bun detected: using tls option with cert=${!!this.ssoCerts?.cert}, insecure=${config.insecure}`);
         }
 
         // Add request body if provided.
@@ -277,9 +300,13 @@ class ADTClientImpl implements ADTClient {
         try {
             // Execute HTTP request.
             debug(`Fetching URL: ${url}`);
-            debug(`Insecure mode: ${!!this.agent}`);
-            // Use undici fetch directly to support dispatcher option for SSL bypass
-            const response = await undiciFetch(url, fetchOptions as Parameters<typeof undiciFetch>[1]) as unknown as Response;
+            debug(`Runtime: ${isBun ? 'Bun' : 'Node.js'}, mTLS: ${!!this.ssoCerts}, insecure: ${!!this.agent}`);
+
+            // Use Bun's native fetch for mTLS (Bun ignores undici dispatcher)
+            // Use undici fetch for Node.js (supports dispatcher for mTLS)
+            const response = isBun && fetchOptions.tls
+                ? await fetch(url, fetchOptions as RequestInit) as Response
+                : await undiciFetch(url, fetchOptions as Parameters<typeof undiciFetch>[1]) as unknown as Response;
 
             // Store any cookies from response
             this.storeCookies(response);
@@ -301,7 +328,10 @@ class ADTClientImpl implements ADTClient {
                         headers['Cookie'] = retryCookieHeader;
                     }
                     debug(`Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
-                    const retryResponse = await undiciFetch(url, { ...fetchOptions, headers } as Parameters<typeof undiciFetch>[1]) as unknown as Response;
+                    const retryFetchOptions = { ...fetchOptions, headers };
+                    const retryResponse = isBun && fetchOptions.tls
+                        ? await fetch(url, retryFetchOptions as RequestInit) as Response
+                        : await undiciFetch(url, retryFetchOptions as Parameters<typeof undiciFetch>[1]) as unknown as Response;
                     this.storeCookies(retryResponse);
                     return ok(retryResponse);
                 }
