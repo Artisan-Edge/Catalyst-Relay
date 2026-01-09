@@ -107,16 +107,30 @@ export class SsoAuth implements AuthStrategy {
      * @returns Success/error tuple
      */
     async performLogin(_fetchFn: typeof fetch): AsyncResult<void, Error> {
+        console.log('[SSO] ========== PERFORM LOGIN ==========');
+        console.log('[SSO] Config:');
+        console.log('[SSO]   slsUrl:', this.config.slsUrl);
+        console.log('[SSO]   profile:', this.config.profile);
+        console.log('[SSO]   servicePrincipalName:', this.config.servicePrincipalName);
+        console.log('[SSO]   insecure:', this.config.insecure);
+        console.log('[SSO]   forceEnroll:', this.config.forceEnroll);
+
         // Check for existing certificates
         if (!this.config.forceEnroll) {
+            console.log('[SSO] Checking for existing certificates...');
             const [loadResult, loadErr] = await this.tryLoadExistingCertificates();
             if (!loadErr && loadResult) {
+                console.log('[SSO] Loaded existing certificates from disk');
+                console.log('[SSO]   cert length:', loadResult.fullChain.length);
+                console.log('[SSO]   key length:', loadResult.privateKey.length);
                 this.certificates = loadResult;
                 return ok(undefined);
             }
+            console.log('[SSO] No existing certs or load failed:', loadErr?.message);
         }
 
         // Enroll new certificate
+        console.log('[SSO] Enrolling new certificate from SLS...');
         const slsConfig: SlsConfig = {
             slsUrl: this.config.slsUrl,
         };
@@ -133,18 +147,27 @@ export class SsoAuth implements AuthStrategy {
         });
 
         if (enrollErr) {
+            console.log('[SSO] Certificate enrollment FAILED:', enrollErr.message);
             return err(enrollErr);
         }
 
+        console.log('[SSO] Certificate enrollment succeeded');
+        console.log('[SSO]   cert length:', material.fullChain.length);
+        console.log('[SSO]   key length:', material.privateKey.length);
+
         // Save certificates to filesystem (unless returnContents is true)
         if (!this.config.returnContents) {
-            const [, saveErr] = await saveCertificates(material);
+            console.log('[SSO] Saving certificates to disk...');
+            const [savedPaths, saveErr] = await saveCertificates(material);
             if (saveErr) {
+                console.log('[SSO] Save failed:', saveErr.message);
                 return err(saveErr);
             }
+            console.log('[SSO] Saved to:', savedPaths);
         }
 
         this.certificates = material;
+        console.log('[SSO] ========== PERFORM LOGIN DONE ==========');
         return ok(undefined);
     }
 

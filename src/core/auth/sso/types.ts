@@ -71,10 +71,21 @@ export interface SlsClientOptions {
 }
 
 /**
+ * Get the base directory for certificate storage
+ * Uses the user's home directory to ensure consistent location regardless of CWD.
+ * Falls back to relative path if home dir not available.
+ */
+function getCertificateBaseDir(): string {
+    // Use HOME on Unix, USERPROFILE on Windows, or fallback to relative path
+    const homeDir = process.env['HOME'] ?? process.env['USERPROFILE'] ?? '.';
+    return `${homeDir}/.catalyst/certificates/sso`;
+}
+
+/**
  * Certificate storage directory structure
  */
 export const CERTIFICATE_STORAGE = {
-    BASE_DIR: './certificates/sso',
+    get BASE_DIR(): string { return getCertificateBaseDir(); },
     FULL_CHAIN_SUFFIX: '_full_chain.pem',
     KEY_SUFFIX: '_key.pem',
 } as const;

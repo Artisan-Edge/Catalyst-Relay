@@ -43,7 +43,7 @@ const TEST_CONFIG = {
     // SAP ADT server URL (for full E2E test with CSRF token fetch)
     sapUrl: 'https://cpdb1pas.corp.medtronic.com:8007',
     // SAP client number
-    sapClient: '100',
+    sapClient: '010',
 };
 
 // =============================================================================

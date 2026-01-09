@@ -328,6 +328,20 @@ if (error) return handleError(error);
 
 ## Changelog
 
+### 2026-01-09: Fixed SSO certificate storage and SLS client
+
+**Problem**: SSO authentication worked in tests but failed in VS Code extension.
+
+**Root causes identified and fixed**:
+
+1. **Relative certificate storage path**: Certificates were stored in `./certificates/sso/` (relative to CWD), which worked during tests (CWD = Catalyst-Relay/) but failed in extensions (CWD = workspace).
+   - **Fix**: Changed to absolute path `~/.catalyst/certificates/sso/` using `HOME` or `USERPROFILE` environment variables.
+   - **File**: `src/core/auth/sso/types.ts`
+
+2. **Undici in SLS client**: The SLS certificate enrollment also used undici, which may have issues in Electron/VS Code.
+   - **Fix**: Replaced undici with Node.js `https` module in slsClient.ts for consistency.
+   - **File**: `src/core/auth/sso/slsClient.ts`
+
 ### 2026-01-09: Replaced undici with Node.js https module
 
 **Change**: ADT client now uses Node.js built-in `https` module for all HTTP requests instead of undici.

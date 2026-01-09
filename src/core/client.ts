@@ -280,6 +280,11 @@ class ADTClientImpl implements ADTClient {
         const { method, path, params, headers: customHeaders, body } = options;
         const { config } = this.state;
 
+        console.log('[RELAY] -------- REQUEST --------');
+        console.log('[RELAY] Method:', method);
+        console.log('[RELAY] Path:', path);
+        console.log('[RELAY] Config client:', config.client);
+
         // Build headers with auth and CSRF token.
         debug(`Request ${method} ${path} - CSRF token in state: ${this.state.csrfToken?.substring(0, 20) || 'null'}...`);
         const headers = buildRequestHeaders(
@@ -301,6 +306,14 @@ class ADTClientImpl implements ADTClient {
         const urlParams = buildParams(params, config.client);
         const url = buildUrl(config.url, path, urlParams);
 
+        console.log('[RELAY] Full URL:', url);
+        console.log('[RELAY] Has mTLS certs:', !!this.ssoCerts);
+        if (this.ssoCerts) {
+            console.log('[RELAY]   cert length:', this.ssoCerts.cert.length);
+            console.log('[RELAY]   key length:', this.ssoCerts.key.length);
+        }
+        console.log('[RELAY] Insecure (skip SSL verify):', config.insecure);
+
         try {
             // Execute HTTP request using Node.js https module
             debug(`Fetching URL: ${url}`);
@@ -315,6 +328,8 @@ class ADTClientImpl implements ADTClient {
                 rejectUnauthorized: !config.insecure,
                 timeout: config.timeout ?? DEFAULT_TIMEOUT,
             });
+
+            console.log('[RELAY] Response status:', response.status, response.statusText);
 
             // Store any cookies from response
             this.storeCookies(response);
@@ -395,12 +410,20 @@ class ADTClientImpl implements ADTClient {
     async login(): AsyncResult<Session> {
         const { authStrategy } = this.state;
 
+        console.log('[RELAY] ========== LOGIN START ==========');
+        console.log('[RELAY] Auth strategy type:', authStrategy.type);
+        console.log('[RELAY] Config URL:', this.state.config.url);
+        console.log('[RELAY] Config client:', this.state.config.client);
+
         // For SSO and SAML, perform initial authentication (certificate enrollment or browser login)
         if (authStrategy.performLogin) {
+            console.log('[RELAY] Calling authStrategy.performLogin()...');
             const [, loginErr] = await authStrategy.performLogin(fetch);
             if (loginErr) {
+                console.log('[RELAY] performLogin FAILED:', loginErr.message);
                 return err(loginErr);
             }
+            console.log('[RELAY] performLogin succeeded');
         }
 
         // For SAML, transfer cookies from auth strategy to client cookie store
@@ -414,17 +437,27 @@ class ADTClientImpl implements ADTClient {
 
         // For SSO with mTLS, store certificates for use in requests
         if (authStrategy.type === 'sso' && authStrategy.getCertificates) {
+            console.log('[RELAY] Getting certificates from auth strategy...');
             const certs = authStrategy.getCertificates();
             if (certs) {
                 this.ssoCerts = {
                     cert: certs.fullChain,
                     key: certs.privateKey,
                 };
-                debug('Stored mTLS certificates for SSO authentication');
+                console.log('[RELAY] Stored mTLS certificates:');
+                console.log('[RELAY]   - cert length:', certs.fullChain.length);
+                console.log('[RELAY]   - key length:', certs.privateKey.length);
+                console.log('[RELAY]   - cert starts with:', certs.fullChain.substring(0, 50));
+            } else {
+                console.log('[RELAY] WARNING: getCertificates() returned null!');
             }
         }
 
-        return sessionOps.login(this.state, this.request.bind(this));
+        console.log('[RELAY] Calling sessionOps.login() to fetch CSRF token...');
+        const result = await sessionOps.login(this.state, this.request.bind(this));
+        console.log('[RELAY] sessionOps.login result:', result[1] ? `ERROR: ${result[1].message}` : 'SUCCESS');
+        console.log('[RELAY] ========== LOGIN END ==========');
+        return result;
     }
 
     async logout(): AsyncResult<void> {
