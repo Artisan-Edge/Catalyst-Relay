@@ -1,13 +1,39 @@
 /**
  * Tree — Hierarchical tree browsing for packages
+ *
+ * Implements the same logic as the Python SNAP-Relay-API:
+ * - hasChildrenOfSameFacet controls whether a facet goes in facetorder
+ * - Recursive merge when hasChildrenOfSameFacet=true to get both same-facet children AND other facet types
  */
 
 import type { Result, AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
-import type { TreeQuery } from '../../../types/requests';
 import type { AdtRequestor } from '../types';
 import { getConfigByType } from '../types';
 import { extractError, safeParseXml } from '../../utils/xml';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/**
+ * Virtual folder in tree discovery
+ */
+export interface VirtualFolder {
+    name: string;
+    hasChildrenOfSameFacet: boolean;
+    count?: number;
+}
+
+/**
+ * Tree discovery query - matches Python TreeDiscoveryQuery
+ */
+export interface TreeDiscoveryQuery {
+    PACKAGE?: VirtualFolder;
+    TYPE?: VirtualFolder;
+    GROUP?: VirtualFolder;
+    API?: VirtualFolder;
+}
 
 /**
  * Tree node for hierarchical browsing
@@ -15,10 +41,11 @@ import { extractError, safeParseXml } from '../../utils/xml';
 export interface TreeNode {
     name: string;
     type: 'folder' | 'object';
+    facet?: string;
     objectType?: string;
     extension?: string;
     hasChildren?: boolean;
-    children?: TreeNode[];
+    count?: number;
 }
 
 /**
@@ -27,68 +54,75 @@ export interface TreeNode {
 export interface Package {
     name: string;
     description?: string;
-    parentPackage?: string;
 }
 
 /**
- * Virtual folder for tree discovery (internal)
+ * Internal response structure matching Python TreeDiscoveryResponse
  */
-interface VirtualFolder {
-    name: string;
-    hasChildrenOfSameFacet: boolean;
-    count?: string;
+interface TreeDiscoveryResponse {
+    virtualFolders: Partial<Record<string, VirtualFolder[]>>;
+    objects: Array<{ name: string; type: string }>;
 }
 
-/**
- * Tree discovery internal query (internal)
- */
-interface TreeDiscoveryQuery {
-    PACKAGE?: VirtualFolder;
-    TYPE?: VirtualFolder;
-    GROUP?: VirtualFolder;
-    API?: VirtualFolder;
-}
+// ============================================================================
+// Main API
+// ============================================================================
 
 /**
  * Get hierarchical tree of objects
  *
  * @param client - ADT client
- * @param query - Tree query parameters
+ * @param query - Tree discovery query with facets
  * @returns Tree nodes or error
  */
 export async function getTree(
     client: AdtRequestor,
-    query: TreeQuery
+    query: TreeDiscoveryQuery
 ): AsyncResult<TreeNode[], Error> {
-    // Build internal query with package filter.
-    const internalQuery: TreeDiscoveryQuery = {};
-    if (query.package) {
-        internalQuery.PACKAGE = {
-            name: query.package.startsWith('..') ? query.package : `..${query.package}`,
-            hasChildrenOfSameFacet: false,
-        };
-    }
+    console.log('\n========== getTree called ==========');
+    console.log('Input query:', JSON.stringify(query, null, 2));
 
-    // Execute tree discovery and return nodes.
-    const [result, resultErr] = await getTreeInternal(client, internalQuery, '*');
-    if (resultErr) { return err(resultErr); }
-    return ok(result.nodes);
+    const [response, error] = await treeDiscovery(client, query, '*');
+    if (error) return err(error);
+
+    // Convert response to TreeNode array
+    const nodes = convertToTreeNodes(response);
+    console.log(`Returning ${nodes.length} nodes`);
+    return ok(nodes);
 }
 
 /**
- * Internal tree discovery with full options
+ * Tree discovery with recursive merge for hasChildrenOfSameFacet
  *
- * Exported for use by packages.ts
+ * Matches Python tree_discovery function behavior:
+ * 1. Make initial request
+ * 2. If any facet has hasChildrenOfSameFacet=true:
+ *    a. Filter out parent markers from that facet's results
+ *    b. Make recursive call with hasChildrenOfSameFacet=false to get other facet types
+ *    c. Merge results
  */
-export async function getTreeInternal(
+async function treeDiscovery(
     client: AdtRequestor,
     query: TreeDiscoveryQuery,
-    searchPattern: string
-): AsyncResult<{ nodes: TreeNode[]; packages: Package[] }, Error> {
-    // Build XML request body.
-    const body = constructTreeBody(query, searchPattern);
+    searchPattern: string,
+    depth: number = 1
+): AsyncResult<TreeDiscoveryResponse, Error> {
+    // Build request body
+    const body = constructBody(query, searchPattern);
 
-    // Execute virtual folders request.
+    console.log(`\n----- Request Body (depth=${depth}) -----`);
+    console.log(body);
+    console.log('------------------------\n');
+
+    // Identify facets with hasChildrenOfSameFacet=true (need recursive merge)
+    const recursiveFacets: Record<string, string> = {};
+    for (const [facet, value] of Object.entries(query)) {
+        if (value && value.hasChildrenOfSameFacet) {
+            recursiveFacets[facet] = value.name;
+        }
+    }
+
+    // Make request
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: '/sap/bc/adt/repository/informationsystem/virtualfolders/contents',
@@ -99,136 +133,288 @@ export async function getTreeInternal(
         body,
     });
 
-    // Validate successful response.
-    if (requestErr) { return err(requestErr); }
+    if (requestErr) return err(requestErr);
     if (!response.ok) {
         const text = await response.text();
-        const errorMsg = extractError(text);
-        return err(new Error(`Tree discovery failed: ${errorMsg}`));
+        console.log('Error response:', text);
+        return err(new Error(`Tree discovery failed: ${extractError(text)}`));
     }
 
-    // Parse tree response.
     const text = await response.text();
-    const [result, parseErr] = parseTreeResponse(text);
-    if (parseErr) { return err(parseErr); }
-    return ok(result);
+    console.log(`\n----- Response Body (depth=${depth}) -----`);
+    console.log(text);
+    console.log('-------------------------\n');
+
+    // Parse response
+    const [parsedOutput, parseErr] = extractForTree(text);
+    if (parseErr) return err(parseErr);
+    let output = parsedOutput;
+
+    // If no recursive facets, we're done
+    if (Object.keys(recursiveFacets).length === 0) {
+        console.log('No recursive facets, returning directly');
+        return ok(output);
+    }
+
+    // Recursive merge for each facet with hasChildrenOfSameFacet=true
+    let i = 0;
+    for (const [facet, name] of Object.entries(recursiveFacets)) {
+        console.log(`\nRecursive merge for ${facet}=${name}`);
+
+        // Filter out parent marker from this facet's results
+        // Parent marker has ".." + name format (e.g., querying "ZSNAP" returns "..ZSNAP" as parent marker)
+        const folders = output.virtualFolders[facet];
+        if (folders) {
+            output.virtualFolders[facet] = folders.filter(entry => entry.name !== '..' + name);
+            console.log(`Filtered out parent marker ..${name}, remaining: ${output.virtualFolders[facet]?.length || 0} folders`);
+        }
+
+        // Make recursive call with hasChildrenOfSameFacet=false to get other facet types
+        const recursiveQuery: TreeDiscoveryQuery = {
+            [facet]: {
+                name,
+                hasChildrenOfSameFacet: false,
+            },
+        };
+
+        const [recursiveOutput, recursiveErr] = await treeDiscovery(
+            client,
+            recursiveQuery,
+            searchPattern,
+            depth + 1
+        );
+
+        if (recursiveErr) return err(recursiveErr);
+
+        // Merge results
+        output = mergeOutputs(output, recursiveOutput);
+        i++;
+    }
+
+    return ok(output);
 }
 
-// Construct tree discovery request body.
-function constructTreeBody(query: TreeDiscoveryQuery, searchPattern: string): string {
-    // Determine which facets are specified vs requested.
-    const facets: string[] = [];
-    const specified: Record<string, string> = {};
-    const sortedFacets = ['PACKAGE', 'GROUP', 'TYPE', 'API'];
+// ============================================================================
+// Request Construction
+// ============================================================================
 
-    for (const facet of sortedFacets) {
-        const value = query[facet as keyof TreeDiscoveryQuery];
-        if (value) {
-            specified[facet] = value.name;
-            if (!value.hasChildrenOfSameFacet) {
-                facets.push(facet);
-            }
-        } else {
-            facets.push(facet);
-        }
-    }
+const SORTED_FACETS = ['PACKAGE', 'GROUP', 'TYPE', 'API'] as const;
 
-    // Build XML elements for specified facets using preselection structure.
-    const specifiedXml = Object.entries(specified)
+/**
+ * Construct XML request body - matches Python construct_body
+ */
+function constructBody(query: TreeDiscoveryQuery, searchPattern: string): string {
+    const { specified, facets } = specifiedVsFacets(query);
+
+    // Build preselection XML for specified facets
+    const preselectionXml = Object.entries(specified)
         .map(([facet, name]) => `  <vfs:preselection facet="${facet.toLowerCase()}">
     <vfs:value>${name}</vfs:value>
   </vfs:preselection>`)
         .join('\n');
 
-    // Build XML elements for requested facets (lowercase).
+    // Build facetorder XML
     const facetsXml = facets
-        .map(facet => `    <vfs:facet>${facet.toLowerCase()}</vfs:facet>`)
+        .map(f => `    <vfs:facet>${f.toLowerCase()}</vfs:facet>`)
         .join('\n');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <vfs:virtualFoldersRequest xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectSearchPattern="${searchPattern}">
-${specifiedXml}
+${preselectionXml}
   <vfs:facetorder>
 ${facetsXml}
   </vfs:facetorder>
 </vfs:virtualFoldersRequest>`;
 }
 
-// Parse tree discovery response.
-function parseTreeResponse(xml: string, query: TreeDiscoveryQuery): Result<{ nodes: TreeNode[]; packages: Package[] }, Error> {
-    // Parse XML response.
-    const [doc, parseErr] = safeParseXml(xml);
-    if (parseErr) { return err(parseErr); }
+/**
+ * Determine which facets are specified (preselection) vs requested (facetorder)
+ * Matches Python specified_vs_facets method
+ *
+ * A facet goes into facetorder if:
+ * - It's NOT specified in query, OR
+ * - It IS specified AND hasChildrenOfSameFacet=true
+ */
+function specifiedVsFacets(query: TreeDiscoveryQuery): { specified: Record<string, string>; facets: string[] } {
+    const specified: Record<string, string> = {};
+    const facets: string[] = [];
 
-    const nodes: TreeNode[] = [];
-    const packages: Package[] = [];
-
-    // Build set of parent folder markers to filter out.
-    // When querying children of a folder, SAP returns the parent as "..<name>" which we should skip.
-    const parentMarkers = new Set<string>();
-    for (const facet of ['PACKAGE', 'GROUP', 'TYPE', 'API'] as const) {
+    for (const facet of SORTED_FACETS) {
         const value = query[facet];
         if (value) {
-            // The parent marker is the name with ".." prefix
-            const markerName = value.name.startsWith('..') ? value.name : `..${ value.name}`;
-            parentMarkers.add(markerName);
+            // Facet is specified - add to preselection
+            specified[facet] = value.name;
+            // Add to facetorder only if hasChildrenOfSameFacet=true
+            if (value.hasChildrenOfSameFacet) {
+                facets.push(facet);
+            }
+        } else {
+            // Facet not specified - add to facetorder
+            facets.push(facet);
         }
     }
 
-    // Process virtual folder elements (packages, groups, etc).
-    const virtualFolders = doc.getElementsByTagName('vfs:virtualFolder');
-    for (let i = 0; i < virtualFolders.length; i++) {
-        const vf = virtualFolders[i];
+    return { specified, facets };
+}
+
+// ============================================================================
+// Response Parsing
+// ============================================================================
+
+/**
+ * Parse tree discovery response XML - matches Python extract_for_tree
+ */
+function extractForTree(xml: string): Result<TreeDiscoveryResponse, Error> {
+    const [doc, parseErr] = safeParseXml(xml);
+    if (parseErr) return err(parseErr);
+
+    const virtualFolders: Partial<Record<string, VirtualFolder[]>> = {};
+    const objects: Array<{ name: string; type: string }> = [];
+
+    // Process virtual folder elements
+    const vfElements = doc.getElementsByTagName('vfs:virtualFolder');
+    for (let i = 0; i < vfElements.length; i++) {
+        const vf = vfElements[i];
         if (!vf) continue;
 
-        const facet = vf.getAttribute('facet');
+        const facet = vf.getAttribute('facet')?.toUpperCase();
         const name = vf.getAttribute('name');
+        const hasChildren = vf.getAttribute('hasChildrenOfSameFacet') === 'true';
+        const counter = vf.getAttribute('counter');
 
-        if (!name || !facet) continue;
+        if (!facet || !name) continue;
 
-        // Skip parent folder markers (e.g., "..ZPACKAGE" when querying children of ZPACKAGE).
-        if (parentMarkers.has(name)) continue;
-
-        // Extract package metadata if this is a package facet.
-        if (facet === 'PACKAGE') {
-            const desc = vf.getAttribute('description');
-            const pkg: Package = {
-                name: name.startsWith('..') ? name.substring(2) : name,
-            };
-            if (desc) {
-                pkg.description = desc;
-            }
-            packages.push(pkg);
+        if (!virtualFolders[facet]) {
+            virtualFolders[facet] = [];
         }
-
-        // Add folder node (strip '..' prefix from name).
-        nodes.push({
-            name: name.startsWith('..') ? name.substring(2) : name,
-            type: 'folder',
-            hasChildren: vf.getAttribute('hasChildrenOfSameFacet') === 'true',
-        });
+        const folder: VirtualFolder = {
+            name,
+            hasChildrenOfSameFacet: hasChildren,
+        };
+        if (counter) {
+            folder.count = parseInt(counter, 10);
+        }
+        virtualFolders[facet].push(folder);
     }
 
-    // Process object elements (actual ADT objects).
-    const objects = doc.getElementsByTagName('vfs:object');
-    for (let i = 0; i < objects.length; i++) {
-        const obj = objects[i];
+    // Process object elements
+    const objElements = doc.getElementsByTagName('vfs:object');
+    for (let i = 0; i < objElements.length; i++) {
+        const obj = objElements[i];
         if (!obj) continue;
 
         const name = obj.getAttribute('name');
         const type = obj.getAttribute('type');
+
         if (!name || !type) continue;
+        objects.push({ name, type });
+    }
 
-        // Look up object type configuration.
-        const config = getConfigByType(type);
-        if (!config) continue;
+    console.log('Parsed virtualFolders:', Object.fromEntries(
+        Object.entries(virtualFolders).map(([k, v]) => [k, v?.map(f => f.name)])
+    ));
+    console.log('Parsed objects:', objects.map(o => `${o.type}:${o.name}`));
 
+    return ok({ virtualFolders, objects });
+}
+
+/**
+ * Merge two tree discovery responses - matches Python merge_outputs
+ */
+function mergeOutputs(output1: TreeDiscoveryResponse, output2: TreeDiscoveryResponse): TreeDiscoveryResponse {
+    // Merge virtual folders
+    for (const [facet, folders] of Object.entries(output2.virtualFolders)) {
+        if (!folders) continue;
+        if (!output1.virtualFolders[facet]) {
+            output1.virtualFolders[facet] = folders;
+        } else {
+            output1.virtualFolders[facet] = output1.virtualFolders[facet]!.concat(folders);
+            // Sort by name
+            output1.virtualFolders[facet].sort((a, b) => a.name.localeCompare(b.name));
+        }
+    }
+
+    // Merge objects
+    output1.objects = output1.objects.concat(output2.objects);
+
+    return output1;
+}
+
+// ============================================================================
+// Conversion to TreeNode
+// ============================================================================
+
+/**
+ * Convert internal response to TreeNode array
+ */
+function convertToTreeNodes(response: TreeDiscoveryResponse): TreeNode[] {
+    const nodes: TreeNode[] = [];
+
+    // Convert virtual folders - preserve original names (including ".." prefix if present)
+    // Display formatting should happen in the UI layer
+    for (const [facet, folders] of Object.entries(response.virtualFolders)) {
+        if (!folders) continue;
+        for (const folder of folders) {
+            const node: TreeNode = {
+                name: folder.name,
+                type: 'folder',
+                facet,
+                hasChildren: folder.hasChildrenOfSameFacet,
+            };
+            if (folder.count !== undefined) {
+                node.count = folder.count;
+            }
+            nodes.push(node);
+        }
+    }
+
+    // Convert objects
+    for (const obj of response.objects) {
+        const config = getConfigByType(obj.type);
+        if (!config) {
+            console.log(`Skipping unknown object type: ${obj.type} for ${obj.name}`);
+            continue;
+        }
         nodes.push({
-            name,
+            name: obj.name,
             type: 'object',
             objectType: config.label,
             extension: config.extension,
         });
+    }
+
+    return nodes;
+}
+
+// ============================================================================
+// Legacy exports for packages.ts compatibility
+// ============================================================================
+
+export type { TreeDiscoveryQuery as SimpleTreeQuery };
+export type { TreeDiscoveryResponse };
+
+/**
+ * Internal tree discovery - exported for packages.ts
+ */
+export async function getTreeInternal(
+    client: AdtRequestor,
+    query: TreeDiscoveryQuery,
+    searchPattern: string
+): AsyncResult<{ nodes: TreeNode[]; packages: Package[] }, Error> {
+    const [response, error] = await treeDiscovery(client, query, searchPattern);
+    if (error) return err(error);
+
+    const nodes = convertToTreeNodes(response);
+    const packages: Package[] = [];
+
+    // Extract package info
+    const pkgFolders = response.virtualFolders['PACKAGE'];
+    if (pkgFolders) {
+        for (const folder of pkgFolders) {
+            packages.push({
+                name: folder.name.startsWith('..') ? folder.name.substring(2) : folder.name,
+            });
+        }
     }
 
     return ok({ nodes, packages });

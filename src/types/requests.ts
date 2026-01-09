@@ -21,15 +21,30 @@ export interface ObjectContent extends ObjectRef {
 }
 
 /**
- * Tree discovery query for hierarchical browsing
+ * Virtual folder for tree discovery
+ */
+export interface VirtualFolder {
+    /** Folder name (with ".." prefix for navigation) */
+    name: string;
+    /** Whether this folder has children of the same facet type */
+    hasChildrenOfSameFacet: boolean;
+    /** Optional count of items */
+    count?: number;
+}
+
+/**
+ * Tree discovery query for hierarchical browsing.
+ * Matches Python TreeDiscoveryQuery structure.
  */
 export interface TreeQuery {
-    /** Package to browse (e.g., '$TMP', 'ZPACKAGE') */
-    package?: string;
-    /** Folder type to expand */
-    folderType?: 'PACKAGE' | 'TYPE' | 'GROUP' | 'API';
-    /** Parent path for nested queries */
-    parentPath?: string;
+    /** Package facet */
+    PACKAGE?: VirtualFolder;
+    /** Type facet */
+    TYPE?: VirtualFolder;
+    /** Group facet */
+    GROUP?: VirtualFolder;
+    /** API facet */
+    API?: VirtualFolder;
 }
 
 /**
@@ -58,10 +73,17 @@ export const objectContentSchema = objectRefSchema.extend({
     description: z.string().optional(),
 });
 
+const virtualFolderSchema = z.object({
+    name: z.string(),
+    hasChildrenOfSameFacet: z.boolean(),
+    count: z.number().optional(),
+});
+
 export const treeQuerySchema = z.object({
-    package: z.string().optional(),
-    folderType: z.enum(['PACKAGE', 'TYPE', 'GROUP', 'API']).optional(),
-    parentPath: z.string().optional(),
+    PACKAGE: virtualFolderSchema.optional(),
+    TYPE: virtualFolderSchema.optional(),
+    GROUP: virtualFolderSchema.optional(),
+    API: virtualFolderSchema.optional(),
 });
 
 export const previewQuerySchema = z.object({

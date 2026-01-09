@@ -78,7 +78,7 @@ describe('Discovery Workflow', () => {
     it('should get tree for $TMP package', async () => {
         if (shouldSkip(client)) return;
 
-        const [tree, err] = await client!.getTree({ package: '$TMP' });
+        const [tree, err] = await client!.getTree({ PACKAGE: { name: '..$TMP', hasChildrenOfSameFacet: true } });
 
         expect(err).toBeNull();
         expect(tree).toBeDefined();

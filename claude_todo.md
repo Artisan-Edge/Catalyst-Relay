@@ -1,117 +1,147 @@
-# Tree Discovery Fix - TODO
+# Catalyst-Relay / Catalyst-Edit TODO
 
-## Problem Summary
+## Priority 1: Virtual File Explorer Fixes
 
-The `getTree` function in `src/core/adt/discovery/tree.ts` was simplified and now only handles PACKAGE facet, breaking the hierarchical tree explorer in Catalyst-Edit.
+### Issue 1: Content Counts Not Showing
+**Symptom:** Tree items show "ZSNAP (undefined)" instead of "ZSNAP (111)"
 
-**Symptom:** When clicking on a top-level package in the server-side explorer, it returns the same package over and over instead of showing children.
+**Root Cause:** The `count` field from SAP's response is not being properly propagated through to the TreeDataProvider.
 
-## Root Causes
+**Files to Check:**
 
-### 1. Parent Marker Not Filtered
-When querying children of package `ZTEST`, SAP returns:
-- `..ZTEST` (parent marker - "go back up")
-- `ZTEST_CHILD1`, `ZTEST_CHILD2`, etc.
+Catalyst-Relay:
+- `C:\Artisan\Catalyst\Catalyst-Relay\src\core\adt\discovery\tree.ts`
+  - `extractForTree()` - parses `counter` attribute from `vfs:virtualFolder`
+  - `VirtualFolder.count` - should contain the count
+  - `convertToTreeNodes()` - may not be passing count to TreeNode
 
-The code strips the `..` prefix but doesn't filter out the parent marker, so `..ZTEST` becomes `ZTEST` and appears as its own child.
+Catalyst-Edit:
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\relay\tree_search.ts`
+  - `convertToTreeDiscoveryResponse()` - converts TreeNode[] to TreeDiscoveryResponse
+  - `getNodeCount()` - attempts to extract count from node
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\tree\tree_data_provider.ts`
+  - Where TreeItem labels are constructed with counts
 
-**Old Python fix (line 698 in old client.py):**
-```python
-output.virtualFolders[facet] = [entry for entry in output.virtualFolders[facet] if entry.name != '..' + name]
-```
+Python Reference:
+- `C:\Artisan\SNAP-Relay-API\snap_relay_api\clients\adt\types\response\tree_discovery.py`
+  - `VirtualFolder` model with `count` field
+- `C:\Artisan\SNAP-Relay-API\snap_relay_api\clients\adt\utils\tree_discovery_utils.py`
+  - `extract_for_tree()` - how counts are parsed from XML
 
-### 2. Only PACKAGE Facet Handled
-Current `getTree` (lines 59-76):
-```typescript
-export async function getTree(client: AdtRequestor, query: TreeQuery): AsyncResult<TreeNode[], Error> {
-    const internalQuery: TreeDiscoveryQuery = {};
-    if (query.package) {
-        internalQuery.PACKAGE = {
-            name: query.package.startsWith('..') ? query.package : `..${query.package}`,
-            hasChildrenOfSameFacet: false,
-        };
-    }
-    // folderType and parentPath are DEFINED but NEVER USED!
-    ...
-}
-```
+**Fix Needed:**
+1. Ensure `TreeNode` interface includes `count?: number` field
+2. Pass count through in `convertToTreeNodes()`
+3. Verify `tree_search.ts` properly extracts and passes count
+4. Update TreeDataProvider to display count in label
 
-TYPE, GROUP, API facets are completely ignored. The `TreeQuery` interface has `folderType` and `parentPath` but they do nothing.
+---
 
-### 3. Missing Recursive Merge for hasChildrenOfSameFacet
-The old Python had recursive logic: when `hasChildrenOfSameFacet=True` in the query, it would:
-1. Make initial request (gets subpackages because PACKAGE is in facetorder)
-2. Make second request with `hasChildrenOfSameFacet=False` (gets types, groups, APIs)
-3. Merge results together
+### Issue 2: Recursive Folder Download Not Working
+**Symptom:** Right-click "Extract all contents" on a virtual folder doesn't work
 
-This allows showing BOTH subpackages AND object types when expanding a package.
+**Files to Check:**
 
-## Files to Fix
+Catalyst-Edit:
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\extraction\extract_files.ts`
+  - Main extraction logic
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\extraction\index.ts`
+  - Exports for extraction module
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\tree\tree_utils.ts`
+  - Tree traversal utilities
 
-### Catalyst-Relay
+Python Reference:
+- `C:\Artisan\SNAP-Relay-API\snap_relay_api\clients\adt\client.py`
+  - `read_folder_recurse()` method (around line 350-390) - recursive folder reading
+  - `tree_discovery()` method (lines 682-704) - base tree discovery
 
-**`src/core/adt/discovery/tree.ts`:**
-1. Update `parseTreeResponse` to filter out parent markers (needs query context)
-2. Update `getTree` to handle all facets (TYPE, GROUP, API), not just PACKAGE
-3. Add recursive merge logic for `hasChildrenOfSameFacet=True`
+**Fix Needed:**
+1. Check if extraction commands are registered properly
+2. Verify recursive tree traversal works with new TreeDiscoveryQuery format
+3. Ensure read operations work for batch object fetching
 
-**`src/types/requests.ts`:**
-- May need to expand `TreeQuery` interface to support full multi-facet queries
+---
 
-### Catalyst-Edit
+## Priority 2: Git Diff View Fixes
 
-**`src/relay/tree_search.ts`:**
-- Fix `convertTreeQuery` function - currently uses mutually exclusive if/else that only passes ONE facet:
-```typescript
-function convertTreeQuery(query: TreeDiscoveryQuery): catalyst_relay.TreeQuery {
-    if (query.PACKAGE) return { package: query.PACKAGE.name, folderType: 'PACKAGE' };
-    if (query.TYPE) return { folderType: 'TYPE', parentPath: query.TYPE.name };
-    // When PACKAGE + TYPE exist, only PACKAGE is sent!
-}
-```
+### Issue 3: Diff Not Populated in Diff View
+**Symptom:** Compare to server opens diff view but no diff content shows
 
-## Reference: Old Python Implementation
+**Files to Check:**
 
-```python
-async def tree_discovery(self, query: types.TreeDiscoveryQuery, search_pattern: str = "*", depth: str = "1"):
-    url = "/sap/bc/adt/repository/informationsystem/virtualfolders/contents"
-    body = utils.construct_body(query, search_pattern)
-    resursive_facets = {k: v.name for k, v in vars(query).items() if v and v.hasChildrenOfSameFacet}
-    # ... make request ...
-    if 200 <= status < 300:
-        output = utils.extract_for_tree(text)
-        if len(resursive_facets) == 0:
-            return types.SuccessResponse(context=output)
-        # Recursive merge for hasChildrenOfSameFacet
-        for i, (facet, name) in enumerate(resursive_facets.items()):
-            # Filter out parent marker
-            output.virtualFolders[facet] = [entry for entry in output.virtualFolders[facet] if entry.name != '..' + name]
-            # Recursive call with hasChildrenOfSameFacet=False to get other facet types
-            response = await self.tree_discovery(
-                types.TreeDiscoveryQuery(**{facet: types.VirtualFolder(name=name, hasChildrenOfSameFacet=False)}),
-                search_pattern,
-                depth + str(i + 1)
-            )
-            if not response.success:
-                return response
-            output = utils.merge_outputs(output, response.context)
-        return types.SuccessResponse(context=output)
-```
+Catalyst-Edit:
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\diffing\git_diff.ts`
+  - `gitDiff()` function - main diff flow
+  - `diffResultToVirtualFile()` - converts diff results to virtual files
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\utils.ts`
+  - `openVirtualFiles()` - opens files in diff view
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\file_system_provider.ts`
+  - `SAPVirtualFileSystemProvider` - handles virtual file content
 
-## How hasChildrenOfSameFacet Works
+Catalyst-Relay:
+- `C:\Artisan\Catalyst\Catalyst-Relay\src\core\adt\craud\gitDiff.ts`
+  - Diff calculation logic
 
-In **responses**: SAP tells you if a folder has more children of the same type (e.g., package has subpackages).
+Python Reference:
+- `C:\Artisan\SNAP-Relay-API\snap_relay_api\clients\adt\utils\diff_manager.py`
+  - Diff management utilities
 
-In **requests**:
-- `hasChildrenOfSameFacet=True` on a facet means "include this facet in `<vfs:facetorder>`" (show me children of this type)
-- `hasChildrenOfSameFacet=False` means "only put in `<vfs:preselection>`" (I'm here, show me the NEXT facet level)
+---
 
-The XML body construction in old code:
-```python
-facets = [k for k, v in vars(self).items() if not v or v.hasChildrenOfSameFacet]
-# A facet goes into facetorder if: not specified OR hasChildrenOfSameFacet=True
-```
+### Issue 4: CodeLens Buttons Not Showing
+**Symptom:** "Revert all", "Revert change", "Refresh", "Show local contents" buttons don't appear
 
-## Note on getPackages
+**Files to Check:**
 
-The CEO's optimization for `getPackages` is valid - it uses the search API with `objectType: 'DEVC/K'` to directly list packages. This is faster for the sidebar dropdown. But `getTree` still needs full facet support for the file system explorer.
+Catalyst-Edit:
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\diffing\diff_codelens.ts`
+  - `DiffCodeLensProvider` class
+  - `provideCodeLenses()` - generates CodeLens items
+  - Checks `SAP_VFSP` for cached objects and decorations
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\instance.ts`
+  - `onADTConnection()` - registers CodeLens provider (FIXED)
+  - `SAP_VFSP.registerCodeLensProvider()` - actual registration
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\file_system_provider.ts`
+  - `registerCodeLensProvider()` method
+  - `getCachedObject()` - returns diff data for CodeLens
+  - `addDecorations()` - adds diff decorations to document
+- `C:\Artisan\Catalyst\Catalyst-Edit\src\editor\ui\sap_virtual_file_system\diffing\revert_diff_changes.ts`
+  - Revert functionality
+
+**Fix Needed:**
+1. Verify `registerCodeLensProvider()` is called and works
+2. Check if `getCachedObject()` returns proper diff data
+3. Ensure `addDecorations()` is called when opening virtual files
+4. Verify CodeLens provider is registered for 'sap-virtual' scheme
+
+---
+
+## Summary of Changes Made So Far
+
+### Fixed:
+1. **VFS Provider Initialization** (`instance.ts`) - Logic was backwards, now properly initializes on first connection
+
+### Implemented:
+1. **Tree Discovery** (`tree.ts`) - Full Python-matching implementation with:
+   - `TreeDiscoveryQuery` with PACKAGE/TYPE/GROUP/API facets
+   - `hasChildrenOfSameFacet` logic for facetorder vs preselection
+   - Recursive merge when `hasChildrenOfSameFacet=true`
+   - Parent marker filtering
+
+### Still Needs Work:
+1. Count propagation through TreeNode → TreeDataProvider
+2. Recursive extraction commands
+3. Diff content population
+4. CodeLens registration and display
+
+---
+
+## Key Reference Files in SNAP-Relay-API
+
+| Feature | Python File |
+|---------|-------------|
+| Tree Discovery | `clients/adt/client.py` lines 682-704 |
+| Recursive Folder Read | `clients/adt/client.py` lines 350-390 |
+| Tree Utils | `clients/adt/utils/tree_discovery_utils.py` |
+| Tree Types | `clients/adt/types/response/tree_discovery.py` |
+| Tree Query Types | `clients/adt/types/request/tree_discovery.py` |
+| Diff Manager | `clients/adt/utils/diff_manager.py` |

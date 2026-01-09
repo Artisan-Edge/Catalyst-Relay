@@ -73,6 +73,8 @@ export type {
     ActivationResult,
     ActivationMessage,
     TreeNode,
+    VirtualFolder,
+    TreeDiscoveryQuery,
     Transport,
     Package,
     DataFrame,
