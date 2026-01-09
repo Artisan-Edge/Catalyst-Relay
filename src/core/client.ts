@@ -501,8 +501,8 @@ class ADTClientImpl implements ADTClient {
         }
 
         // Await all responses.
-        const [results, errors] = await resolveAllAsync(asyncResults);
-        if (errors.length > 0) return err(new AggregateError(errors, "Multiple upsert errors"))
+        const [results, error] = await resolveAllAsync(asyncResults);
+        if (error) return err(error)
         return ok(results);
     }
 
