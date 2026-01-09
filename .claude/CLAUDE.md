@@ -326,6 +326,24 @@ if (error) return handleError(error);
 
 ---
 
+## Changelog
+
+### 2026-01-09: Replaced undici with Node.js https module
+
+**Change**: ADT client now uses Node.js built-in `https` module for all HTTP requests instead of undici.
+
+**Reason**: Undici doesn't work with mTLS client certificates. When implementing SSO authentication (Kerberos + mTLS), testing revealed:
+- Undici fetch with `dispatcher` Agent: ❌ Fails with "unable to get local issuer certificate"
+- Node.js `https` module: ✅ Works reliably with mTLS
+- Bun native fetch with `tls` option: ✅ Works in Bun runtime
+
+Since the library must work in Node.js, Electron (VS Code), and Bun, using Node.js `https` module is the simplest solution that works everywhere.
+
+**Files changed**:
+- `src/core/client.ts` - Replaced undici import with `https`, added `httpsRequest()` helper function
+
+---
+
 ## Claude-Specific Rules
 
 ### Shell Commands
