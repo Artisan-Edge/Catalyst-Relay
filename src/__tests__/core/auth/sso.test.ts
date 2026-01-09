@@ -240,6 +240,29 @@ describe('SSO Full E2E Diagnostic Test', () => {
         console.log(`  Full chain starts with: ${chainLines[0]}`);
         console.log(`  Full chain has ${chainLines.filter(l => l.includes('BEGIN CERTIFICATE')).length} certificates`);
         console.log(`  Private key starts with: ${keyLines[0]}`);
+
+        // Parse certificate details using node-forge
+        console.log('\n  Certificate Details:');
+        try {
+            const forge = await import('node-forge');
+            const certPems = certs.fullChain.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) || [];
+
+            for (let i = 0; i < certPems.length; i++) {
+                const cert = forge.pki.certificateFromPem(certPems[i]!);
+                const subject = cert.subject.attributes.map(a => `${a.shortName || a.name}=${a.value}`).join(', ');
+                const issuer = cert.issuer.attributes.map(a => `${a.shortName || a.name}=${a.value}`).join(', ');
+                const notBefore = cert.validity.notBefore;
+                const notAfter = cert.validity.notAfter;
+
+                console.log(`  Certificate ${i + 1}:`);
+                console.log(`    Subject: ${subject}`);
+                console.log(`    Issuer: ${issuer}`);
+                console.log(`    Valid: ${notBefore.toISOString()} - ${notAfter.toISOString()}`);
+                console.log(`    Is CA: ${cert.isIssuer(cert) ? 'self-signed' : 'no'}`);
+            }
+        } catch (parseErr) {
+            console.log(`  Could not parse cert details: ${parseErr}`);
+        }
         console.log('');
 
         // =================================================================
@@ -388,17 +411,127 @@ describe('SSO Full E2E Diagnostic Test', () => {
         console.log('');
 
         // =================================================================
+        // STEP 5: Test with file paths (like Python does)
+        // =================================================================
+        console.log('STEP 5: Testing with FILE PATHS (like Python httpx)...');
+
+        try {
+            const fs = await import('fs');
+            const path = await import('path');
+            const os = await import('os');
+
+            // Save certs to temp files
+            const tempDir = os.tmpdir();
+            const certPath = path.join(tempDir, 'sso_test_cert.pem');
+            const keyPath = path.join(tempDir, 'sso_test_key.pem');
+
+            fs.writeFileSync(certPath, certs.fullChain);
+            fs.writeFileSync(keyPath, certs.privateKey);
+            console.log(`  Saved cert to: ${certPath}`);
+            console.log(`  Saved key to: ${keyPath}`);
+
+            // Read back to verify
+            const certFromFile = fs.readFileSync(certPath, 'utf-8');
+            const keyFromFile = fs.readFileSync(keyPath, 'utf-8');
+            console.log(`  Cert file size: ${certFromFile.length} chars`);
+            console.log(`  Key file size: ${keyFromFile.length} chars`);
+
+            // Test with Node.js https using file paths
+            const https = await import('https');
+            const { URL } = await import('url');
+            const urlObj = new URL(csrfUrl);
+
+            const fileResult = await new Promise<{ status: number; headers: Record<string, string>; body: string }>((resolve, reject) => {
+                const req = https.request({
+                    hostname: urlObj.hostname,
+                    port: urlObj.port || 443,
+                    path: urlObj.pathname + urlObj.search,
+                    method: 'GET',
+                    cert: fs.readFileSync(certPath),  // Read as Buffer
+                    key: fs.readFileSync(keyPath),    // Read as Buffer
+                    rejectUnauthorized: false,
+                    headers: {
+                        'x-csrf-token': 'fetch',
+                        'Accept': 'application/xml',
+                    },
+                }, (res) => {
+                    let body = '';
+                    res.on('data', chunk => body += chunk);
+                    res.on('end', () => {
+                        resolve({
+                            status: res.statusCode || 0,
+                            headers: res.headers as Record<string, string>,
+                            body,
+                        });
+                    });
+                });
+
+                req.on('error', reject);
+                req.end();
+            });
+
+            console.log(`  Response status: ${fileResult.status}`);
+            const csrfToken5 = fileResult.headers['x-csrf-token'];
+            console.log(`  CSRF token header: ${csrfToken5 ? csrfToken5.substring(0, 30) + '...' : 'NOT FOUND'}`);
+
+            if (fileResult.status === 200 && csrfToken5 && csrfToken5 !== 'fetch') {
+                console.log('✅ File paths method WORKS!');
+            } else {
+                console.log('❌ File paths method also failed');
+            }
+
+            // Cleanup
+            fs.unlinkSync(certPath);
+            fs.unlinkSync(keyPath);
+        } catch (fileErr) {
+            console.log('❌ File paths test threw error:');
+            console.log(`  ${fileErr instanceof Error ? fileErr.message : String(fileErr)}`);
+        }
+        console.log('');
+
+        // =================================================================
+        // STEP 6: Test WITHOUT client cert (baseline - should also 401)
+        // =================================================================
+        console.log('STEP 6: Testing WITHOUT client cert (baseline)...');
+
+        try {
+            const noCertResponse = await fetch(csrfUrl, {
+                method: 'GET',
+                headers: {
+                    'x-csrf-token': 'fetch',
+                    'Accept': 'application/xml',
+                },
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                tls: {
+                    rejectUnauthorized: false,
+                },
+            } as any);
+
+            console.log(`  Response status (no cert): ${noCertResponse.status}`);
+            if (noCertResponse.status === 401) {
+                console.log('  ✓ 401 without cert is expected');
+            }
+        } catch (noCertErr) {
+            console.log(`  Error: ${noCertErr instanceof Error ? noCertErr.message : String(noCertErr)}`);
+        }
+        console.log('');
+
+        // =================================================================
         // SUMMARY
         // =================================================================
         console.log('========================================');
         console.log('DIAGNOSTIC COMPLETE');
         console.log('========================================');
-        console.log('If all 3 methods failed with 401, the certificates may be:');
-        console.log('  - Not trusted by the SAP server');
-        console.log('  - In wrong format');
-        console.log('  - Missing intermediate CA certs');
+        console.log('If all methods failed with 401, possible causes:');
+        console.log('  1. SAP server not configured to accept this cert');
+        console.log('  2. User in cert CN not authorized on SAP system');
+        console.log('  3. Certificate chain incomplete or wrong order');
+        console.log('  4. Bun/Node not actually sending client cert');
         console.log('');
-        console.log('Compare with Python: does Python work with these same certs?');
+        console.log('NEXT STEPS:');
+        console.log('  1. Test with Python on same machine - does it work?');
+        console.log('  2. Check SAP ICM logs for certificate details');
+        console.log('  3. Compare cert CN with authorized SAP users');
         console.log('');
 
         // Don't fail the test - this is diagnostic
