@@ -75,6 +75,12 @@ async function httpsRequest(
 ): Promise<Response> {
     const urlObj = new URL(url);
 
+    console.log('[HTTPS] Creating request to:', urlObj.hostname, urlObj.port || 443);
+    console.log('[HTTPS] Path:', urlObj.pathname + urlObj.search);
+    console.log('[HTTPS] Has cert:', !!options.cert);
+    console.log('[HTTPS] Has key:', !!options.key);
+    console.log('[HTTPS] rejectUnauthorized:', options.rejectUnauthorized ?? true);
+
     return new Promise((resolve, reject) => {
         const req = https.request({
             hostname: urlObj.hostname,
@@ -87,6 +93,7 @@ async function httpsRequest(
             rejectUnauthorized: options.rejectUnauthorized ?? true,
             timeout: options.timeout,
         }, (res) => {
+            console.log('[HTTPS] Got response, status:', res.statusCode);
             const chunks: Buffer[] = [];
             res.on('data', chunk => chunks.push(chunk));
             res.on('end', () => {
@@ -110,8 +117,17 @@ async function httpsRequest(
             });
         });
 
-        req.on('error', reject);
+        req.on('error', (err) => {
+            console.log('[HTTPS] Request error event:');
+            console.log('[HTTPS]   err.name:', err.name);
+            console.log('[HTTPS]   err.message:', err.message);
+            if ('code' in err) {
+                console.log('[HTTPS]   err.code:', (err as NodeJS.ErrnoException).code);
+            }
+            reject(err);
+        });
         req.on('timeout', () => {
+            console.log('[HTTPS] Request timeout!');
             req.destroy();
             reject(new Error('Request timeout'));
         });
@@ -394,13 +410,24 @@ class ADTClientImpl implements ADTClient {
             return ok(response);
         } catch (error) {
             // Log detailed error info for debugging
+            console.log('[RELAY] REQUEST EXCEPTION CAUGHT:');
             if (error instanceof Error) {
+                console.log('[RELAY]   error.name:', error.name);
+                console.log('[RELAY]   error.message:', error.message);
+                console.log('[RELAY]   error.cause:', error.cause);
+                if ('code' in error) {
+                    console.log('[RELAY]   error.code:', (error as NodeJS.ErrnoException).code);
+                }
+                if ('stack' in error) {
+                    console.log('[RELAY]   error.stack:', error.stack);
+                }
                 debugError(`Fetch error: ${error.name}: ${error.message}`, error.cause);
                 if ('code' in error) {
                     debugError(`Error code: ${(error as NodeJS.ErrnoException).code}`);
                 }
                 return err(error);
             }
+            console.log('[RELAY]   raw error:', error);
             return err(new Error(`Network error: ${String(error)}`));
         }
     }
