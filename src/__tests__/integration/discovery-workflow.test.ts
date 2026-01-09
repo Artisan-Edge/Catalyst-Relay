@@ -93,6 +93,30 @@ describe('Discovery Workflow', () => {
         }
     });
 
+    it('should not return the queried package in its own tree results', async () => {
+        if (shouldSkip(client)) return;
+
+        // Test with configured package
+        const testPackage = TEST_CONFIG.package;
+        const [tree, err] = await client!.getTree({ package: testPackage });
+
+        expect(err).toBeNull();
+        expect(tree).toBeDefined();
+
+        // Find any nodes that match the queried package name
+        const selfReferences = tree!.filter(node => node.name === testPackage);
+
+        if (selfReferences.length > 0) {
+            console.error(`ERROR: Package ${testPackage} contains itself in tree results:`);
+            selfReferences.forEach(node => {
+                console.error(`  - ${node.name} (${node.type})`);
+            });
+        }
+
+        // Package should NOT appear in its own tree contents
+        expect(selfReferences).toEqual([]);
+    });
+
     it('should get transports for a package', async () => {
         if (shouldSkip(client)) return;
 
