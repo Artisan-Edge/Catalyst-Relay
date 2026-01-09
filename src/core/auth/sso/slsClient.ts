@@ -16,6 +16,21 @@ import { generateKeypair, createCsr, getCurrentUsername } from './certificate';
 import { parsePkcs7Certificates } from './pkcs7';
 
 /**
+ * Extended fetch options that support both Node.js (undici) and Bun
+ *
+ * Why this exists:
+ * - In Python: `session.verify = False` disables SSL verification. Simple.
+ * - In TypeScript: Different runtimes (Node.js vs Bun) disable SSL differently:
+ *   - Node.js (undici): Uses `dispatcher` option with an Agent
+ *   - Bun: Uses `tls: { rejectUnauthorized: false }` option (ignores undici's dispatcher)
+ *
+ * So we need to pass BOTH options to work in both environments.
+ */
+type ExtendedFetchOptions = Parameters<typeof undiciFetch>[1] & {
+    tls?: { rejectUnauthorized: boolean };
+};
+
+/**
  * SLS client options
  */
 interface SlsClientConfig {
@@ -65,13 +80,14 @@ export async function enrollCertificate(
     const { config, insecure = false } = options;
     const profile = config.profile ?? SLS_DEFAULTS.PROFILE;
 
-    // Create fetch agent (skip SSL verification if insecure)
+    // Create agent for Node.js SSL bypass (like Python's `session.verify = False`)
+    // We also pass `insecure` flag separately for Bun compatibility (see ExtendedFetchOptions)
     const agent = insecure
         ? new Agent({ connect: { rejectUnauthorized: false } })
         : undefined;
 
     // Step 1: Authenticate with Kerberos
-    const [authResponse, authErr] = await authenticateToSls(config, profile, agent);
+    const [authResponse, authErr] = await authenticateToSls(config, profile, agent, insecure);
     if (authErr) return err(authErr);
 
     // Step 2: Generate keypair
@@ -83,7 +99,7 @@ export async function enrollCertificate(
     const csrDer = createCsr(keypair, username);
 
     // Step 4: Submit CSR and get certificate
-    const [certData, certErr] = await requestCertificate(config, profile, csrDer, agent);
+    const [certData, certErr] = await requestCertificate(config, profile, csrDer, agent, insecure);
     if (certErr) return err(certErr);
 
     // Step 5: Parse PKCS#7 response
@@ -102,7 +118,8 @@ export async function enrollCertificate(
 async function authenticateToSls(
     config: SlsConfig,
     profile: string,
-    agent?: Agent
+    agent?: Agent,
+    insecure: boolean = false
 ): AsyncResult<SlsAuthResponse> {
     // Get SPNEGO token
     const spn = config.servicePrincipalName ?? extractSpnFromUrl(config.slsUrl);
@@ -113,15 +130,22 @@ async function authenticateToSls(
     const authUrl = `${config.slsUrl}${SLS_DEFAULTS.LOGIN_ENDPOINT}?profile=${profile}`;
 
     try {
-        const fetchOptions: Parameters<typeof undiciFetch>[1] = {
+        const fetchOptions: ExtendedFetchOptions = {
             method: 'POST',
             headers: {
                 'Authorization': `Negotiate ${token}`,
                 'Accept': '*/*',
             },
         };
+
+        // SSL bypass for Node.js - equivalent to Python's `session.verify = False`
         if (agent) {
             fetchOptions.dispatcher = agent;
+        }
+
+        // SSL bypass for Bun - same thing but Bun uses different option
+        if (insecure) {
+            fetchOptions.tls = { rejectUnauthorized: false };
         }
 
         const response = await undiciFetch(authUrl, fetchOptions);
@@ -146,12 +170,13 @@ async function requestCertificate(
     config: SlsConfig,
     profile: string,
     csrDer: Buffer,
-    agent?: Agent
+    agent?: Agent,
+    insecure: boolean = false
 ): AsyncResult<Buffer> {
     const certUrl = `${config.slsUrl}${SLS_DEFAULTS.CERTIFICATE_ENDPOINT}?profile=${profile}`;
 
     try {
-        const fetchOptions: Parameters<typeof undiciFetch>[1] = {
+        const fetchOptions: ExtendedFetchOptions = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/pkcs10',
@@ -160,8 +185,15 @@ async function requestCertificate(
             },
             body: csrDer,
         };
+
+        // SSL bypass for Node.js - equivalent to Python's `session.verify = False`
         if (agent) {
             fetchOptions.dispatcher = agent;
+        }
+
+        // SSL bypass for Bun - same thing but Bun uses different option
+        if (insecure) {
+            fetchOptions.tls = { rejectUnauthorized: false };
         }
 
         const response = await undiciFetch(certUrl, fetchOptions);
