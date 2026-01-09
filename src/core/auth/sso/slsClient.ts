@@ -86,20 +86,20 @@ export async function enrollCertificate(
         ? new Agent({ connect: { rejectUnauthorized: false } })
         : undefined;
 
-    // Step 1: Authenticate with Kerberos
-    const [authResponse, authErr] = await authenticateToSls(config, profile, agent, insecure);
+    // Step 1: Authenticate with Kerberos (also captures session cookies)
+    const [authResult, authErr] = await authenticateToSls(config, profile, agent, insecure);
     if (authErr) return err(authErr);
 
     // Step 2: Generate keypair
-    const keySize = authResponse.clientConfig.keySize ?? SLS_DEFAULTS.KEY_SIZE;
+    const keySize = authResult.response.clientConfig.keySize ?? SLS_DEFAULTS.KEY_SIZE;
     const keypair = generateKeypair(keySize);
 
     // Step 3: Create CSR
     const username = getCurrentUsername();
     const csrDer = createCsr(keypair, username);
 
-    // Step 4: Submit CSR and get certificate
-    const [certData, certErr] = await requestCertificate(config, profile, csrDer, agent, insecure);
+    // Step 4: Submit CSR and get certificate (pass cookies from auth step - like Python's session)
+    const [certData, certErr] = await requestCertificate(config, profile, csrDer, authResult.cookies, agent, insecure);
     if (certErr) return err(certErr);
 
     // Step 5: Parse PKCS#7 response
@@ -113,6 +113,14 @@ export async function enrollCertificate(
 }
 
 /**
+ * Result from SLS authentication, includes cookies for session persistence
+ */
+interface SlsAuthResult {
+    response: SlsAuthResponse;
+    cookies: string[];  // Cookies to pass to subsequent requests (like Python's session)
+}
+
+/**
  * Authenticate to SLS using Kerberos SPNEGO
  */
 async function authenticateToSls(
@@ -120,7 +128,7 @@ async function authenticateToSls(
     profile: string,
     agent?: Agent,
     insecure: boolean = false
-): AsyncResult<SlsAuthResponse> {
+): AsyncResult<SlsAuthResult> {
     // Get SPNEGO token
     const spn = config.servicePrincipalName ?? extractSpnFromUrl(config.slsUrl);
     const [token, tokenErr] = await getSpnegoToken(spn);
@@ -155,8 +163,20 @@ async function authenticateToSls(
             return err(new Error(`SLS authentication failed: ${response.status} - ${text}`));
         }
 
+        // Extract cookies from response - like Python's requests.Session() does automatically
+        // These need to be passed to the certificate request
+        const cookies: string[] = [];
+        const setCookieHeader = response.headers.getSetCookie?.() ?? [];
+        for (const cookie of setCookieHeader) {
+            // Extract just the cookie name=value part (before the semicolon)
+            const cookieValue = cookie.split(';')[0];
+            if (cookieValue) {
+                cookies.push(cookieValue);
+            }
+        }
+
         const authResponse = await response.json() as SlsAuthResponse;
-        return ok(authResponse);
+        return ok({ response: authResponse, cookies });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return err(new Error(`SLS authentication request failed: ${message}`));
@@ -170,6 +190,7 @@ async function requestCertificate(
     config: SlsConfig,
     profile: string,
     csrDer: Buffer,
+    cookies: string[],  // Session cookies from authentication (like Python's session)
     agent?: Agent,
     insecure: boolean = false
 ): AsyncResult<Buffer> {
@@ -182,6 +203,8 @@ async function requestCertificate(
                 'Content-Type': 'application/pkcs10',
                 'Content-Length': String(csrDer.length),
                 'Accept': '*/*',
+                // Pass cookies from auth step - like Python's requests.Session() does automatically
+                ...(cookies.length > 0 && { 'Cookie': cookies.join('; ') }),
             },
             body: csrDer,
         };
