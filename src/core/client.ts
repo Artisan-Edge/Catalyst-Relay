@@ -75,12 +75,6 @@ async function httpsRequest(
 ): Promise<Response> {
     const urlObj = new URL(url);
 
-    console.log('[HTTPS] Creating request to:', urlObj.hostname, urlObj.port || 443);
-    console.log('[HTTPS] Path:', urlObj.pathname + urlObj.search);
-    console.log('[HTTPS] Has cert:', !!options.cert);
-    console.log('[HTTPS] Has key:', !!options.key);
-    console.log('[HTTPS] rejectUnauthorized:', options.rejectUnauthorized ?? true);
-
     return new Promise((resolve, reject) => {
         const req = https.request({
             hostname: urlObj.hostname,
@@ -93,7 +87,6 @@ async function httpsRequest(
             rejectUnauthorized: options.rejectUnauthorized ?? true,
             timeout: options.timeout,
         }, (res) => {
-            console.log('[HTTPS] Got response, status:', res.statusCode);
             const chunks: Buffer[] = [];
             res.on('data', chunk => chunks.push(chunk));
             res.on('end', () => {
@@ -117,17 +110,8 @@ async function httpsRequest(
             });
         });
 
-        req.on('error', (err) => {
-            console.log('[HTTPS] Request error event:');
-            console.log('[HTTPS]   err.name:', err.name);
-            console.log('[HTTPS]   err.message:', err.message);
-            if ('code' in err) {
-                console.log('[HTTPS]   err.code:', (err as NodeJS.ErrnoException).code);
-            }
-            reject(err);
-        });
+        req.on('error', reject);
         req.on('timeout', () => {
-            console.log('[HTTPS] Request timeout!');
             req.destroy();
             reject(new Error('Request timeout'));
         });
@@ -296,11 +280,6 @@ class ADTClientImpl implements ADTClient {
         const { method, path, params, headers: customHeaders, body } = options;
         const { config } = this.state;
 
-        console.log('[RELAY] -------- REQUEST --------');
-        console.log('[RELAY] Method:', method);
-        console.log('[RELAY] Path:', path);
-        console.log('[RELAY] Config client:', config.client);
-
         // Build headers with auth and CSRF token.
         debug(`Request ${method} ${path} - CSRF token in state: ${this.state.csrfToken?.substring(0, 20) || 'null'}...`);
         const headers = buildRequestHeaders(
@@ -322,14 +301,6 @@ class ADTClientImpl implements ADTClient {
         const urlParams = buildParams(params, config.client);
         const url = buildUrl(config.url, path, urlParams);
 
-        console.log('[RELAY] Full URL:', url);
-        console.log('[RELAY] Has mTLS certs:', !!this.ssoCerts);
-        if (this.ssoCerts) {
-            console.log('[RELAY]   cert length:', this.ssoCerts.cert.length);
-            console.log('[RELAY]   key length:', this.ssoCerts.key.length);
-        }
-        console.log('[RELAY] Insecure (skip SSL verify):', config.insecure);
-
         try {
             // Execute HTTP request using Node.js https module
             debug(`Fetching URL: ${url}`);
@@ -344,8 +315,6 @@ class ADTClientImpl implements ADTClient {
                 rejectUnauthorized: !config.insecure,
                 timeout: config.timeout ?? DEFAULT_TIMEOUT,
             });
-
-            console.log('[RELAY] Response status:', response.status, response.statusText);
 
             // Store any cookies from response
             this.storeCookies(response);
@@ -410,24 +379,13 @@ class ADTClientImpl implements ADTClient {
             return ok(response);
         } catch (error) {
             // Log detailed error info for debugging
-            console.log('[RELAY] REQUEST EXCEPTION CAUGHT:');
             if (error instanceof Error) {
-                console.log('[RELAY]   error.name:', error.name);
-                console.log('[RELAY]   error.message:', error.message);
-                console.log('[RELAY]   error.cause:', error.cause);
-                if ('code' in error) {
-                    console.log('[RELAY]   error.code:', (error as NodeJS.ErrnoException).code);
-                }
-                if ('stack' in error) {
-                    console.log('[RELAY]   error.stack:', error.stack);
-                }
                 debugError(`Fetch error: ${error.name}: ${error.message}`, error.cause);
                 if ('code' in error) {
                     debugError(`Error code: ${(error as NodeJS.ErrnoException).code}`);
                 }
                 return err(error);
             }
-            console.log('[RELAY]   raw error:', error);
             return err(new Error(`Network error: ${String(error)}`));
         }
     }
@@ -437,20 +395,12 @@ class ADTClientImpl implements ADTClient {
     async login(): AsyncResult<Session> {
         const { authStrategy } = this.state;
 
-        console.log('[RELAY] ========== LOGIN START ==========');
-        console.log('[RELAY] Auth strategy type:', authStrategy.type);
-        console.log('[RELAY] Config URL:', this.state.config.url);
-        console.log('[RELAY] Config client:', this.state.config.client);
-
         // For SSO and SAML, perform initial authentication (certificate enrollment or browser login)
         if (authStrategy.performLogin) {
-            console.log('[RELAY] Calling authStrategy.performLogin()...');
             const [, loginErr] = await authStrategy.performLogin(fetch);
             if (loginErr) {
-                console.log('[RELAY] performLogin FAILED:', loginErr.message);
                 return err(loginErr);
             }
-            console.log('[RELAY] performLogin succeeded');
         }
 
         // For SAML, transfer cookies from auth strategy to client cookie store
@@ -464,27 +414,17 @@ class ADTClientImpl implements ADTClient {
 
         // For SSO with mTLS, store certificates for use in requests
         if (authStrategy.type === 'sso' && authStrategy.getCertificates) {
-            console.log('[RELAY] Getting certificates from auth strategy...');
             const certs = authStrategy.getCertificates();
             if (certs) {
                 this.ssoCerts = {
                     cert: certs.fullChain,
                     key: certs.privateKey,
                 };
-                console.log('[RELAY] Stored mTLS certificates:');
-                console.log('[RELAY]   - cert length:', certs.fullChain.length);
-                console.log('[RELAY]   - key length:', certs.privateKey.length);
-                console.log('[RELAY]   - cert starts with:', certs.fullChain.substring(0, 50));
-            } else {
-                console.log('[RELAY] WARNING: getCertificates() returned null!');
+                debug('Stored mTLS certificates for SSO authentication');
             }
         }
 
-        console.log('[RELAY] Calling sessionOps.login() to fetch CSRF token...');
-        const result = await sessionOps.login(this.state, this.request.bind(this));
-        console.log('[RELAY] sessionOps.login result:', result[1] ? `ERROR: ${result[1].message}` : 'SUCCESS');
-        console.log('[RELAY] ========== LOGIN END ==========');
-        return result;
+        return sessionOps.login(this.state, this.request.bind(this));
     }
 
     async logout(): AsyncResult<void> {

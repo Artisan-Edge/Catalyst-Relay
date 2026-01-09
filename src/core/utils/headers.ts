@@ -10,6 +10,7 @@ import type { AuthConfig } from '../../types/config';
 
 // Mimic Eclipse ADT plugin for compatibility
 export const BASE_HEADERS = {
+    'Accept': '*/*',
     'X-sap-adt-sessiontype': 'stateful',
     'User-Agent': 'Eclipse/4.34.0 ADT/3.46.0',
     'X-sap-adt-profiling': 'server-time',
