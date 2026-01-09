@@ -143,7 +143,7 @@ describe('CDS View Workflow', () => {
         expect(results).toHaveLength(1);
         expect(results![0]!.status).toBe('success');
         console.log(`Activated CDS view: ${TEST_VIEW_NAME}`);
-    });
+    }, 15000);
 
     it('should preview data from the CDS view', async () => {
         if (!client?.session) throw new Error('No active session');

@@ -63,6 +63,7 @@ export function createAuthStrategy(options: CreateAuthOptions): AuthStrategy {
             return new SamlAuth({
                 username: config.username,
                 password: config.password,
+                sapUser: config.sapUser,
                 baseUrl,
                 ...(config.providerConfig && { providerConfig: config.providerConfig }),
             });

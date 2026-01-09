@@ -50,6 +50,31 @@ describe('Discovery Workflow', () => {
         });
     });
 
+    it('should return only packages matching the Z* filter', async () => {
+        if (shouldSkip(client)) return;
+
+        const [packages, err] = await client!.getPackages('Z*');
+
+        expect(err).toBeNull();
+        expect(packages).toBeDefined();
+
+        // Identify packages that don't match the filter
+        const nonMatchingPackages = packages!.filter(
+            pkg => !pkg.name.toUpperCase().startsWith('Z')
+        );
+
+        // Log non-matching packages for debugging
+        if (nonMatchingPackages.length > 0) {
+            console.log(`WARNING: Found ${nonMatchingPackages.length} packages NOT matching 'Z*' filter:`);
+            nonMatchingPackages.forEach(pkg => {
+                console.log(`  - ${pkg.name}: ${pkg.description || '(no description)'}`);
+            });
+        }
+
+        // Verify all packages match the filter
+        expect(nonMatchingPackages).toEqual([]);
+    });
+
     it('should get tree for $TMP package', async () => {
         if (shouldSkip(client)) return;
 
@@ -81,8 +106,22 @@ describe('Discovery Workflow', () => {
         if (transports!.length > 0) {
             console.log('Sample transports:');
             transports!.slice(0, 5).forEach(transport => {
-                console.log(`  - ${transport.id}: ${transport.description || '(no description)'}`);
+                console.log(`  - ${transport.id}: ${transport.description || '(no description)'} (owner: ${transport.owner})`);
             });
+        }
+
+        // Verify the expected test transport is present
+        if (TEST_CONFIG.transport) {
+            const expectedTransport = TEST_CONFIG.transport;
+            const found = transports!.some(t => t.id === expectedTransport);
+            expect(found).toBe(true);
+            if (!found) {
+                console.error(`Expected transport ${expectedTransport} not found in results`);
+                console.error('Available transports:', transports!.map(t => t.id));
+            }
+        } else {
+            // If no transport configured, at least expect some transports exist
+            expect(transports!.length).toBeGreaterThan(0);
         }
     });
 });
