@@ -153,6 +153,9 @@ class ADTClientImpl implements ADTClient {
     private state: ClientState;
     private requestor: adt.AdtRequestor;
     private agent: Agent | undefined;
+    // Store SSO certificates separately for Bun/Electron compatibility
+    // (undici dispatcher is ignored in some environments, so we pass certs via tls option too)
+    private ssoCerts: { cert: string; key: string } | undefined;
 
     constructor(config: ClientConfig) {
         // Create auth strategy from config
@@ -240,7 +243,8 @@ class ADTClientImpl implements ADTClient {
         const url = buildUrl(config.url, path, urlParams);
 
         // Build fetch options with timeout and optional insecure agent.
-        const fetchOptions: RequestInit & { dispatcher?: Agent; tls?: { rejectUnauthorized: boolean } } = {
+        // Extended type for Bun/Electron TLS compatibility (cert/key for mTLS)
+        const fetchOptions: RequestInit & { dispatcher?: Agent; tls?: { rejectUnauthorized?: boolean; cert?: string; key?: string } } = {
             method,
             headers,
             signal: AbortSignal.timeout(config.timeout ?? DEFAULT_TIMEOUT),
@@ -251,9 +255,18 @@ class ADTClientImpl implements ADTClient {
             fetchOptions.dispatcher = this.agent;
         }
 
-        // Add Bun-specific TLS bypass (Bun ignores undici dispatcher)
-        if (config.insecure) {
-            fetchOptions.tls = { rejectUnauthorized: false };
+        // For Bun/Electron compatibility: pass TLS options directly
+        // (undici dispatcher is ignored in these environments)
+        // This is equivalent to Python's httpx `cert=` and `verify=` kwargs
+        if (config.insecure || this.ssoCerts) {
+            fetchOptions.tls = {
+                ...(config.insecure && { rejectUnauthorized: false }),
+                // Pass client certificates for mTLS (SSO authentication)
+                ...(this.ssoCerts && {
+                    cert: this.ssoCerts.cert,
+                    key: this.ssoCerts.key,
+                }),
+            };
         }
 
         // Add request body if provided.
@@ -347,9 +360,17 @@ class ADTClientImpl implements ADTClient {
         }
 
         // For SSO with mTLS, create agent with client certificates
+        // Also store certs separately for Bun/Electron compatibility (undici dispatcher is ignored)
         if (authStrategy.type === 'sso' && authStrategy.getCertificates) {
             const certs = authStrategy.getCertificates();
             if (certs) {
+                // Store certs for use in request() - like Python's `cert=` kwarg to httpx
+                this.ssoCerts = {
+                    cert: certs.fullChain,
+                    key: certs.privateKey,
+                };
+
+                // Create undici agent (works in Node.js)
                 this.agent = new Agent({
                     connect: {
                         cert: certs.fullChain,
