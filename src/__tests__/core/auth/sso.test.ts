@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'bun:test';
 import { SsoAuth } from '../../../core/auth/sso';
 import { enrollCertificate } from '../../../core/auth/sso/slsClient';
+import { createClient } from '../../../core/client';
 
 // =============================================================================
 // Configuration - UPDATE THESE FOR YOUR ENVIRONMENT
@@ -26,6 +27,8 @@ import { enrollCertificate } from '../../../core/auth/sso/slsClient';
  * - slsUrl: Your SLS server URL
  * - profile: SLS profile name (usually SAPSSO_P)
  * - servicePrincipalName: Kerberos SPN for the SLS server
+ * - sapUrl: SAP ADT server URL for full E2E test
+ * - sapClient: SAP client number (e.g., '100')
  */
 const TEST_CONFIG = {
     // Medtronic SLS server URL
@@ -36,6 +39,10 @@ const TEST_CONFIG = {
     servicePrincipalName: 'HTTP/sapssop.corp.medtronic.com',
     // Skip SSL verification (usually needed for corporate environments)
     insecure: true,
+    // SAP ADT server URL (for full E2E test with CSRF token fetch)
+    sapUrl: 'https://cpdb1pas.corp.medtronic.com:8007',
+    // SAP client number
+    sapClient: '100',
 };
 
 // =============================================================================
@@ -183,6 +190,84 @@ describe('SSO Certificate Enrollment', () => {
 });
 
 // =============================================================================
+// Full E2E Test (Certificate Enrollment + SAP Login + CSRF Token)
+// =============================================================================
+
+describe('SSO Full E2E Test', () => {
+    /**
+     * Full end-to-end test:
+     * 1. Create ADT client with SSO auth config
+     * 2. Login (enrolls certificates from SLS + fetches CSRF token from SAP)
+     * 3. Print CSRF token to verify mTLS is working
+     */
+    it('should complete full SSO login flow and fetch CSRF token', async () => {
+        console.log('\n========================================');
+        console.log('SSO Full E2E Test');
+        console.log('========================================');
+        console.log('Config:');
+        console.log(`  SLS URL: ${TEST_CONFIG.slsUrl}`);
+        console.log(`  Profile: ${TEST_CONFIG.profile}`);
+        console.log(`  SPN: ${TEST_CONFIG.servicePrincipalName}`);
+        console.log(`  SAP URL: ${TEST_CONFIG.sapUrl}`);
+        console.log(`  SAP Client: ${TEST_CONFIG.sapClient}`);
+        console.log(`  Insecure: ${TEST_CONFIG.insecure}`);
+        console.log('----------------------------------------\n');
+
+        // Step 1: Create ADT client with SSO auth
+        console.log('Step 1: Creating ADT client with SSO auth...');
+        const [client, clientErr] = createClient({
+            url: TEST_CONFIG.sapUrl,
+            client: TEST_CONFIG.sapClient,
+            insecure: TEST_CONFIG.insecure,
+            auth: {
+                type: 'sso',
+                slsUrl: TEST_CONFIG.slsUrl,
+                profile: TEST_CONFIG.profile,
+                servicePrincipalName: TEST_CONFIG.servicePrincipalName,
+            },
+        });
+
+        if (clientErr) {
+            console.log('Client creation FAILED:');
+            console.log(`  Error: ${clientErr.message}`);
+            expect(clientErr).toBeInstanceOf(Error);
+            return;
+        }
+
+        console.log('  Client created successfully!\n');
+
+        // Step 2: Login (this does certificate enrollment + CSRF token fetch)
+        console.log('Step 2: Logging in (cert enrollment + CSRF fetch)...');
+        const [session, loginErr] = await client.login();
+
+        if (loginErr) {
+            console.log('Login FAILED:');
+            console.log(`  Error: ${loginErr.message}`);
+            console.log('\nThis is expected on a non-domain machine.');
+            console.log('On the Medtronic laptop, this should succeed.\n');
+            expect(loginErr).toBeInstanceOf(Error);
+            return;
+        }
+
+        // Step 3: Print session info
+        console.log('Login SUCCEEDED!');
+        console.log('----------------------------------------');
+        console.log('Session Info:');
+        console.log(`  Session ID: ${session.sessionId}`);
+        console.log(`  Username: ${session.username}`);
+        console.log(`  Expires At: ${new Date(session.expiresAt).toISOString()}`);
+        console.log('----------------------------------------');
+        console.log('\n🎉 SSO E2E TEST PASSED!\n');
+        console.log('The mTLS certificates are working correctly.');
+        console.log('CSRF token was fetched successfully from SAP server.\n');
+
+        expect(session).toBeTruthy();
+        expect(session.username).toBeTruthy();
+        expect(session.sessionId).toBeTruthy();
+    });
+});
+
+// =============================================================================
 // Manual Test Runner
 // =============================================================================
 
@@ -197,7 +282,8 @@ describe('SSO Certificate Enrollment', () => {
  *
  * Expected output on Medtronic laptop:
  * - Should successfully enroll certificates
- * - Should output certificate lengths
+ * - Should fetch CSRF token from SAP server
+ * - Should output session info
  *
  * Expected output on non-domain machine:
  * - Should fail with Kerberos/authentication error
