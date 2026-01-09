@@ -36,7 +36,7 @@ import type {
     Parameter,
 } from './adt';
 import type { Result, AsyncResult } from '../types/result';
-import { ok, err } from '../types/result';
+import { ok, err, resolveAllAsync } from '../types/result';
 import {
     CSRF_TOKEN_HEADER,
     BASE_HEADERS,
@@ -431,61 +431,69 @@ class ADTClientImpl implements ADTClient {
         return ok(undefined);
     }
 
+    async upsertSingle(object: ObjectContent, packageName: string, transport?: string): AsyncResult<UpsertResult> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+
+        // Try to read existing object
+        const objRef: ObjectRef = { name: object.name, extension: object.extension };
+        const [existing] = await adt.readObject(this.requestor, objRef);
+
+        // Object doesn't exist - create it
+        if (!existing) {
+            const [, createErr] = await this.create(object, packageName, transport);
+            if (createErr) return err(createErr);
+
+            const result: UpsertResult = {
+                name: object.name,
+                extension: object.extension,
+                status: 'created',
+            };
+            if (transport) result.transport = transport;
+            return ok(result);
+        }
+
+        // Compare normalized content to avoid unnecessary updates
+        const serverContent = normalizeContent(existing.content);
+        const localContent = normalizeContent(object.content);
+
+        if (serverContent === localContent) {
+            const result: UpsertResult = {
+                name: object.name,
+                extension: object.extension,
+                status: 'unchanged',
+            };
+            if (transport) result.transport = transport;
+            return ok(result);
+        }
+
+        // Content differs - update it
+        const [, updateErr] = await this.update(object, transport);
+        if (updateErr) return err(updateErr);
+
+        const result: UpsertResult = {
+            name: object.name,
+            extension: object.extension,
+            status: 'updated',
+        };
+        if (transport) result.transport = transport;
+        return ok(result);
+    }
+
     async upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]> {
+        // Confirm we can execute this request.
         if (!this.state.session) return err(new Error('Not logged in'));
         if (objects.length === 0) return ok([]);
 
-        const results: UpsertResult[] = [];
+        // Dispatch all upserts in sync.
+        const asyncResults: AsyncResult<UpsertResult>[] = [];
         for (const obj of objects) {
             if (!obj.name || !obj.extension) continue;
-
-            const objRef: ObjectRef = { name: obj.name, extension: obj.extension };
-
-            // Try to read existing object
-            const [existing] = await adt.readObject(this.requestor, objRef);
-
-            // Object doesn't exist - create it
-            if (!existing) {
-                const [, createErr] = await this.create(obj, packageName, transport);
-                if (createErr) return err(createErr);
-
-                const result: UpsertResult = {
-                    name: obj.name,
-                    extension: obj.extension,
-                    status: 'created',
-                };
-                if (transport) result.transport = transport;
-                results.push(result);
-                continue;
-            }
-
-            // Compare normalized content to avoid unnecessary updates
-            const serverContent = normalizeContent(existing.content);
-            const localContent = normalizeContent(obj.content);
-
-            if (serverContent === localContent) {
-                const result: UpsertResult = {
-                    name: obj.name,
-                    extension: obj.extension,
-                    status: 'unchanged',
-                };
-                if (transport) result.transport = transport;
-                results.push(result);
-                continue;
-            }
-
-            // Content differs - update it
-            const [, updateErr] = await this.update(obj, transport);
-            if (updateErr) return err(updateErr);
-
-            const result: UpsertResult = {
-                name: obj.name,
-                extension: obj.extension,
-                status: 'updated',
-            };
-            if (transport) result.transport = transport;
-            results.push(result);
+            asyncResults.push(this.upsertSingle(obj, packageName, transport));
         }
+
+        // Await all responses.
+        const [results, errors] = await resolveAllAsync(asyncResults);
+        if (errors.length > 0) return err(new AggregateError(errors, "Multiple upsert errors"))
         return ok(results);
     }
 

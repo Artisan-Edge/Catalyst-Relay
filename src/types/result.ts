@@ -30,3 +30,20 @@ export function ok<T>(value: T): Result<T, never> {
 export function err<E = Error>(error: E): Result<never, E> {
     return [null, error];
 }
+
+export function resolveAll<T, E = Error>(results: Result<T, E>[]): [T[], E[]] {
+    const [successes, errors]: [T[], E[]] = [[], []];
+    for (const [val, err] of results) {
+        if (err !== null) {
+            errors.push(err);
+            continue;
+        }
+        successes.push(val!);
+    }
+    return [successes, errors];
+}
+
+export async function resolveAllAsync<T, E = Error>(resultPromises: AsyncResult<T, E>[]): Promise<[T[], E[]]> {
+    const results = await Promise.all(resultPromises);
+    return resolveAll(results);
+}
