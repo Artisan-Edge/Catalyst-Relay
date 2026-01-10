@@ -165,7 +165,6 @@ Array of package objects:
 |-------|------|-------------|
 | `name` | string | Package name (e.g., `$TMP`, `ZPACKAGE`) |
 | `description` | string? | Package description |
-| `parentPackage` | string? | Parent package name |
 
 ### Example
 
@@ -186,7 +185,7 @@ curl "http://localhost:3000/packages?filter=Z*" \
 {
     "success": true,
     "data": [
-        { "name": "ZDEV", "description": "Development package", "parentPackage": "ZROOT" },
+        { "name": "ZDEV", "description": "Development package" },
         { "name": "ZPROD", "description": "Production package" },
         { "name": "ZSNAP", "description": "SNAP objects" }
     ]
@@ -233,9 +232,6 @@ if (err2) {
 // Process packages
 customPackages.forEach(pkg => {
   console.log(`${pkg.name}: ${pkg.description || 'No description'}`);
-  if (pkg.parentPackage) {
-    console.log(`  Parent: ${pkg.parentPackage}`);
-  }
 });
 ```
 
@@ -246,7 +242,6 @@ type AsyncResult<Package[]> = Promise<[Package[], null] | [null, Error]>;
 interface Package {
   name: string;
   description?: string;
-  parentPackage?: string;
 }
 ```
 
@@ -260,7 +255,7 @@ interface Package {
 
 ## POST /tree
 
-Get hierarchical tree for package browsing. Supports lazy loading of nested nodes.
+Get hierarchical tree contents for a package. Returns structured response with separate arrays for packages, folders, and objects.
 
 ### Request
 
@@ -272,29 +267,74 @@ Get hierarchical tree for package browsing. Supports lazy loading of nested node
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `package` | string | No | Package to browse (default: root) |
-| `folderType` | enum | No | Folder type: `PACKAGE`, `TYPE`, `GROUP`, `API` |
-| `parentPath` | string | No | Parent path for nested queries |
+| `package` | string | No | Package to browse. Omit to get top-level packages only. |
+| `path` | string | No | Path within the package for drilling down (e.g., `CORE_DATA_SERVICES/DDLS`) |
 
 ### Response
 
-Array of tree nodes:
+Structured tree response:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Node name |
-| `type` | enum | `folder` or `object` |
-| `objectType` | string? | SAP object type (for objects) |
-| `extension` | string? | File extension (for objects) |
-| `hasChildren` | boolean? | Whether node has children |
-| `children` | array? | Nested child nodes |
+| `packages` | PackageNode[] | Subpackages within this package |
+| `folders` | FolderNode[] | Category folders (groups, types) |
+| `objects` | ObjectNode[] | SAP objects at this level |
+
+**PackageNode:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Package name (e.g., `ZBEACON_F01`) |
+| `description` | string? | Package description |
+| `numContents` | number | Count of items in package |
+
+**FolderNode:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Technical name (e.g., `CORE_DATA_SERVICES`) |
+| `displayName` | string | Display name (e.g., `Core Data Services`) |
+| `numContents` | number | Count of items in folder |
+
+**ObjectNode:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Object name (e.g., `ZSNAP_VIEW`) |
+| `objectType` | string | Object type label (e.g., `View`) |
+| `extension` | string | File extension (e.g., `asddls`) |
+| `apiState` | ApiState? | Release state flags (at TYPE level only) |
+
+**ApiState:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `useInCloudDevelopment` | boolean | Released for cloud development |
+| `useInCloudDvlpmntActive` | boolean | Active in cloud development |
+| `useInKeyUserApps` | boolean | Released for key user apps |
 
 ### Example
 
-**Request (Root Level):**
+**Request (Top-level packages):**
+```json
+{}
+```
+
+**Response:**
 ```json
 {
-    "package": "$TMP"
+    "success": true,
+    "data": {
+        "packages": [
+            { "name": "$TMP", "description": "Local Objects", "numContents": 0 },
+            { "name": "ZDEV", "description": "Development", "numContents": 0 }
+        ],
+        "folders": [],
+        "objects": []
+    }
+}
+```
+
+**Request (Package contents):**
+```json
+{
+    "package": "ZSNAP_F01"
 }
 ```
 
@@ -302,33 +342,47 @@ Array of tree nodes:
 ```json
 {
     "success": true,
-    "data": [
-        {
-            "name": "Source Code Library",
-            "type": "folder",
-            "hasChildren": true
-        },
-        {
-            "name": "Dictionary Objects",
-            "type": "folder",
-            "hasChildren": true
-        },
-        {
-            "name": "ZTEST_CLASS",
-            "type": "object",
-            "objectType": "CLAS",
-            "extension": "clas.abap"
-        }
-    ]
+    "data": {
+        "packages": [
+            { "name": "ZBEACON_F01", "numContents": 0 },
+            { "name": "ZSNAP_F01T", "numContents": 0 }
+        ],
+        "folders": [
+            { "name": "CORE_DATA_SERVICES", "displayName": "Core Data Services", "numContents": 132 }
+        ],
+        "objects": []
+    }
 }
 ```
 
-**Request (Nested):**
+**Request (Drill into folder):**
 ```json
 {
-    "package": "$TMP",
-    "folderType": "TYPE",
-    "parentPath": "Source Code Library"
+    "package": "ZSNAP_F01",
+    "path": "CORE_DATA_SERVICES/DDLS"
+}
+```
+
+**Response (objects with apiState):**
+```json
+{
+    "success": true,
+    "data": {
+        "packages": [],
+        "folders": [],
+        "objects": [
+            {
+                "name": "ZSNAP_VIEW1",
+                "objectType": "View",
+                "extension": "asddls",
+                "apiState": {
+                    "useInCloudDevelopment": true,
+                    "useInCloudDvlpmntActive": false,
+                    "useInKeyUserApps": false
+                }
+            }
+        ]
+    }
 }
 ```
 
@@ -336,85 +390,103 @@ Array of tree nodes:
 
 | Code | Status | Cause |
 |------|--------|-------|
-| `VALIDATION_ERROR` | 400 | Invalid folderType value |
+| `VALIDATION_ERROR` | 400 | Invalid request body |
 | `SESSION_NOT_FOUND` | 401 | Invalid session |
 | `UNKNOWN_ERROR` | 500 | SAP server error |
 
 ### Use Cases
 
-- **File explorer UI** — Build tree view with lazy loading
-- **Object discovery** — Browse objects by type/category
-- **Navigation** — Drill into package structure
+- **Package explorer** — Browse package hierarchy with subpackages
+- **Object discovery** — Navigate folder structure to find objects
+- **Top-level packages** — Get root packages without nested ones
+- **Release status** — Check `apiState` flags for cloud compatibility
 
 ### Library Usage
 
 ```typescript
 import { createClient } from 'catalyst-relay';
-import type { TreeQuery, TreeNode } from 'catalyst-relay';
+import type { TreeQuery, TreeResponse } from 'catalyst-relay';
 
 const client = createClient({ baseUrl: 'https://sap-server.com' });
 
 // Login first
 await client.login({ username: 'USER', password: 'PASS' });
 
-// Get root level tree for a package
-const query: TreeQuery = {
-  package: '$TMP'
-};
-
-const [nodes, err] = await client.getTree(query);
-
-if (err) {
-  console.error('Failed to fetch tree:', err.message);
-  return;
+// Get top-level packages only (no subpackages)
+const [topLevel, err1] = await client.getTree({});
+if (!err1) {
+  console.log('Top-level packages:');
+  topLevel.packages.forEach(pkg => console.log(`  ${pkg.name}`));
 }
 
-// Process tree nodes
-nodes.forEach(node => {
-  if (node.type === 'folder') {
-    console.log(`📁 ${node.name}`);
-    if (node.hasChildren) {
-      console.log('  (has children - lazy load)');
-    }
-  } else {
-    console.log(`📄 ${node.name} (${node.objectType})`);
-  }
+// Get contents of a specific package
+const [result, err2] = await client.getTree({ package: 'ZSNAP_F01' });
+if (!err2) {
+  console.log('Subpackages:', result.packages.map(p => p.name));
+  console.log('Folders:', result.folders.map(f => f.displayName));
+}
+
+// Drill into a folder path
+const [objects, err3] = await client.getTree({
+  package: 'ZSNAP_F01',
+  path: 'CORE_DATA_SERVICES/DDLS'
 });
-
-// Get nested tree (lazy loading)
-const nestedQuery: TreeQuery = {
-  package: '$TMP',
-  folderType: 'TYPE',
-  parentPath: 'Source Code Library'
-};
-
-const [nestedNodes, nestedErr] = await client.getTree(nestedQuery);
+if (!err3) {
+  objects.objects.forEach(obj => {
+    console.log(`${obj.name} (${obj.objectType})`);
+    if (obj.apiState) {
+      console.log(`  Cloud: ${obj.apiState.useInCloudDevelopment}`);
+    }
+  });
+}
 ```
 
 **Type Definitions:**
 ```typescript
 interface TreeQuery {
-  package?: string;
-  folderType?: 'PACKAGE' | 'TYPE' | 'GROUP' | 'API';
-  parentPath?: string;
+  package?: string;  // Omit for top-level packages
+  path?: string;     // Folder path (e.g., "CORE_DATA_SERVICES/DDLS")
 }
 
-interface TreeNode {
+interface TreeResponse {
+  packages: PackageNode[];
+  folders: FolderNode[];
+  objects: ObjectNode[];
+}
+
+interface PackageNode {
   name: string;
-  type: 'folder' | 'object';
-  objectType?: string;
-  extension?: string;
-  hasChildren?: boolean;
-  children?: TreeNode[];
+  description?: string;
+  numContents: number;
 }
 
-type AsyncResult<TreeNode[]> = Promise<[TreeNode[], null] | [null, Error]>;
+interface FolderNode {
+  name: string;
+  displayName: string;
+  numContents: number;
+}
+
+interface ObjectNode {
+  name: string;
+  objectType: string;
+  extension: string;
+  apiState?: ApiState;
+}
+
+interface ApiState {
+  useInCloudDevelopment: boolean;
+  useInCloudDvlpmntActive: boolean;
+  useInKeyUserApps: boolean;
+}
+
+type AsyncResult<TreeResponse> = Promise<[TreeResponse, null] | [null, Error]>;
 ```
 
 **Notes:**
 - Requires authentication
-- Use `folderType` and `parentPath` for nested queries
-- Check `hasChildren` to implement lazy loading
+- Omit `package` to get only top-level packages (unlike `getPackages()` which returns all)
+- Use `path` to drill into folder hierarchy (GROUP/TYPE facets)
+- At the TYPE level, objects include `apiState` with release flags
 - Returns AsyncResult tuple
 
 ---
@@ -448,7 +520,6 @@ Array of transport objects:
 | `id` | string | Transport ID (e.g., `DEVK900123`) |
 | `description` | string | Transport description |
 | `owner` | string | Transport owner username |
-| `status` | enum | `modifiable` or `released` |
 
 ### Example
 
@@ -466,14 +537,12 @@ curl http://localhost:3000/transports/ZDEV \
         {
             "id": "DEVK900123",
             "description": "New feature implementation",
-            "owner": "DEVELOPER",
-            "status": "modifiable"
+            "owner": "DEVELOPER"
         },
         {
             "id": "DEVK900100",
             "description": "Bug fixes",
-            "owner": "DEVELOPER",
-            "status": "released"
+            "owner": "DEVELOPER"
         }
     ]
 }
@@ -490,7 +559,6 @@ curl http://localhost:3000/transports/ZDEV \
 ### Use Cases
 
 - **Transport picker** — Show available transports for upsert operations
-- **Status check** — Filter by `modifiable` for active transports
 - **Ownership** — Filter transports by owner
 
 ### Library Usage
@@ -516,11 +584,7 @@ if (err) {
 transports.forEach(transport => {
   console.log(`${transport.id}: ${transport.description}`);
   console.log(`  Owner: ${transport.owner}`);
-  console.log(`  Status: ${transport.status}`);
 });
-
-// Filter for modifiable transports only
-const modifiableTransports = transports.filter(t => t.status === 'modifiable');
 
 // Find transport by owner
 const myTransports = transports.filter(t => t.owner === 'DEVELOPER');
@@ -534,7 +598,6 @@ interface Transport {
   id: string;
   description: string;
   owner: string;
-  status: 'modifiable' | 'released';
 }
 ```
 
@@ -542,7 +605,6 @@ interface Transport {
 - Requires authentication
 - Package name is required parameter
 - Returns AsyncResult tuple
-- Filter by `status === 'modifiable'` to find active transports
 
 ---
 
