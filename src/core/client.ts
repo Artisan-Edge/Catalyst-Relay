@@ -8,7 +8,7 @@
  * - Automatic retry on 403 CSRF errors
  * - Session reset on 500 errors
  *
- * Uses web standard APIs (fetch, Request, Response) - runtime-agnostic.
+ * Uses Node.js https module for all HTTP requests (works reliably with mTLS).
  */
 
 import type { ClientConfig } from '../types/config';
@@ -49,9 +49,79 @@ import {
 import { clientConfigSchema } from '../types/config';
 import * as sessionOps from './session/login';
 import * as adt from './adt';
-import { Agent, fetch as undiciFetch } from 'undici';
 import type { AuthStrategy } from './auth/types';
 import { createAuthStrategy } from './auth/factory';
+import * as https from 'https';
+
+/**
+ * Make HTTP request using Node.js https module.
+ *
+ * Why https module instead of undici/fetch:
+ * - Undici doesn't work with mTLS client certificates (tested, fails with "unable to get local issuer certificate")
+ * - Node.js https module works reliably with mTLS in all environments (Node.js, Electron, Bun)
+ * - Simpler to maintain one implementation that works everywhere
+ */
+async function httpsRequest(
+    url: string,
+    options: {
+        method: string;
+        headers: Record<string, string>;
+        body?: string | undefined;
+        cert?: string | undefined;
+        key?: string | undefined;
+        rejectUnauthorized?: boolean | undefined;
+        timeout?: number | undefined;
+    }
+): Promise<Response> {
+    const urlObj = new URL(url);
+
+    return new Promise((resolve, reject) => {
+        const req = https.request({
+            hostname: urlObj.hostname,
+            port: urlObj.port || 443,
+            path: urlObj.pathname + urlObj.search,
+            method: options.method,
+            headers: options.headers,
+            cert: options.cert,
+            key: options.key,
+            rejectUnauthorized: options.rejectUnauthorized ?? true,
+            timeout: options.timeout,
+        }, (res) => {
+            const chunks: Buffer[] = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => {
+                const body = Buffer.concat(chunks).toString('utf-8');
+                // Convert to web Response
+                const headers = new Headers();
+                for (const [key, value] of Object.entries(res.headers)) {
+                    if (value) {
+                        if (Array.isArray(value)) {
+                            value.forEach(v => headers.append(key, v));
+                        } else {
+                            headers.set(key, value);
+                        }
+                    }
+                }
+                resolve(new Response(body, {
+                    status: res.statusCode || 0,
+                    statusText: res.statusMessage || '',
+                    headers,
+                }));
+            });
+        });
+
+        req.on('error', reject);
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+        });
+
+        if (options.body) {
+            req.write(options.body);
+        }
+        req.end();
+    });
+}
 
 // HTTP request options for internal operations
 interface RequestOptions {
@@ -152,7 +222,8 @@ function buildUrl(baseUrl: string, path: string, params?: URLSearchParams): stri
 class ADTClientImpl implements ADTClient {
     private state: ClientState;
     private requestor: adt.AdtRequestor;
-    private agent: Agent | undefined;
+    // Store SSO certificates for mTLS authentication
+    private ssoCerts: { cert: string; key: string } | undefined;
 
     constructor(config: ClientConfig) {
         // Create auth strategy from config
@@ -174,15 +245,6 @@ class ADTClientImpl implements ADTClient {
         };
         // Bind request method for use as requestor
         this.requestor = { request: this.request.bind(this) };
-        // Create insecure agent if SSL verification should be skipped
-        if (config.insecure) {
-            this.agent = new Agent({
-                connect: {
-                    rejectUnauthorized: false,
-                    checkServerIdentity: () => undefined, // Skip hostname verification
-                },
-            });
-        }
     }
 
     get session(): Session | null {
@@ -239,34 +301,20 @@ class ADTClientImpl implements ADTClient {
         const urlParams = buildParams(params, config.client);
         const url = buildUrl(config.url, path, urlParams);
 
-        // Build fetch options with timeout and optional insecure agent.
-        const fetchOptions: RequestInit & { dispatcher?: Agent; tls?: { rejectUnauthorized: boolean } } = {
-            method,
-            headers,
-            signal: AbortSignal.timeout(config.timeout ?? DEFAULT_TIMEOUT),
-        };
-
-        // Add insecure agent if configured (for undici/Node.js)
-        if (this.agent) {
-            fetchOptions.dispatcher = this.agent;
-        }
-
-        // Add Bun-specific TLS bypass (Bun ignores undici dispatcher)
-        if (config.insecure) {
-            fetchOptions.tls = { rejectUnauthorized: false };
-        }
-
-        // Add request body if provided.
-        if (body) {
-            fetchOptions.body = body;
-        }
-
         try {
-            // Execute HTTP request.
+            // Execute HTTP request using Node.js https module
             debug(`Fetching URL: ${url}`);
-            debug(`Insecure mode: ${!!this.agent}`);
-            // Use undici fetch directly to support dispatcher option for SSL bypass
-            const response = await undiciFetch(url, fetchOptions as Parameters<typeof undiciFetch>[1]) as unknown as Response;
+            debug(`mTLS: ${!!this.ssoCerts}, insecure: ${config.insecure}`);
+
+            const response = await httpsRequest(url, {
+                method,
+                headers,
+                body,
+                cert: this.ssoCerts?.cert,
+                key: this.ssoCerts?.key,
+                rejectUnauthorized: !config.insecure,
+                timeout: config.timeout ?? DEFAULT_TIMEOUT,
+            });
 
             // Store any cookies from response
             this.storeCookies(response);
@@ -288,7 +336,16 @@ class ADTClientImpl implements ADTClient {
                         headers['Cookie'] = retryCookieHeader;
                     }
                     debug(`Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
-                    const retryResponse = await undiciFetch(url, { ...fetchOptions, headers } as Parameters<typeof undiciFetch>[1]) as unknown as Response;
+
+                    const retryResponse = await httpsRequest(url, {
+                        method,
+                        headers,
+                        body,
+                        cert: this.ssoCerts?.cert,
+                        key: this.ssoCerts?.key,
+                        rejectUnauthorized: !config.insecure,
+                        timeout: config.timeout ?? DEFAULT_TIMEOUT,
+                    });
                     this.storeCookies(retryResponse);
                     return ok(retryResponse);
                 }
@@ -355,21 +412,15 @@ class ADTClientImpl implements ADTClient {
             debug(`Transferred ${cookies.length} SAML cookies to client`);
         }
 
-        // For SSO with mTLS, create agent with client certificates
+        // For SSO with mTLS, store certificates for use in requests
         if (authStrategy.type === 'sso' && authStrategy.getCertificates) {
             const certs = authStrategy.getCertificates();
             if (certs) {
-                this.agent = new Agent({
-                    connect: {
-                        cert: certs.fullChain,
-                        key: certs.privateKey,
-                        rejectUnauthorized: !this.state.config.insecure,
-                        ...(this.state.config.insecure && {
-                            checkServerIdentity: () => undefined,
-                        }),
-                    },
-                });
-                debug('Created mTLS agent with SSO certificates');
+                this.ssoCerts = {
+                    cert: certs.fullChain,
+                    key: certs.privateKey,
+                };
+                debug('Stored mTLS certificates for SSO authentication');
             }
         }
 
