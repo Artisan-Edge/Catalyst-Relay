@@ -5,8 +5,12 @@
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import type { Package } from './tree';
 import { extractError, safeParseXml } from '../../utils/xml';
+
+export interface Package {
+    name: string;
+    description?: string;
+}
 
 /**
  * Get list of available packages
