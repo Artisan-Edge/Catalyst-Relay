@@ -82,6 +82,12 @@ export type {
     DiffResult,
     TransportConfig,
     ObjectConfig,
+    // Tree types
+    TreeResponse,
+    PackageNode,
+    FolderNode,
+    ObjectNode,
+    ApiState,
 } from './core/adt';
 
 // Query builder (optional helper for data preview)
