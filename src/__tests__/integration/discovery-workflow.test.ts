@@ -69,6 +69,29 @@ describe('Discovery Workflow', () => {
         expect(nonMatchingPackages).toEqual([]);
     });
 
+    it('should get top-level packages when no package specified', async () => {
+        if (shouldSkip(client)) return;
+
+        const [tree, err] = await client!.getTree({});
+
+        expect(err).toBeNull();
+        expect(tree).toBeDefined();
+        expect(tree!.packages).toBeDefined();
+        expect(tree!.folders).toEqual([]);
+        expect(tree!.objects).toEqual([]);
+
+        console.log(`Found ${tree!.packages.length} top-level packages`);
+        if (tree!.packages.length > 0) {
+            console.log('Sample top-level packages:');
+            tree!.packages.slice(0, 10).forEach(pkg => {
+                console.log(`  - ${pkg.name}: ${pkg.description || '(no description)'}`);
+            });
+        }
+
+        // Verify these are truly top-level (no parent)
+        expect(tree!.packages.length).toBeGreaterThan(0);
+    });
+
     it('should get tree for $TMP package', async () => {
         if (shouldSkip(client)) return;
 

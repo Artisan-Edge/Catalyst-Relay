@@ -24,8 +24,8 @@ export interface ObjectContent extends ObjectRef {
  * Tree discovery query for hierarchical browsing
  */
 export interface TreeQuery {
-    /** Package to browse (e.g., '$TMP', 'ZSNAP_F01') - required */
-    package: string;
+    /** Package to browse (e.g., '$TMP', 'ZSNAP_F01'). Omit to get top-level packages only. */
+    package?: string;
     /** Path within the package for drilling down (e.g., 'CORE_DATA_SERVICES/DATA_DEFINITIONS') */
     path?: string;
 }
@@ -57,7 +57,7 @@ export const objectContentSchema = objectRefSchema.extend({
 });
 
 export const treeQuerySchema = z.object({
-    package: z.string().min(1),
+    package: z.string().min(1).optional(),
     path: z.string().optional(),
 });
 

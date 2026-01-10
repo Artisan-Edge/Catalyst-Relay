@@ -22,12 +22,25 @@ export type {
 } from './types';
 
 /**
- * Get hierarchical tree contents for a package
+ * Get hierarchical tree contents for a package.
+ * If package is omitted, returns top-level packages only.
  */
 export async function getTree(
     client: AdtRequestor,
-    query: TreeQuery
+    query: TreeQuery = {}
 ): AsyncResult<TreeResponse, Error> {
+    // If no package specified, return only top-level packages
+    if (!query.package) {
+        const [packages, pkgErr] = await getSubpackages(client);
+        if (pkgErr) return err(pkgErr);
+
+        return ok({
+            packages,
+            folders: [],
+            objects: [],
+        });
+    }
+
     // If no path specified, fetch subpackages via nodestructure
     let packages: PackageNode[] = [];
 

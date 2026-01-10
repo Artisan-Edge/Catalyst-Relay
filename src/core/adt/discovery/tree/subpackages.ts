@@ -9,17 +9,22 @@ import { extractError, safeParseXml } from '../../../utils/xml';
 import type { PackageNode } from './types';
 
 /**
- * Get subpackages using nodestructure endpoint
+ * Get subpackages or top-level packages using nodestructure endpoint.
+ * If packageName is undefined, returns top-level packages only.
  */
 export async function getSubpackages(
     client: AdtRequestor,
-    packageName: string
+    packageName?: string
 ): AsyncResult<PackageNode[], Error> {
     const params = new URLSearchParams([
         ['parent_type', 'DEVC/K'],
-        ['parent_name', packageName],
         ['withShortDescriptions', 'true'],
     ]);
+
+    // Only add parent_name if we have a package
+    if (packageName) {
+        params.append('parent_name', packageName);
+    }
 
     const [response, requestErr] = await client.request({
         method: 'POST',
@@ -41,9 +46,9 @@ export async function getSubpackages(
 }
 
 /**
- * Parse nodestructure response to extract subpackages
+ * Parse nodestructure response to extract packages
  */
-function parseNodestructureForPackages(xml: string, parentPackage: string): Result<PackageNode[], Error> {
+function parseNodestructureForPackages(xml: string, parentPackage?: string): Result<PackageNode[], Error> {
     const [doc, parseErr] = safeParseXml(xml);
     if (parseErr) return err(parseErr);
 
@@ -60,8 +65,8 @@ function parseNodestructureForPackages(xml: string, parentPackage: string): Resu
         const objectName = node.getElementsByTagName('OBJECT_NAME')[0]?.textContent?.trim();
         if (!objectName) continue;
 
-        // Skip the parent package itself
-        if (objectName.toUpperCase() === parentPackage.toUpperCase()) continue;
+        // Skip the parent package itself (only when browsing a specific package)
+        if (parentPackage && objectName.toUpperCase() === parentPackage.toUpperCase()) continue;
 
         const description = node.getElementsByTagName('DESCRIPTION')[0]?.textContent?.trim();
 
