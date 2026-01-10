@@ -72,7 +72,6 @@ export type {
     UpsertResult,
     ActivationResult,
     ActivationMessage,
-    TreeNode,
     Transport,
     Package,
     DataFrame,

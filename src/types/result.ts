@@ -10,12 +10,12 @@
  * // data is guaranteed non-null
  */
 
-export type Result<T, E = Error> = [T, null] | [null, E];
+export type Result<T, E extends Error = Error> = [T, null] | [null, E];
 
 /**
  * Async result type alias for convenience
  */
-export type AsyncResult<T, E = Error> = Promise<Result<T, E>>;
+export type AsyncResult<T, E extends Error = Error> = Promise<Result<T, E>>;
 
 /**
  * Create a success result
@@ -27,11 +27,11 @@ export function ok<T>(value: T): Result<T, never> {
 /**
  * Create an error result
  */
-export function err<E = Error>(error: E): Result<never, E> {
+export function err<E extends Error = Error>(error: E): Result<never, E> {
     return [null, error];
 }
 
-export function resolveAll<T, E = Error>(results: Result<T, E>[]): [T[], E[]] {
+export function resolveAll<T, E extends Error = Error>(results: Result<T, E>[]): Result<T[], AggregateError> {
     const [successes, errors]: [T[], E[]] = [[], []];
     for (const [val, err] of results) {
         if (err !== null) {
@@ -40,10 +40,14 @@ export function resolveAll<T, E = Error>(results: Result<T, E>[]): [T[], E[]] {
         }
         successes.push(val!);
     }
-    return [successes, errors];
+    if (errors.length) {
+        const messages = errors.map((e, i) => `[${i + 1}] ${e.message}`).join('\n');
+        return err(new AggregateError(errors, `Multiple upsert errors:\n${messages}`));
+    }
+    return ok(successes);
 }
 
-export async function resolveAllAsync<T, E = Error>(resultPromises: AsyncResult<T, E>[]): Promise<[T[], E[]]> {
+export async function resolveAllAsync<T, E extends Error = Error>(resultPromises: AsyncResult<T, E>[]): AsyncResult<T[], AggregateError> {
     const results = await Promise.all(resultPromises);
     return resolveAll(results);
 }

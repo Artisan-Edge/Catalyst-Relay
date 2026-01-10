@@ -2,6 +2,10 @@
 
 TypeScript port of SNAP-Relay-API — middleware bridging frontend applications to SAP ADT (ABAP Development Tools) servers.
 
+IMPORTANT: Use /typescript:write-typescript before editing any typescript files.
+use /developer:debug-issue before trying to debug anything.
+Use /run-tests before doing any test validation.
+
 ## Quick Reference
 
 | Item | Value |

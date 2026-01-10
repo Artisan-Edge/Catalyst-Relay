@@ -4,9 +4,12 @@
  * Handles communication with SLS for certificate enrollment:
  * 1. Authenticate using Kerberos SPNEGO
  * 2. Submit CSR to get signed certificate
+ *
+ * Uses Node.js https module for all HTTP requests (same as client.ts)
+ * for consistent behavior across Node.js, Electron (VS Code), and Bun.
  */
 
-import { Agent, fetch as undiciFetch } from 'undici';
+import * as https from 'https';
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { SlsConfig, SlsAuthResponse, CertificateMaterial } from './types';
@@ -14,6 +17,65 @@ import { SLS_DEFAULTS } from './types';
 import { getSpnegoToken, extractSpnFromUrl } from './kerberos';
 import { generateKeypair, createCsr, getCurrentUsername } from './certificate';
 import { parsePkcs7Certificates } from './pkcs7';
+
+/**
+ * Make HTTP request using Node.js https module.
+ * Same approach as client.ts for consistency.
+ */
+async function httpsRequest(
+    url: string,
+    options: {
+        method: string;
+        headers: Record<string, string>;
+        body?: Buffer | undefined;
+        rejectUnauthorized?: boolean | undefined;
+    }
+): Promise<{ status: number; headers: Record<string, string | string[]>; body: Buffer; cookies: string[] }> {
+    const urlObj = new URL(url);
+
+    return new Promise((resolve, reject) => {
+        const req = https.request({
+            hostname: urlObj.hostname,
+            port: urlObj.port || 443,
+            path: urlObj.pathname + urlObj.search,
+            method: options.method,
+            headers: options.headers,
+            rejectUnauthorized: options.rejectUnauthorized ?? true,
+        }, (res) => {
+            const chunks: Buffer[] = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => {
+                const body = Buffer.concat(chunks);
+
+                // Extract cookies from set-cookie headers
+                const cookies: string[] = [];
+                const setCookieHeader = res.headers['set-cookie'];
+                if (setCookieHeader) {
+                    for (const cookie of setCookieHeader) {
+                        const cookieValue = cookie.split(';')[0];
+                        if (cookieValue) {
+                            cookies.push(cookieValue);
+                        }
+                    }
+                }
+
+                resolve({
+                    status: res.statusCode || 0,
+                    headers: res.headers as Record<string, string | string[]>,
+                    body,
+                    cookies,
+                });
+            });
+        });
+
+        req.on('error', reject);
+
+        if (options.body) {
+            req.write(options.body);
+        }
+        req.end();
+    });
+}
 
 /**
  * SLS client options
@@ -51,12 +113,6 @@ interface SlsClientConfig {
  * }
  *
  * // Use certificates for mTLS
- * const agent = new Agent({
- *     connect: {
- *         cert: certs.fullChain,
- *         key: certs.privateKey,
- *     }
- * });
  * ```
  */
 export async function enrollCertificate(
@@ -65,25 +121,20 @@ export async function enrollCertificate(
     const { config, insecure = false } = options;
     const profile = config.profile ?? SLS_DEFAULTS.PROFILE;
 
-    // Create fetch agent (skip SSL verification if insecure)
-    const agent = insecure
-        ? new Agent({ connect: { rejectUnauthorized: false } })
-        : undefined;
-
-    // Step 1: Authenticate with Kerberos
-    const [authResponse, authErr] = await authenticateToSls(config, profile, agent);
+    // Step 1: Authenticate with Kerberos (also captures session cookies)
+    const [authResult, authErr] = await authenticateToSls(config, profile, insecure);
     if (authErr) return err(authErr);
 
     // Step 2: Generate keypair
-    const keySize = authResponse.clientConfig.keySize ?? SLS_DEFAULTS.KEY_SIZE;
+    const keySize = authResult.response.clientConfig.keySize ?? SLS_DEFAULTS.KEY_SIZE;
     const keypair = generateKeypair(keySize);
 
     // Step 3: Create CSR
     const username = getCurrentUsername();
     const csrDer = createCsr(keypair, username);
 
-    // Step 4: Submit CSR and get certificate
-    const [certData, certErr] = await requestCertificate(config, profile, csrDer, agent);
+    // Step 4: Submit CSR and get certificate (pass cookies from auth step - like Python's session)
+    const [certData, certErr] = await requestCertificate(config, profile, csrDer, authResult.cookies, insecure);
     if (certErr) return err(certErr);
 
     // Step 5: Parse PKCS#7 response
@@ -97,13 +148,21 @@ export async function enrollCertificate(
 }
 
 /**
+ * Result from SLS authentication, includes cookies for session persistence
+ */
+interface SlsAuthResult {
+    response: SlsAuthResponse;
+    cookies: string[];  // Cookies to pass to subsequent requests (like Python's session)
+}
+
+/**
  * Authenticate to SLS using Kerberos SPNEGO
  */
 async function authenticateToSls(
     config: SlsConfig,
     profile: string,
-    agent?: Agent
-): AsyncResult<SlsAuthResponse> {
+    insecure: boolean = false
+): AsyncResult<SlsAuthResult> {
     // Get SPNEGO token
     const spn = config.servicePrincipalName ?? extractSpnFromUrl(config.slsUrl);
     const [token, tokenErr] = await getSpnegoToken(spn);
@@ -113,26 +172,22 @@ async function authenticateToSls(
     const authUrl = `${config.slsUrl}${SLS_DEFAULTS.LOGIN_ENDPOINT}?profile=${profile}`;
 
     try {
-        const fetchOptions: Parameters<typeof undiciFetch>[1] = {
+        const response = await httpsRequest(authUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Negotiate ${token}`,
                 'Accept': '*/*',
             },
-        };
-        if (agent) {
-            fetchOptions.dispatcher = agent;
-        }
+            rejectUnauthorized: !insecure,
+        });
 
-        const response = await undiciFetch(authUrl, fetchOptions);
-
-        if (!response.ok) {
-            const text = await response.text();
+        if (response.status < 200 || response.status >= 300) {
+            const text = response.body.toString('utf-8');
             return err(new Error(`SLS authentication failed: ${response.status} - ${text}`));
         }
 
-        const authResponse = await response.json() as SlsAuthResponse;
-        return ok(authResponse);
+        const authResponse = JSON.parse(response.body.toString('utf-8')) as SlsAuthResponse;
+        return ok({ response: authResponse, cookies: response.cookies });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return err(new Error(`SLS authentication request failed: ${message}`));
@@ -146,33 +201,36 @@ async function requestCertificate(
     config: SlsConfig,
     profile: string,
     csrDer: Buffer,
-    agent?: Agent
+    cookies: string[],  // Session cookies from authentication (like Python's session)
+    insecure: boolean = false
 ): AsyncResult<Buffer> {
     const certUrl = `${config.slsUrl}${SLS_DEFAULTS.CERTIFICATE_ENDPOINT}?profile=${profile}`;
 
     try {
-        const fetchOptions: Parameters<typeof undiciFetch>[1] = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/pkcs10',
-                'Content-Length': String(csrDer.length),
-                'Accept': '*/*',
-            },
-            body: csrDer,
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/pkcs10',
+            'Content-Length': String(csrDer.length),
+            'Accept': '*/*',
         };
-        if (agent) {
-            fetchOptions.dispatcher = agent;
+
+        // Pass cookies from auth step - like Python's requests.Session() does automatically
+        if (cookies.length > 0) {
+            headers['Cookie'] = cookies.join('; ');
         }
 
-        const response = await undiciFetch(certUrl, fetchOptions);
+        const response = await httpsRequest(certUrl, {
+            method: 'POST',
+            headers,
+            body: csrDer,
+            rejectUnauthorized: !insecure,
+        });
 
-        if (!response.ok) {
-            const text = await response.text();
+        if (response.status < 200 || response.status >= 300) {
+            const text = response.body.toString('utf-8');
             return err(new Error(`Certificate request failed: ${response.status} - ${text}`));
         }
 
-        const buffer = await response.arrayBuffer();
-        return ok(Buffer.from(buffer));
+        return ok(response.body);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return err(new Error(`Certificate request failed: ${message}`));
