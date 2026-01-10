@@ -30,7 +30,7 @@ export type { ObjectMetadata, ObjectWithContent } from './craud/read';
 export type { ActivationResult, ActivationMessage } from './craud/activation';
 
 // Discovery types
-export type { TreeNode, Package } from './discovery/tree';
+export type { TreeResponse, PackageNode, FolderNode, ObjectNode, TreeNode, Package } from './discovery/tree';
 export type { Transport } from './transports/transports';
 
 // Preview types

@@ -24,12 +24,10 @@ export interface ObjectContent extends ObjectRef {
  * Tree discovery query for hierarchical browsing
  */
 export interface TreeQuery {
-    /** Package to browse (e.g., '$TMP', 'ZPACKAGE') */
-    package?: string;
-    /** Folder type to expand */
-    folderType?: 'PACKAGE' | 'TYPE' | 'GROUP' | 'API';
-    /** Parent path for nested queries */
-    parentPath?: string;
+    /** Package to browse (e.g., '$TMP', 'ZSNAP_F01') - required */
+    package: string;
+    /** Path within the package for drilling down (e.g., 'CORE_DATA_SERVICES/DATA_DEFINITIONS') */
+    path?: string;
 }
 
 /**
@@ -59,9 +57,8 @@ export const objectContentSchema = objectRefSchema.extend({
 });
 
 export const treeQuerySchema = z.object({
-    package: z.string().optional(),
-    folderType: z.enum(['PACKAGE', 'TYPE', 'GROUP', 'API']).optional(),
-    parentPath: z.string().optional(),
+    package: z.string().min(1),
+    path: z.string().optional(),
 });
 
 export const previewQuerySchema = z.object({

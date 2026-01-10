@@ -27,14 +27,12 @@ describe('Discovery Workflow', () => {
     });
 
     afterAll(async () => {
-        // No cleanup needed for read-only tests
         await safeLogout(client);
     });
 
     it('should get packages list with filter', async () => {
         if (shouldSkip(client)) return;
 
-        // Use 'Z*' filter to get only custom packages (faster than '*' which returns all)
         const [packages, err] = await client!.getPackages('Z*');
 
         expect(err).toBeNull();
@@ -42,7 +40,6 @@ describe('Discovery Workflow', () => {
         expect(Array.isArray(packages)).toBe(true);
 
         console.log(`Found ${packages!.length} packages matching 'Z*'`);
-        // Show first few packages
         const sample = packages!.slice(0, 5);
         console.log('Sample packages:');
         sample.forEach(pkg => {
@@ -58,12 +55,10 @@ describe('Discovery Workflow', () => {
         expect(err).toBeNull();
         expect(packages).toBeDefined();
 
-        // Identify packages that don't match the filter
         const nonMatchingPackages = packages!.filter(
             pkg => !pkg.name.toUpperCase().startsWith('Z')
         );
 
-        // Log non-matching packages for debugging
         if (nonMatchingPackages.length > 0) {
             console.log(`WARNING: Found ${nonMatchingPackages.length} packages NOT matching 'Z*' filter:`);
             nonMatchingPackages.forEach(pkg => {
@@ -71,7 +66,6 @@ describe('Discovery Workflow', () => {
             });
         }
 
-        // Verify all packages match the filter
         expect(nonMatchingPackages).toEqual([]);
     });
 
@@ -82,13 +76,23 @@ describe('Discovery Workflow', () => {
 
         expect(err).toBeNull();
         expect(tree).toBeDefined();
-        expect(Array.isArray(tree)).toBe(true);
+        expect(tree!.packages).toBeDefined();
+        expect(tree!.folders).toBeDefined();
+        expect(tree!.objects).toBeDefined();
 
-        console.log(`Tree has ${tree!.length} root nodes`);
-        if (tree!.length > 0) {
-            console.log('Sample tree nodes:');
-            tree!.slice(0, 3).forEach(node => {
-                console.log(`  - ${node.name} (${node.type})`);
+        const totalNodes = tree!.packages.length + tree!.folders.length + tree!.objects.length;
+        console.log(`Tree has ${totalNodes} items (${tree!.packages.length} packages, ${tree!.folders.length} folders, ${tree!.objects.length} objects)`);
+
+        if (tree!.packages.length > 0) {
+            console.log('Sample packages:');
+            tree!.packages.slice(0, 3).forEach(pkg => {
+                console.log(`  - ${pkg.name} (${pkg.numContents} items)`);
+            });
+        }
+        if (tree!.folders.length > 0) {
+            console.log('Sample folders:');
+            tree!.folders.slice(0, 3).forEach(folder => {
+                console.log(`  - ${folder.name} (${folder.numContents} items)`);
             });
         }
     });
@@ -96,25 +100,54 @@ describe('Discovery Workflow', () => {
     it('should not return the queried package in its own tree results', async () => {
         if (shouldSkip(client)) return;
 
-        // Test with configured package
         const testPackage = TEST_CONFIG.package;
         const [tree, err] = await client!.getTree({ package: testPackage });
 
         expect(err).toBeNull();
         expect(tree).toBeDefined();
 
-        // Find any nodes that match the queried package name
-        const selfReferences = tree!.filter(node => node.name === testPackage);
+        console.log(`Contents of package ${testPackage}:`);
+        console.log(`  Packages: ${tree!.packages.map(p => p.name).join(', ') || '(none)'}`);
+        console.log(`  Folders: ${tree!.folders.map(f => f.name).join(', ') || '(none)'}`);
+        console.log(`  Objects: ${tree!.objects.length} items`);
+
+        // Check if the queried package appears in its own packages list
+        const selfReferences = tree!.packages.filter(pkg => pkg.name === testPackage);
 
         if (selfReferences.length > 0) {
-            console.error(`ERROR: Package ${testPackage} contains itself in tree results:`);
-            selfReferences.forEach(node => {
-                console.error(`  - ${node.name} (${node.type})`);
-            });
+            console.error(`ERROR: Package ${testPackage} contains itself in tree results`);
         }
 
-        // Package should NOT appear in its own tree contents
         expect(selfReferences).toEqual([]);
+    });
+
+    it('should support path navigation into folders', async () => {
+        if (shouldSkip(client)) return;
+
+        // First get the top level of ZSNAP_F01
+        const [topLevel, topErr] = await client!.getTree({ package: 'ZSNAP_F01' });
+        expect(topErr).toBeNull();
+        expect(topLevel).toBeDefined();
+
+        console.log('ZSNAP_F01 top level:');
+        console.log(`  Packages: ${topLevel!.packages.map(p => `${p.name}(${p.numContents})`).join(', ')}`);
+        console.log(`  Folders: ${topLevel!.folders.map(f => `${f.name}(${f.numContents})`).join(', ')}`);
+
+        // If there's a folder, try to navigate into it
+        if (topLevel!.folders.length > 0) {
+            const firstFolder = topLevel!.folders[0]!;
+            const [nested, nestedErr] = await client!.getTree({
+                package: 'ZSNAP_F01',
+                path: firstFolder.name,
+            });
+
+            expect(nestedErr).toBeNull();
+            expect(nested).toBeDefined();
+
+            console.log(`\nInside ${firstFolder.name}:`);
+            console.log(`  Folders: ${nested!.folders.map(f => `${f.name}(${f.numContents})`).join(', ') || '(none)'}`);
+            console.log(`  Objects: ${nested!.objects.length} items`);
+        }
     });
 
     it('should get transports for a package', async () => {
@@ -134,7 +167,6 @@ describe('Discovery Workflow', () => {
             });
         }
 
-        // Verify the expected test transport is present
         if (TEST_CONFIG.transport) {
             const expectedTransport = TEST_CONFIG.transport;
             const found = transports!.some(t => t.id === expectedTransport);
@@ -144,7 +176,6 @@ describe('Discovery Workflow', () => {
                 console.error('Available transports:', transports!.map(t => t.id));
             }
         } else {
-            // If no transport configured, at least expect some transports exist
             expect(transports!.length).toBeGreaterThan(0);
         }
     });
