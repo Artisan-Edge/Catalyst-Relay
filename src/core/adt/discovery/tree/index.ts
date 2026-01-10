@@ -8,7 +8,7 @@ import type { TreeQuery } from '../../../../types/requests';
 import type { AdtRequestor } from '../../types';
 import type { TreeResponse, PackageNode } from './types';
 import { API_FOLDERS } from './types';
-import { getSubpackages } from './subpackages';
+import { fetchChildPackages } from './childPackages';
 import { buildQueryFromPath, transformToTreeResponse } from './parsers';
 import { fetchVirtualFolders, fetchObjectsWithApiState } from './virtualFolders';
 
@@ -54,13 +54,13 @@ export async function getTree(
         });
     }
 
-    // If no path specified, fetch subpackages via nodestructure
+    // If no path specified, fetch child packages via virtualfolders
     let packages: PackageNode[] = [];
 
     if (!query.path) {
-        const [subpkgs, subErr] = await getSubpackages(client, query.package);
-        if (subErr) return err(subErr);
-        packages = subpkgs;
+        const [childPkgs, childErr] = await fetchChildPackages(client, query.package);
+        if (childErr) return err(childErr);
+        packages = childPkgs;
     }
 
     // Build internal query from path segments

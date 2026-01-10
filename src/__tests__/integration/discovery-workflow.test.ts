@@ -118,6 +118,48 @@ describe('Discovery Workflow', () => {
         expect(basisPackage.numContents).toBeGreaterThan(100000);
     });
 
+    it('should return BASIS subpackages with descriptions and counts', async () => {
+        if (shouldSkip(client)) return;
+
+        const [tree, err] = await client!.getTree({ package: 'BASIS' });
+
+        expect(err).toBeNull();
+        expect(tree).toBeDefined();
+        expect(tree!.packages.length).toBeGreaterThan(0);
+
+        console.log(`BASIS has ${tree!.packages.length} child packages`);
+        console.log('Sample child packages:');
+        tree!.packages.slice(0, 10).forEach(pkg => {
+            console.log(`  - ${pkg.name} (${pkg.numContents}): ${pkg.description || '(no description)'}`);
+        });
+
+        // Verify known subpackages have correct metadata
+        const aifStruc = tree!.packages.find(p => p.name === '/AIF/STRUC');
+        if (aifStruc) {
+            expect(aifStruc.description).toBe('SAP Application Interface Framework - Structure Package');
+            expect(aifStruc.numContents).toBeGreaterThan(7000);
+            console.log(`  /AIF/STRUC verified: ${aifStruc.numContents} items`);
+        }
+
+        const clmdv = tree!.packages.find(p => p.name === '/CLMDV/DV');
+        if (clmdv) {
+            expect(clmdv.description).toBe('Main Package for Data Validation Framework');
+            expect(clmdv.numContents).toBeGreaterThan(700);
+            console.log(`  /CLMDV/DV verified: ${clmdv.numContents} items`);
+        }
+
+        // Verify at least some packages have non-zero counts and descriptions
+        const packagesWithCounts = tree!.packages.filter(p => p.numContents > 0);
+        const packagesWithDescriptions = tree!.packages.filter(p => p.description && p.description.length > 0);
+
+        console.log(`Packages with counts > 0: ${packagesWithCounts.length}/${tree!.packages.length}`);
+        console.log(`Packages with descriptions: ${packagesWithDescriptions.length}/${tree!.packages.length}`);
+
+        // Most packages should have counts and descriptions
+        expect(packagesWithCounts.length).toBeGreaterThan(tree!.packages.length * 0.5);
+        expect(packagesWithDescriptions.length).toBeGreaterThan(tree!.packages.length * 0.5);
+    });
+
     it('should get BASIS package stats via getPackageStats', async () => {
         if (shouldSkip(client)) return;
 
