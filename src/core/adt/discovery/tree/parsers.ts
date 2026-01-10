@@ -114,7 +114,7 @@ export function parseTreeXml(xml: string): Result<ParseResult, Error> {
 
         const countAttr = vf.getAttribute('counter');
         const count = countAttr ? parseInt(countAttr, 10) : 0;
-        const desc = vf.getAttribute('description');
+        const desc = vf.getAttribute('text');
         const displayNameAttr = vf.getAttribute('displayName');
 
         const technicalName = name.startsWith('..') ? name.substring(2) : name;

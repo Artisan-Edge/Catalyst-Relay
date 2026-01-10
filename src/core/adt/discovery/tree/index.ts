@@ -29,10 +29,23 @@ export async function getTree(
     client: AdtRequestor,
     query: TreeQuery = {}
 ): AsyncResult<TreeResponse, Error> {
-    // If no package specified, return only top-level packages
+    // If no package specified, return only top-level packages using virtualfolders
+    // (nodestructure endpoint doesn't return object counts)
     if (!query.package) {
-        const [packages, pkgErr] = await getSubpackages(client);
-        if (pkgErr) return err(pkgErr);
+        const [parsed, parseErr] = await fetchVirtualFolders(client, {});
+        if (parseErr) return err(parseErr);
+
+        // Filter to only PACKAGE facet folders and transform to PackageNode[]
+        const packages: PackageNode[] = parsed.folders
+            .filter(f => f.facet === 'PACKAGE')
+            .map(f => {
+                const pkg: PackageNode = {
+                    name: f.name,
+                    numContents: f.count,
+                };
+                if (f.description) pkg.description = f.description;
+                return pkg;
+            });
 
         return ok({
             packages,

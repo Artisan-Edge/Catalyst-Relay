@@ -92,6 +92,32 @@ describe('Discovery Workflow', () => {
         expect(tree!.packages.length).toBeGreaterThan(0);
     });
 
+    it('should include BASIS package with correct metadata', async () => {
+        if (shouldSkip(client)) return;
+
+        const [tree, err] = await client!.getTree({});
+
+        expect(err).toBeNull();
+        expect(tree).toBeDefined();
+
+        // Find the BASIS package
+        const basisPackage = tree!.packages.find(pkg => pkg.name === 'BASIS');
+
+        // Verify BASIS package exists
+        expect(basisPackage).toBeDefined();
+        if (!basisPackage) return;
+
+        console.log(`BASIS package: ${basisPackage.name}`);
+        console.log(`  Description: ${basisPackage.description}`);
+        console.log(`  numContents: ${basisPackage.numContents}`);
+
+        // Verify description
+        expect(basisPackage.description).toBe('BASIS Structure Package');
+
+        // Verify numContents is substantial (BASIS is a core SAP package)
+        expect(basisPackage.numContents).toBeGreaterThan(100000);
+    });
+
     it('should get tree for $TMP package', async () => {
         if (shouldSkip(client)) return;
 
@@ -172,6 +198,75 @@ describe('Discovery Workflow', () => {
             console.log(`  Objects: ${nested!.objects.length} items`);
         }
     });
+
+    it('should traverse FINS_FIS_FICO package folders to find I_JournalEntry', async () => {
+        if (shouldSkip(client)) return;
+
+        // Step 1: Get FINS_FIS_FICO package top level
+        const [topLevel, topErr] = await client!.getTree({ package: 'FINS_FIS_FICO' });
+        expect(topErr).toBeNull();
+        expect(topLevel).toBeDefined();
+
+        console.log('FINS_FIS_FICO top level:');
+        console.log(`  Folders: ${topLevel!.folders.map(f => `${f.name}(${f.numContents})`).join(', ')}`);
+
+        // Find CORE_DATA_SERVICES folder
+        const cdsFolder = topLevel!.folders.find(f => f.name === 'CORE_DATA_SERVICES');
+        expect(cdsFolder).toBeDefined();
+        expect(cdsFolder!.numContents).toBeGreaterThan(1000);
+        console.log(`  CORE_DATA_SERVICES has ${cdsFolder!.numContents} items`);
+
+        // Step 2: Navigate into CORE_DATA_SERVICES
+        const [cdsLevel, cdsErr] = await client!.getTree({
+            package: 'FINS_FIS_FICO',
+            path: 'CORE_DATA_SERVICES',
+        });
+        expect(cdsErr).toBeNull();
+        expect(cdsLevel).toBeDefined();
+
+        console.log('\nInside CORE_DATA_SERVICES:');
+        console.log(`  Folders: ${cdsLevel!.folders.map(f => `${f.name}(${f.numContents})`).join(', ')}`);
+
+        // Find DDLS (Data Definitions) folder
+        const ddlsFolder = cdsLevel!.folders.find(f => f.name === 'DDLS');
+        expect(ddlsFolder).toBeDefined();
+        expect(ddlsFolder!.numContents).toBeGreaterThan(800);
+        console.log(`  DDLS (Data Definitions) has ${ddlsFolder!.numContents} items`);
+
+        // Step 3: Navigate into DDLS to get objects
+        const [ddlsLevel, ddlsErr] = await client!.getTree({
+            package: 'FINS_FIS_FICO',
+            path: 'CORE_DATA_SERVICES/DDLS',
+        });
+        expect(ddlsErr).toBeNull();
+        expect(ddlsLevel).toBeDefined();
+
+        console.log('\nInside CORE_DATA_SERVICES/DDLS:');
+        console.log(`  Objects: ${ddlsLevel!.objects.length} items`);
+
+        // Print sample object names for debugging
+        const sampleObjects = ddlsLevel!.objects.slice(0, 20).map(o => o.name);
+        console.log(`  Sample objects: ${sampleObjects.join(', ')}`);
+
+        // Check if any I_JOURNAL* objects exist (names are uppercase)
+        const journalObjects = ddlsLevel!.objects.filter(obj => obj.name.startsWith('I_JOURNAL'));
+        console.log(`  I_JOURNAL* objects found: ${journalObjects.length}`);
+        if (journalObjects.length > 0) {
+            console.log(`    ${journalObjects.map(o => o.name).join(', ')}`);
+        }
+
+        // Verify we got a substantial number of objects (the folder should have 800+)
+        expect(ddlsLevel!.objects.length).toBeGreaterThan(800);
+
+        // Verify I_JOURNALENTRY exists (SAP returns uppercase names)
+        const journalEntry = ddlsLevel!.objects.find(obj => obj.name === 'I_JOURNALENTRY');
+        if (journalEntry) {
+            console.log(`  Found I_JOURNALENTRY: ${journalEntry.objectType} (${journalEntry.extension})`);
+        } else {
+            console.log('  WARNING: I_JOURNALENTRY not found in this package');
+        }
+        expect(journalEntry).toBeDefined();
+    }, 30000); // Increase timeout to 30 seconds
 
     it('should get transports for a package', async () => {
         if (shouldSkip(client)) return;
