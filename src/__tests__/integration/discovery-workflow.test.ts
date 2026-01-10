@@ -118,6 +118,44 @@ describe('Discovery Workflow', () => {
         expect(basisPackage.numContents).toBeGreaterThan(100000);
     });
 
+    it('should get BASIS package stats via getPackageStats', async () => {
+        if (shouldSkip(client)) return;
+
+        const [stats, err] = await client!.getPackageStats('BASIS');
+
+        expect(err).toBeNull();
+        expect(stats).toBeDefined();
+
+        console.log(`getPackageStats('BASIS'):`);
+        console.log(`  name: ${stats!.name}`);
+        console.log(`  description: ${stats!.description}`);
+        console.log(`  numContents: ${stats!.numContents}`);
+
+        // Verify the stats match what we'd get from getTree
+        expect(stats!.name).toBe('BASIS');
+        expect(stats!.description).toBe('BASIS Structure Package');
+        expect(stats!.numContents).toBeGreaterThan(100000);
+    });
+
+    it('should get FINS_FIS_FICO package stats via getPackageStats (nested package)', async () => {
+        if (shouldSkip(client)) return;
+
+        const [stats, err] = await client!.getPackageStats('FINS_FIS_FICO');
+
+        expect(err).toBeNull();
+        expect(stats).toBeDefined();
+
+        console.log(`getPackageStats('FINS_FIS_FICO'):`);
+        console.log(`  name: ${stats!.name}`);
+        console.log(`  description: ${stats!.description}`);
+        console.log(`  numContents: ${stats!.numContents}`);
+
+        // FINS_FIS_FICO is a nested package under SAP_FIN
+        expect(stats!.name).toBe('FINS_FIS_FICO');
+        expect(stats!.description).toBe('Financials Information System: FICO (SAP_FIN)');
+        expect(stats!.numContents).toBeGreaterThan(6000);
+    });
+
     it('should get tree for $TMP package', async () => {
         if (shouldSkip(client)) return;
 

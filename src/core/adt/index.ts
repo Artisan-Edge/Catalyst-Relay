@@ -56,6 +56,7 @@ export { activateObjects } from './craud/activation';
 // Discovery operations
 export { getPackages } from './discovery/packages';
 export { getTree } from './discovery/tree';
+export { getPackageStats } from './discovery/tree/packageStats';
 export { getTransports } from './transports/transports';
 
 // Data preview operations

@@ -6,6 +6,9 @@ IMPORTANT: Use /typescript:write-typescript before editing any typescript files.
 use /developer:debug-issue before trying to debug anything.
 Use /run-tests before doing any test validation.
 
+NEVER make a commit yourself. Aways ask the user to do it.
+NEVER run tests yourself - use the /run-tests skill.
+
 ## Quick Reference
 
 | Item | Value |

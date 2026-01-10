@@ -24,6 +24,7 @@ import type {
     UpsertResult,
     ActivationResult,
     TreeResponse,
+    PackageNode,
     Transport,
     Package,
     DataFrame,
@@ -152,6 +153,7 @@ export interface ADTClient {
     // Discovery
     getPackages(filter?: string): AsyncResult<Package[]>;
     getTree(query: TreeQuery): AsyncResult<TreeResponse>;
+    getPackageStats(packageName: string): AsyncResult<PackageNode>;
     getTransports(packageName: string): AsyncResult<Transport[]>;
 
     // Data Preview
@@ -591,6 +593,11 @@ class ADTClientImpl implements ADTClient {
     async getTree(query: TreeQuery): AsyncResult<TreeResponse> {
         if (!this.state.session) return err(new Error('Not logged in'));
         return adt.getTree(this.requestor, query);
+    }
+
+    async getPackageStats(packageName: string): AsyncResult<PackageNode> {
+        if (!this.state.session) return err(new Error('Not logged in'));
+        return adt.getPackageStats(this.requestor, packageName);
     }
 
     async getTransports(packageName: string): AsyncResult<Transport[]> {
