@@ -28,6 +28,8 @@ export interface TreeQuery {
     package?: string;
     /** Path within the package for drilling down (e.g., 'CORE_DATA_SERVICES/DATA_DEFINITIONS') */
     path?: string;
+    /** Filter by object owner (e.g., 'EBOSCH'). Only returns objects created by this user. */
+    owner?: string;
 }
 
 /**
@@ -59,6 +61,7 @@ export const objectContentSchema = objectRefSchema.extend({
 export const treeQuerySchema = z.object({
     package: z.string().min(1).optional(),
     path: z.string().optional(),
+    owner: z.string().min(1).optional(),
 });
 
 export const previewQuerySchema = z.object({

@@ -350,6 +350,42 @@ describe('Discovery Workflow', () => {
         expect(journalEntry!.description).toBe('Journal Entry');
     }, 30000); // Increase timeout to 30 seconds
 
+    it('should return fewer items when filtering by owner', async () => {
+        if (shouldSkip(client)) return;
+
+        // Get $TMP contents without owner filter
+        const [unfiltered, unfilteredErr] = await client!.getTree({ package: '$TMP' });
+        expect(unfilteredErr).toBeNull();
+        expect(unfiltered).toBeDefined();
+
+        // Get $TMP contents filtered by active user
+        const activeUser = TEST_CONFIG.username.toUpperCase();
+        const [filtered, filteredErr] = await client!.getTree({
+            package: '$TMP',
+            owner: activeUser,
+        });
+        expect(filteredErr).toBeNull();
+        expect(filtered).toBeDefined();
+
+        // Calculate total items (sum of folder numContents)
+        const unfilteredTotal = unfiltered!.folders.reduce((sum, f) => sum + f.numContents, 0);
+        const filteredTotal = filtered!.folders.reduce((sum, f) => sum + f.numContents, 0);
+
+        console.log(`$TMP without owner filter: ${unfilteredTotal} total items across ${unfiltered!.folders.length} folders`);
+        console.log(`$TMP filtered by ${activeUser}: ${filteredTotal} total items across ${filtered!.folders.length} folders`);
+
+        // Compare individual folder counts
+        for (const unfilteredFolder of unfiltered!.folders) {
+            const filteredFolder = filtered!.folders.find(f => f.name === unfilteredFolder.name);
+            if (filteredFolder) {
+                console.log(`  ${unfilteredFolder.name}: ${filteredFolder.numContents}/${unfilteredFolder.numContents}`);
+            }
+        }
+
+        // Filtered count should be less than unfiltered (assuming $TMP has objects from multiple users)
+        expect(filteredTotal).toBeLessThan(unfilteredTotal);
+    });
+
     it('should get transports for a package', async () => {
         if (shouldSkip(client)) return;
 

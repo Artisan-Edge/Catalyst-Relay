@@ -54,7 +54,11 @@ export function buildQueryFromPath(packageName: string, path?: string): TreeDisc
 /**
  * Construct tree discovery request body
  */
-export function constructTreeBody(query: TreeDiscoveryQuery, searchPattern: string): string {
+export function constructTreeBody(
+    query: TreeDiscoveryQuery,
+    searchPattern: string,
+    owner?: string
+): string {
     const facets: string[] = [];
     const specified: Record<string, string> = {};
     const sortedFacets = ['PACKAGE', 'GROUP', 'TYPE', 'API'];
@@ -71,11 +75,24 @@ export function constructTreeBody(query: TreeDiscoveryQuery, searchPattern: stri
         }
     }
 
-    const specifiedXml = Object.entries(specified)
-        .map(([facet, name]) => `  <vfs:preselection facet="${facet.toLowerCase()}">
+    // Build preselection XML for facets
+    const preselections: string[] = [];
+
+    // Add owner preselection first if specified
+    if (owner) {
+        preselections.push(`  <vfs:preselection facet="owner">
+    <vfs:value>${owner}</vfs:value>
+  </vfs:preselection>`);
+    }
+
+    // Add facet preselections
+    for (const [facet, name] of Object.entries(specified)) {
+        preselections.push(`  <vfs:preselection facet="${facet.toLowerCase()}">
     <vfs:value>${name}</vfs:value>
-  </vfs:preselection>`)
-        .join('\n');
+  </vfs:preselection>`);
+    }
+
+    const specifiedXml = preselections.join('\n');
 
     // At object level (PACKAGE, GROUP, TYPE all specified), use empty facetorder
     // This returns objects with descriptions in the text attribute

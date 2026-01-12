@@ -14,9 +14,10 @@ import { constructTreeBody, parseTreeXml } from './parsers';
  */
 export async function fetchVirtualFolders(
     client: AdtRequestor,
-    query: TreeDiscoveryQuery
+    query: TreeDiscoveryQuery,
+    owner?: string
 ): AsyncResult<ParseResult, Error> {
-    const body = constructTreeBody(query, '*');
+    const body = constructTreeBody(query, '*', owner);
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: '/sap/bc/adt/repository/informationsystem/virtualfolders/contents',

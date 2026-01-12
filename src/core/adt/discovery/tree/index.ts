@@ -30,7 +30,7 @@ export async function getTree(
     // If no package specified, return only top-level packages using virtualfolders
     // (nodestructure endpoint doesn't return object counts)
     if (!query.package) {
-        const [parsed, parseErr] = await fetchVirtualFolders(client, {});
+        const [parsed, parseErr] = await fetchVirtualFolders(client, {}, query.owner);
         if (parseErr) return err(parseErr);
 
         // Filter to only PACKAGE facet folders and transform to PackageNode[]
@@ -65,7 +65,7 @@ export async function getTree(
     const internalQuery = buildQueryFromPath(query.package, query.path);
 
     // Execute virtualfolders for folders/objects
-    const [parsed, parseErr] = await fetchVirtualFolders(client, internalQuery);
+    const [parsed, parseErr] = await fetchVirtualFolders(client, internalQuery, query.owner);
     if (parseErr) return err(parseErr);
 
     const result = transformToTreeResponse(parsed, query.package);
