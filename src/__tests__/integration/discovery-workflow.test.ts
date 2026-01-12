@@ -342,10 +342,12 @@ describe('Discovery Workflow', () => {
         const journalEntry = ddlsLevel!.objects.find(obj => obj.name === 'I_JOURNALENTRY');
         if (journalEntry) {
             console.log(`  Found I_JOURNALENTRY: ${journalEntry.objectType} (${journalEntry.extension})`);
+            console.log(`    Description: ${journalEntry.description}`);
         } else {
             console.log('  WARNING: I_JOURNALENTRY not found in this package');
         }
         expect(journalEntry).toBeDefined();
+        expect(journalEntry!.description).toBe('Journal Entry');
     }, 30000); // Increase timeout to 30 seconds
 
     it('should get transports for a package', async () => {
