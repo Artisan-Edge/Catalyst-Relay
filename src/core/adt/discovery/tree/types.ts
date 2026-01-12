@@ -22,17 +22,11 @@ export interface FolderNode {
     numContents: number;
 }
 
-export interface ApiState {
-    useInCloudDevelopment: boolean;
-    useInCloudDvlpmntActive: boolean;
-    useInKeyUserApps: boolean;
-}
-
 export interface ObjectNode {
     name: string;
     objectType: string;
     extension: string;
-    apiState?: ApiState;
+    description?: string;
 }
 
 // Internal types
@@ -61,17 +55,10 @@ export interface ParsedObject {
     name: string;
     objectType: string;
     extension: string;
+    description?: string;
 }
 
 export interface ParseResult {
     folders: ParsedFolder[];
     objects: ParsedObject[];
 }
-
-// API folder names that indicate release states
-export const API_FOLDERS = [
-    'NOT_RELEASED',
-    'USE_IN_CLOUD_DEVELOPMENT',
-    'USE_IN_CLOUD_DVLPMNT_ACTIVE',
-    'USE_IN_KEY_USER_APPS',
-] as const;

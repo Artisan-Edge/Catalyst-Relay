@@ -14,6 +14,7 @@ import type {
     TreeDiscoveryQuery,
     ParseResult,
     ParsedFolder,
+    ParsedObject,
 } from './types';
 
 /**
@@ -76,16 +77,17 @@ export function constructTreeBody(query: TreeDiscoveryQuery, searchPattern: stri
   </vfs:preselection>`)
         .join('\n');
 
-    const facetsXml = facets
-        .map(facet => `    <vfs:facet>${facet.toLowerCase()}</vfs:facet>`)
-        .join('\n');
+    // At object level (PACKAGE, GROUP, TYPE all specified), use empty facetorder
+    // This returns objects with descriptions in the text attribute
+    const atObjectLevel = query.PACKAGE && query.GROUP && query.TYPE;
+    const facetorderXml = atObjectLevel || facets.length === 0
+        ? '  <vfs:facetorder/>'
+        : `  <vfs:facetorder>\n${facets.map(f => `    <vfs:facet>${f.toLowerCase()}</vfs:facet>`).join('\n')}\n  </vfs:facetorder>`;
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <vfs:virtualFoldersRequest xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectSearchPattern="${searchPattern}">
 ${specifiedXml}
-  <vfs:facetorder>
-${facetsXml}
-  </vfs:facetorder>
+${facetorderXml}
 </vfs:virtualFoldersRequest>`;
 }
 
@@ -97,7 +99,7 @@ export function parseTreeXml(xml: string): Result<ParseResult, Error> {
     if (parseErr) return err(parseErr);
 
     const folders: ParsedFolder[] = [];
-    const objects: { name: string; objectType: string; extension: string }[] = [];
+    const objects: ParsedObject[] = [];
 
     // Process virtual folder elements
     const virtualFolders = doc.getElementsByTagName('vfs:virtualFolder');
@@ -143,11 +145,14 @@ export function parseTreeXml(xml: string): Result<ParseResult, Error> {
         const config = getConfigByType(type);
         if (!config) continue;
 
-        objects.push({
+        const text = obj.getAttribute('text');
+        const parsedObj: ParsedObject = {
             name,
             objectType: config.label,
             extension: config.extension,
-        });
+        };
+        if (text) parsedObj.description = text;
+        objects.push(parsedObj);
     }
 
     return ok({ folders, objects });
@@ -179,11 +184,15 @@ export function transformToTreeResponse(parsed: ParseResult, queryPackage: strin
         }
     }
 
-    const objects: ObjectNode[] = parsed.objects.map(obj => ({
-        name: obj.name,
-        objectType: obj.objectType,
-        extension: obj.extension,
-    }));
+    const objects: ObjectNode[] = parsed.objects.map(obj => {
+        const node: ObjectNode = {
+            name: obj.name,
+            objectType: obj.objectType,
+            extension: obj.extension,
+        };
+        if (obj.description) node.description = obj.description;
+        return node;
+    });
 
     return { packages, folders, objects };
 }

@@ -87,7 +87,6 @@ export type {
     PackageNode,
     FolderNode,
     ObjectNode,
-    ApiState,
 } from './core/adt';
 
 // Query builder (optional helper for data preview)
