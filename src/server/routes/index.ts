@@ -15,6 +15,7 @@ import type { ISessionManager, SessionContext } from './types';
 // Auth routes
 import { loginHandler } from './auth/login';
 import { logoutHandler } from './auth/logout';
+import { refreshHandler } from './auth/refresh';
 
 // Discovery routes
 import { packagesHandler } from './discovery/packages';
@@ -60,6 +61,7 @@ export function createRoutes(
 
     app.post('/login', loginHandler(sessionManager));
     app.delete('/logout', sessionMiddleware, logoutHandler(sessionManager));
+    app.post('/session/refresh', sessionMiddleware, refreshHandler());
 
     // ─────────────────────────────────────────────────────────────────────────
     // Discovery Routes (session required, except object-config)

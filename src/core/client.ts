@@ -19,6 +19,7 @@ import type {
     PreviewSQL,
 } from '../types/requests';
 import type { Session } from './session/types';
+import type { RefreshResult } from './session/refresh';
 import type {
     ObjectWithContent,
     UpsertResult,
@@ -48,7 +49,7 @@ import {
     normalizeContent,
 } from './utils';
 import { clientConfigSchema } from '../types/config';
-import * as sessionOps from './session/login';
+import * as sessionOps from './session';
 import * as adt from './adt';
 import type { AuthStrategy } from './auth/types';
 import { createAuthStrategy } from './auth/factory';
@@ -141,6 +142,7 @@ export interface ADTClient {
     // Lifecycle
     login(): AsyncResult<Session>;
     logout(): AsyncResult<void>;
+    refreshSession(): AsyncResult<RefreshResult>;
 
     // CRAUD Operations
     read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]>;
@@ -176,7 +178,10 @@ export interface ADTClient {
     getObjectConfig(): ObjectConfig[];
 }
 
-// Internal client state (implements SessionState interface from session/login)
+// Default auto-refresh interval: 30 min
+const DEFAULT_REFRESH_INTERVAL = 30 * 60 * 1000;
+
+// Internal client state (implements SessionState interface from session)
 interface ClientState extends sessionOps.SessionState {
     config: ClientConfig;
     cookies: Map<string, string>;
@@ -227,6 +232,8 @@ class ADTClientImpl implements ADTClient {
     private requestor: adt.AdtRequestor;
     // Store SSO certificates for mTLS authentication
     private ssoCerts: { cert: string; key: string } | undefined;
+    // Auto-refresh timer handle
+    private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
     constructor(config: ClientConfig) {
         // Create auth strategy from config
@@ -276,6 +283,24 @@ class ADTClientImpl implements ADTClient {
         return Array.from(this.state.cookies.entries())
             .map(([name, value]) => `${name}=${value}`)
             .join('; ');
+    }
+
+    private startAutoRefresh(intervalMs: number): void {
+        this.stopAutoRefresh();
+        this.refreshTimer = setInterval(async () => {
+            if (!this.state.session) return;
+            const [, refreshErr] = await this.refreshSession();
+            if (refreshErr) {
+                debug(`Auto-refresh failed: ${refreshErr.message}`);
+            }
+        }, intervalMs);
+    }
+
+    private stopAutoRefresh(): void {
+        if (this.refreshTimer) {
+            clearInterval(this.refreshTimer);
+            this.refreshTimer = null;
+        }
     }
 
     // Core HTTP request function with CSRF token injection and automatic retry on 403 errors
@@ -427,11 +452,32 @@ class ADTClientImpl implements ADTClient {
             }
         }
 
-        return sessionOps.login(this.state, this.request.bind(this));
+        const [session, loginErr] = await sessionOps.login(this.state, this.request.bind(this));
+        if (loginErr) {
+            return err(loginErr);
+        }
+
+        // Start auto-refresh if enabled (default: true)
+        const autoRefresh = this.state.config.autoRefresh ?? { enabled: true };
+        if (autoRefresh.enabled) {
+            const interval = autoRefresh.intervalMs ?? DEFAULT_REFRESH_INTERVAL;
+            this.startAutoRefresh(interval);
+            debug(`Auto-refresh started with ${interval}ms interval`);
+        }
+
+        return ok(session);
     }
 
     async logout(): AsyncResult<void> {
+        this.stopAutoRefresh();
         return sessionOps.logout(this.state, this.request.bind(this));
+    }
+
+    async refreshSession(): AsyncResult<RefreshResult> {
+        if (!this.state.session) {
+            return err(new Error('Not logged in'));
+        }
+        return sessionOps.refreshSession(this.state, this.request.bind(this));
     }
 
     // --- CRAUD Operations ---

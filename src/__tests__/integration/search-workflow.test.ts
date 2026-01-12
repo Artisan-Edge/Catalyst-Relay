@@ -68,6 +68,32 @@ describe('Search Workflow', () => {
         }
     });
 
+    it('should refresh session and continue working', async () => {
+        if (shouldSkip(client)) return;
+
+        // First search
+        const [results1, err1] = await client!.search('MARA');
+        expect(err1).toBeNull();
+        expect(results1).toBeDefined();
+        console.log(`First search found ${results1!.length} objects`);
+
+        // Refresh session via reentrance ticket
+        console.log('Refreshing session...');
+        const [refreshResult, refreshErr] = await client!.refreshSession();
+        expect(refreshErr).toBeNull();
+        expect(refreshResult).toBeDefined();
+        expect(refreshResult!.ticket).toBeDefined();
+        expect(refreshResult!.expiresAt).toBeGreaterThan(Date.now());
+        console.log(`Session refreshed, new expiration: ${new Date(refreshResult!.expiresAt).toISOString()}`);
+        console.log(`Received ticket: ${refreshResult!.ticket.substring(0, 30)}...`);
+
+        // Second search after refresh - should still work
+        const [results2, err2] = await client!.search('VBAK');
+        expect(err2).toBeNull();
+        expect(results2).toBeDefined();
+        console.log(`Second search (after refresh) found ${results2!.length} objects`);
+    });
+
     it('should find where P_APJrnlEntrItmAgingGrid4 is used', async () => {
         if (shouldSkip(client)) return;
 

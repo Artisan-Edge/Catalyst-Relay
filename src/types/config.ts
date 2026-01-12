@@ -74,6 +74,16 @@ export interface SsoAuthConfig {
 export type AuthConfig = BasicAuthConfig | SamlAuthConfig | SsoAuthConfig;
 
 /**
+ * Auto-refresh configuration for session keepalive
+ */
+export interface AutoRefreshConfig {
+    /** Enable automatic session refresh (default: true) */
+    enabled: boolean;
+    /** Refresh interval in milliseconds (default: 7200000 = 2 hours) */
+    intervalMs?: number;
+}
+
+/**
  * Client configuration for connecting to SAP ADT
  */
 export interface ClientConfig {
@@ -87,6 +97,8 @@ export interface ClientConfig {
     timeout?: number;
     /** Skip SSL verification (dev only) */
     insecure?: boolean;
+    /** Auto-refresh configuration for session keepalive (default: enabled with 2-hour interval) */
+    autoRefresh?: AutoRefreshConfig;
 }
 
 /**
@@ -136,4 +148,8 @@ export const clientConfigSchema = z.object({
     ]),
     timeout: z.number().positive().optional(),
     insecure: z.boolean().optional(),
+    autoRefresh: z.object({
+        enabled: z.boolean(),
+        intervalMs: z.number().positive().optional(),
+    }).optional(),
 });

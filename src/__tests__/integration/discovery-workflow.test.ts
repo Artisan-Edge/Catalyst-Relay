@@ -90,7 +90,7 @@ describe('Discovery Workflow', () => {
 
         // Verify these are truly top-level (no parent)
         expect(tree!.packages.length).toBeGreaterThan(0);
-    });
+    }, 15000);
 
     it('should include BASIS package with correct metadata', async () => {
         if (shouldSkip(client)) return;

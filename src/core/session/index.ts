@@ -14,5 +14,7 @@ export { startCleanupTask } from './cleanup';
 export type { Session, SessionEntry, SessionConfig } from './types';
 export type { CleanupHandle } from './cleanup';
 export { DEFAULT_SESSION_CONFIG } from './types';
-export { login, logout, sessionReset, fetchCsrfToken } from './login';
+export { login, logout, sessionReset, fetchCsrfToken, getSessionTimeout } from './login';
 export type { SessionState } from './login';
+export { refreshSession } from './refresh';
+export type { RefreshResult } from './refresh';

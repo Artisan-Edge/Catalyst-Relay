@@ -111,7 +111,7 @@ export async function fetchCsrfToken(
  * @param authType - Authentication type
  * @returns Session timeout in milliseconds
  */
-function getSessionTimeout(authType: AuthType): number {
+export function getSessionTimeout(authType: AuthType): number {
     switch (authType) {
         case 'saml':
             return DEFAULT_SESSION_CONFIG.samlSessionTimeout * 1000;
