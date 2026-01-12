@@ -154,6 +154,7 @@ export interface ADTClient {
     getPackages(filter?: string): AsyncResult<Package[]>;
     getTree(query: TreeQuery): AsyncResult<TreeResponse>;
     getPackageStats(packageName: string): AsyncResult<PackageNode>;
+    getPackageStats(packageNames: string[]): AsyncResult<PackageNode[]>;
     getTransports(packageName: string): AsyncResult<Transport[]>;
 
     // Data Preview
@@ -595,9 +596,12 @@ class ADTClientImpl implements ADTClient {
         return adt.getTree(this.requestor, query);
     }
 
-    async getPackageStats(packageName: string): AsyncResult<PackageNode> {
+    async getPackageStats(packageName: string): AsyncResult<PackageNode>;
+    async getPackageStats(packageNames: string[]): AsyncResult<PackageNode[]>;
+    async getPackageStats(packageNames: string | string[]): AsyncResult<PackageNode | PackageNode[]> {
         if (!this.state.session) return err(new Error('Not logged in'));
-        return adt.getPackageStats(this.requestor, packageName);
+        // Type assertion needed because TS can't infer overload from union
+        return adt.getPackageStats(this.requestor, packageNames as string & string[]);
     }
 
     async getTransports(packageName: string): AsyncResult<Transport[]> {

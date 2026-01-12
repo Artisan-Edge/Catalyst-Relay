@@ -1,10 +1,9 @@
 /**
- * PackageStats — Get stats for a specific package
+ * PackageStats — Get stats for specific packages
  *
- * Uses virtualfolders endpoint to get recursive object count:
- * 1. POST /sap/bc/adt/repository/informationsystem/virtualfolders with package preselection
- * 2. Parse objectCount attribute from response (recursive count including subpackages)
- * 3. GET /sap/bc/adt/packages/{name} for description
+ * Uses virtualfolders/contents endpoint with package names in preselection:
+ * - counter attribute = recursive object count (includes subpackages)
+ * - text attribute = package description
  */
 
 import type { AsyncResult } from '../../../../types/result';
@@ -13,82 +12,109 @@ import type { AdtRequestor } from '../../types';
 import type { PackageNode } from './types';
 import { extractError, safeParseXml } from '../../../utils/xml';
 
-interface PackageMetadata {
-    name: string;
-    description?: string;
-}
-
 /**
- * Fetch package metadata (name, description) from /sap/bc/adt/packages/{name}
+ * Construct request body for fetching specific packages by name.
+ *
+ * SAP quirk: With only 1 package in preselection, SAP drills INTO that package.
+ * With 2+ packages, it returns those packages as top-level results.
+ * We add an empty value when only 1 package is requested to get the correct behavior.
  */
-async function fetchPackageMetadata(
-    client: AdtRequestor,
-    packageName: string
-): AsyncResult<PackageMetadata, Error> {
-    const [response, requestErr] = await client.request({
-        method: 'GET',
-        path: `/sap/bc/adt/packages/${packageName.toLowerCase()}`,
-        headers: {
-            'Accept': 'application/vnd.sap.adt.packages.v1+xml',
-        },
-    });
+function constructPackageStatsBody(packageNames: string[]): string {
+    // Ensure at least 2 values - SAP needs 2+ to return packages as results
+    // SRIS_TEST_DATA_VFS_EMPTY is a known empty SAP package that won't add noise
+    const names = packageNames.length === 1
+        ? [...packageNames, 'SRIS_TEST_DATA_VFS_EMPTY']
+        : packageNames;
 
-    if (requestErr) return err(requestErr);
-    if (!response.ok) {
-        const text = await response.text();
-        const errorMsg = extractError(text);
-        return err(new Error(`Package metadata fetch failed: ${errorMsg}`));
-    }
+    const values = names
+        .map(name => `    <vfs:value>${name}</vfs:value>`)
+        .join('\n');
 
-    const xml = await response.text();
-    const [doc, parseErr] = safeParseXml(xml);
-    if (parseErr) return err(parseErr);
-
-    // Extract name and description from pak:package element
-    const packageElements = doc.getElementsByTagName('pak:package');
-    if (packageElements.length === 0) {
-        return err(new Error(`Package ${packageName} not found`));
-    }
-
-    const pkgEl = packageElements[0]!;
-    const name = pkgEl.getAttribute('adtcore:name') ||
-                 pkgEl.getAttributeNS('http://www.sap.com/adt/core', 'name') ||
-                 packageName.toUpperCase();
-    const description = pkgEl.getAttribute('adtcore:description') ||
-                        pkgEl.getAttributeNS('http://www.sap.com/adt/core', 'description');
-
-    const result: PackageMetadata = { name };
-    if (description) result.description = description;
-
-    return ok(result);
-}
-
-/**
- * Construct virtualfolders request body for package count query
- */
-function constructCountRequestBody(packageName: string): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <vfs:virtualFoldersRequest xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectSearchPattern="*">
   <vfs:preselection facet="package">
-    <vfs:value>${packageName}</vfs:value>
+${values}
   </vfs:preselection>
-  <vfs:facetorder/>
+  <vfs:facetorder>
+    <vfs:facet>package</vfs:facet>
+    <vfs:facet>group</vfs:facet>
+    <vfs:facet>type</vfs:facet>
+  </vfs:facetorder>
 </vfs:virtualFoldersRequest>`;
 }
 
 /**
- * Fetch recursive content count for a package using virtualfolders endpoint.
- * Returns the objectCount attribute which includes all objects in subpackages.
+ * Parse package stats from virtualfolders response.
  */
-async function fetchContentCount(
+function parsePackageStats(xml: string): PackageNode[] {
+    const [doc, parseErr] = safeParseXml(xml);
+    if (parseErr) return [];
+
+    const packages: PackageNode[] = [];
+    const virtualFolders = doc.getElementsByTagName('vfs:virtualFolder');
+
+    for (let i = 0; i < virtualFolders.length; i++) {
+        const vf = virtualFolders[i];
+        if (!vf) continue;
+
+        const facet = vf.getAttribute('facet')?.toUpperCase();
+        if (facet !== 'PACKAGE') continue;
+
+        const name = vf.getAttribute('name');
+        if (!name) continue;
+
+        const countAttr = vf.getAttribute('counter');
+        const count = countAttr ? parseInt(countAttr, 10) : 0;
+        const description = vf.getAttribute('text');
+
+        const pkg: PackageNode = {
+            name,
+            numContents: count,
+        };
+        if (description) pkg.description = description;
+        packages.push(pkg);
+    }
+
+    return packages;
+}
+
+/**
+ * Get stats for a single package.
+ */
+export async function getPackageStats(
     client: AdtRequestor,
     packageName: string
-): AsyncResult<number, Error> {
-    const body = constructCountRequestBody(packageName);
+): AsyncResult<PackageNode, Error>;
+
+/**
+ * Get stats for multiple packages.
+ */
+export async function getPackageStats(
+    client: AdtRequestor,
+    packageNames: string[]
+): AsyncResult<PackageNode[], Error>;
+
+/**
+ * Get stats for one or more packages (name, description, numContents).
+ *
+ * Efficiently fetches only the requested packages by putting their names
+ * in the preselection, rather than fetching all packages.
+ */
+export async function getPackageStats(
+    client: AdtRequestor,
+    packageNames: string | string[]
+): AsyncResult<PackageNode | PackageNode[], Error> {
+    const isSingle = typeof packageNames === 'string';
+    const names = isSingle ? [packageNames] : packageNames;
+    if (names.length === 0) {
+        return ok([]);
+    }
+
+    const body = constructPackageStatsBody(names);
 
     const [response, requestErr] = await client.request({
         method: 'POST',
-        path: '/sap/bc/adt/repository/informationsystem/virtualfolders',
+        path: '/sap/bc/adt/repository/informationsystem/virtualfolders/contents',
         headers: {
             'Content-Type': 'application/vnd.sap.adt.repository.virtualfolders.request.v1+xml',
             'Accept': 'application/vnd.sap.adt.repository.virtualfolders.result.v1+xml',
@@ -100,61 +126,19 @@ async function fetchContentCount(
     if (!response.ok) {
         const text = await response.text();
         const errorMsg = extractError(text);
-        return err(new Error(`Package count fetch failed: ${errorMsg}`));
+        return err(new Error(`Package stats fetch failed: ${errorMsg}`));
     }
 
     const xml = await response.text();
-    const [doc, parseErr] = safeParseXml(xml);
-    if (parseErr) return err(parseErr);
+    const packages = parsePackageStats(xml)
+        .filter(pkg => pkg.name !== 'SRIS_TEST_DATA_VFS_EMPTY');
 
-    // Parse objectCount from the root element
-    const resultElements = doc.getElementsByTagName('vfs:virtualFoldersResult');
-    if (resultElements.length === 0) {
-        return err(new Error('Invalid virtualfolders response: missing result element'));
+    // Match the return type to the input type.
+    if (isSingle) {
+        if (packages.length === 0) {
+            return err(new Error(`Package ${packageNames} not found`));
+        }
+        return ok(packages[0]!);
     }
-
-    const resultEl = resultElements[0]!;
-    const objectCountAttr = resultEl.getAttribute('objectCount');
-
-    if (!objectCountAttr) {
-        return err(new Error('Invalid virtualfolders response: missing objectCount attribute'));
-    }
-
-    const count = parseInt(objectCountAttr, 10);
-    if (isNaN(count)) {
-        return err(new Error(`Invalid objectCount value: ${objectCountAttr}`));
-    }
-
-    return ok(count);
-}
-
-/**
- * Get stats for a specific package (name, description, numContents).
- *
- * Uses virtualfolders endpoint to get recursive object count,
- * and package metadata endpoint for description.
- */
-export async function getPackageStats(
-    client: AdtRequestor,
-    packageName: string
-): AsyncResult<PackageNode, Error> {
-    // Fetch metadata and content count in parallel
-    const [metadataResult, countResult] = await Promise.all([
-        fetchPackageMetadata(client, packageName),
-        fetchContentCount(client, packageName),
-    ]);
-
-    const [metadata, metaErr] = metadataResult;
-    if (metaErr) return err(metaErr);
-
-    const [numContents, countErr] = countResult;
-    if (countErr) return err(countErr);
-
-    const result: PackageNode = {
-        name: metadata.name,
-        numContents,
-    };
-    if (metadata.description) result.description = metadata.description;
-
-    return ok(result);
+    return ok(packages);
 }
