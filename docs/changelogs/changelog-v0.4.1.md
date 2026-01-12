@@ -1,86 +1,59 @@
 # Changelog - v0.4.1
 
 ## Release Date
-January 9, 2026
+January 12, 2026
 
 ## Overview
-Patch release fixing object count and description retrieval for top-level packages by switching back to the virtualfolders endpoint.
+Patch release fixing missing object counts in top-level package queries and adding a new `getPackageStats()` API.
 
 ## What's New
 
-### Top-Level Package Counts Fixed
+### New `getPackageStats()` Function
 
-The `getTree({})` call (without a package) now correctly returns `numContents` for each top-level package. The nodestructure endpoint used in v0.4.0 didn't provide object counts, so top-level packages always showed `numContents: 0`.
-
-```typescript
-// Now correctly returns counts
-const [result, err] = await client.getTree({});
-result.packages.forEach(pkg => {
-    console.log(`${pkg.name}: ${pkg.numContents} objects`);
-});
-// ZSNAP_F01: 132 objects
-// ZDEV: 45 objects
-```
-
-### Package Descriptions Restored
-
-Top-level packages now include their descriptions again. The virtualfolders endpoint provides the `text` attribute which contains the package description.
-
-```typescript
-const [result, err] = await client.getTree({});
-result.packages[0];
-// { name: "ZSNAP_F01", description: "SNAP Framework", numContents: 132 }
-```
-
-### New getPackageStats() Function
-
-Added a new function to fetch stats for a specific package by name. Uses the virtualfolders endpoint to get recursive object count and the packages endpoint for metadata.
+Query stats for any package by name, returning its description and recursive object count (includes all objects in subpackages).
 
 ```typescript
 const [stats, err] = await client.getPackageStats('ZSNAP_F01');
-// { name: "ZSNAP_F01", description: "SNAP Framework", numContents: 132 }
+// stats: { name: 'ZSNAP_F01', description: 'SNAP Package', numContents: 42 }
 ```
 
-### Tree Types Exported
+This is useful when you need metadata for a specific package without querying its full tree contents.
 
-The tree-related types are now exported from the main package entry point:
+### Type Exports
+
+The following types are now exported from the main package index:
+- `TreeResponse`
+- `PackageNode`
+- `FolderNode`
+- `ObjectNode`
+- `ApiState`
 
 ```typescript
-import type {
-    TreeResponse,
-    PackageNode,
-    FolderNode,
-    ObjectNode,
-    ApiState,
-} from 'catalyst-relay';
+import type { PackageNode, TreeResponse } from 'catalyst-relay';
 ```
+
+## Bug Fixes
+
+### Top-Level Package Counts Restored
+
+Fixed an issue where `getTree({})` (top-level package query) was returning packages without `numContents`. The v0.4.0 implementation used the nodestructure endpoint which doesn't return object counts. This release reverts to using the virtualfolders endpoint for top-level queries.
+
+**Impact:** Consumers relying on `numContents` for top-level packages will now get accurate values.
 
 ## Technical Details
 
-### Endpoint Strategy Change
+### New `packageStats.ts` Module
 
-Top-level package queries now use the virtualfolders endpoint instead of nodestructure:
+Added `src/core/adt/discovery/tree/packageStats.ts` which:
+1. POSTs to `/sap/bc/adt/repository/informationsystem/virtualfolders` with package preselection to get recursive object count
+2. GETs `/sap/bc/adt/packages/{name}` for package description
+3. Fetches both in parallel for performance
 
-| Query | v0.4.0 | v0.4.1 |
-|-------|--------|--------|
-| `getTree({})` | nodestructure | virtualfolders |
-| `getTree({ package: 'X' })` | virtualfolders | virtualfolders (unchanged) |
+### Hybrid Tree Query Strategy
 
-### Parser Fix
-
-Fixed the XML parser to read the `text` attribute (not `description`) for folder display names from virtualfolders responses.
-
-### New Module
-
-Added `src/core/adt/discovery/tree/packageStats.ts` containing the `getPackageStats()` implementation.
-
-## Documentation Updates
-
-- Updated `docs/endpoints/discovery.md` with correct Tree API examples and response structure
-- Removed `parentPackage` field from Package documentation (not returned by current implementation)
-- Removed `status` field from Transport documentation (not returned by current implementation)
+Top-level queries now use virtualfolders (for counts), while package-specific queries continue using the nodestructure endpoint for folder hierarchy.
 
 ## Commits Included
-- `01c77ff` - Hybrid solution for tree queries
-- `39304fb` - Switch to virtualfolders for top-level packages
-- `2575afb` - Export tree types from index
+- `01c77ff` - Hybrid solution combining virtualfolders for top-level queries
+- `39304fb` - Revert to virtualfolders endpoint to fix missing object counts
+- `2575afb` - Export tree types from main index
