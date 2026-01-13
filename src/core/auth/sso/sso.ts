@@ -39,9 +39,13 @@ import { enrollCertificate } from './slsClient';
 import { loadCertificates, saveCertificates, certificatesExist, isCertificateExpired } from './storage';
 
 /**
- * SSO authentication configuration
+ * Internal configuration for SSO authentication strategy.
+ *
+ * This differs from the public SsoAuthConfig (in types/config.ts) by:
+ * - No `type` discriminator (strategy already knows it's SSO)
+ * - Includes `insecure` and `returnContents` (injected by factory)
  */
-export interface SsoAuthConfig {
+export interface SsoStrategyConfig {
     /** Secure Login Server URL */
     slsUrl: string;
     /** SLS profile (default: SAPSSO_P) */
@@ -61,15 +65,15 @@ export interface SsoAuthConfig {
  */
 export class SsoAuth implements AuthStrategy {
     readonly type = 'sso' as const;
-    private config: SsoAuthConfig;
+    private config: SsoStrategyConfig;
     private certificates: CertificateMaterial | null = null;
 
     /**
      * Create an SSO Auth strategy
      *
-     * @param config - SSO authentication configuration
+     * @param config - SSO strategy configuration
      */
-    constructor(config: SsoAuthConfig) {
+    constructor(config: SsoStrategyConfig) {
         if (!config.slsUrl) {
             throw new Error('SsoAuth requires slsUrl');
         }

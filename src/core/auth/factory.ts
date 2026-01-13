@@ -1,7 +1,7 @@
 import type { AuthConfig } from '../../types/config';
 import type { AuthStrategy } from './types';
 import { BasicAuth } from './basic';
-import { SsoAuth, type SsoAuthConfig } from './sso';
+import { SsoAuth, type SsoStrategyConfig } from './sso';
 import { SamlAuth } from './saml';
 
 /**
@@ -69,7 +69,7 @@ export function createAuthStrategy(options: CreateAuthOptions): AuthStrategy {
             });
 
         case 'sso': {
-            const ssoConfig: SsoAuthConfig = {
+            const ssoConfig: SsoStrategyConfig = {
                 slsUrl: config.slsUrl,
             };
             if (config.profile) {
