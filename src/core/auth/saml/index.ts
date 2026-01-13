@@ -7,7 +7,7 @@
 
 // Main class and config
 export { SamlAuth } from './saml';
-export type { SamlAuthConfig } from './saml';
+export type { SamlStrategyConfig } from './saml';
 
 // Types
 export type {
