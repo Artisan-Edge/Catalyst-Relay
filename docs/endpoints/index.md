@@ -16,7 +16,7 @@ Comprehensive documentation for all Catalyst-Relay HTTP endpoints.
 
 | Category | Description |
 |----------|-------------|
-| [Authentication](./auth.md) | Session management (`/login`, `/logout`) |
+| [Authentication](./auth.md) | Session management (`/login`, `/logout`, `/session/refresh`) |
 | [Discovery](./discovery.md) | Browse SAP metadata (`/object-config`, `/packages`, `/tree`, `/transports`) |
 | [Objects](./objects.md) | CRAUD operations (`/objects/*`) |
 | [Preview](./preview.md) | Data preview (`/preview/*`) |
@@ -94,8 +94,10 @@ if (err) {
 |--------------|----------------|
 | `POST /login` | `client.login()` |
 | `DELETE /logout` | `client.logout()` |
+| `POST /session/refresh` | `client.refreshSession()` |
 | `GET /object-config` | `client.getObjectConfig()` |
 | `GET /packages` | `client.getPackages()` |
+| `GET /packages/:name/stats` | `client.getPackageStats(name)` |
 | `POST /tree` | `client.getTree(query)` |
 | `GET /transports/:pkg` | `client.getTransports(packageName)` |
 | `POST /transports` | `client.createTransport(config)` |
@@ -155,3 +157,7 @@ All endpoints return a consistent envelope:
 | `VALIDATION_ERROR` | 400 | Invalid request format |
 | `NETWORK_ERROR` | 502 | SAP server unreachable |
 | `UNKNOWN_ERROR` | 500 | Unexpected server error |
+
+---
+
+*Last updated: v0.4.5*

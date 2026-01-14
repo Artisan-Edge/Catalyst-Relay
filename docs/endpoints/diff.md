@@ -269,3 +269,7 @@ if (err) {
 // Process successful result
 console.log(`Successfully compared ${diffs.length} object(s)`);
 ```
+
+---
+
+*Last updated: v0.4.5*

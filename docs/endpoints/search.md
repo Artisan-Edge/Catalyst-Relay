@@ -378,3 +378,7 @@ whereUsed(object: ObjectRef): AsyncResult<Dependency[]>
 **Common Usage Types:** `INHERITS`, `IMPLEMENTS`, `USES`, `ASSOCIATION`, `COMPOSITION`, `INCLUDE`, `CALLS`
 
 **Note:** The HTTP endpoint accepts an array and returns an array of dependency arrays. The library method `whereUsed()` takes a single object and returns its dependencies. To analyze multiple objects, call the method sequentially for each object as shown in the example above.
+
+---
+
+*Last updated: v0.4.5*

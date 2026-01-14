@@ -66,7 +66,8 @@ const [samlClient] = createClient({
     auth: {
         type: 'saml',
         username: 'user@company.com',
-        password: 'pass'
+        password: 'pass',
+        sapUser: 'SAPUSER01'  // Required: SAP username for object attribution
     },
     insecure: true
 });
@@ -124,7 +125,7 @@ curl -X POST http://localhost:3000/login \
   -d '{
     "url": "https://sap-server:443",
     "client": "100",
-    "auth": { "type": "saml", "username": "user@company.com", "password": "pass" }
+    "auth": { "type": "saml", "username": "user@company.com", "password": "pass", "sapUser": "SAPUSER01" }
   }'
 
 # Login with SSO (Kerberos)
@@ -148,6 +149,8 @@ curl -X POST http://localhost:3000/login \
 - Login/logout with session tokens
 - Automatic CSRF token handling and refresh
 - Session expiration with configurable cleanup
+- Automatic session refresh (keepalive) during long operations
+- Manual session refresh via `refreshSession()`
 - Support for multiple concurrent sessions
 
 ### CRAUD Operations
@@ -195,6 +198,7 @@ curl -X POST http://localhost:3000/login \
 |--------|-------------|
 | `login()` | Authenticate and create session |
 | `logout()` | End session |
+| `refreshSession()` | Manually refresh session (keepalive) |
 | `read(objects)` | Batch read with content |
 | `create(object, package, transport?)` | Create new object |
 | `update(object, transport?)` | Update existing object |
@@ -202,7 +206,8 @@ curl -X POST http://localhost:3000/login \
 | `activate(objects)` | Compile and validate |
 | `delete(objects, transport?)` | Remove objects |
 | `getPackages()` | List packages |
-| `getTree(query)` | Browse package tree |
+| `getPackageStats(name)` | Get package metadata and object count |
+| `getTree(query)` | Browse package tree (supports owner filter) |
 | `getTransports(package)` | List transports |
 | `createTransport(config)` | Create transport |
 | `previewData(query)` | Query table/view |
@@ -284,9 +289,11 @@ const [data, error] = await client.previewData({
 |--------|----------|-------------|
 | POST | `/login` | Authenticate and get session ID |
 | DELETE | `/logout` | End session |
+| POST | `/session/refresh` | Refresh session (keepalive) |
 | GET | `/object-config` | List supported object types |
 | GET | `/packages` | List available packages |
-| POST | `/tree` | Browse package tree |
+| GET | `/packages/:name/stats` | Get package metadata and count |
+| POST | `/tree` | Browse package tree (supports owner filter) |
 | GET | `/transports/:package` | List transports |
 | POST | `/transports` | Create transport |
 | POST | `/objects/read` | Batch read objects |
@@ -473,3 +480,7 @@ MIT
 ## Author
 
 Egan Bosch
+
+---
+
+*Last updated: v0.4.5*

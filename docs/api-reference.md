@@ -19,6 +19,7 @@ HTTP endpoints available in Server Mode.
 |--------|----------|-------------|
 | POST | `/login` | Authenticate, returns session ID |
 | DELETE | `/logout` | End session |
+| POST | `/session/refresh` | Refresh session via reentrance ticket |
 
 ---
 
@@ -69,3 +70,7 @@ HTTP endpoints available in Server Mode.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/git-diff` | Compare local content with server |
+
+---
+
+*Last updated: v0.4.5*
