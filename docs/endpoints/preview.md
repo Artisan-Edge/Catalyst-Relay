@@ -637,3 +637,7 @@ if (err) {
 // Safe to use count here
 console.log(`Total rows: ${count}`);
 ```
+
+---
+
+*Last updated: v0.4.5*

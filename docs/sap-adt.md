@@ -23,3 +23,7 @@ SAP requires CSRF tokens for state-changing requests:
 ## SSL Verification
 
 The Python reference disables SSL verification (`verify: False`). This is intentional for SAP systems with self-signed certs.
+
+---
+
+*Last updated: v0.4.5*

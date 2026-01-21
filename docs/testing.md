@@ -78,3 +78,7 @@ See `.env.templ` for a template.
 | `search-workflow.test.ts` | Search + where-used |
 | `data-preview-workflow.test.ts` | Preview on T000 table |
 | `upsert-workflow.test.ts` | Create vs update detection |
+
+---
+
+*Last updated: v0.4.5*

@@ -8,6 +8,8 @@ Session-based authentication for SAP ADT access.
   - [Library Usage](#library-usage)
 - [DELETE /logout](#delete-logout)
   - [Library Usage](#library-usage-1)
+- [POST /session/refresh](#post-sessionrefresh)
+  - [Library Usage](#library-usage-2)
 - [Authentication Types](#authentication-types)
 
 ---
@@ -297,6 +299,91 @@ if (operationErr) {
 
 ---
 
+## POST /session/refresh
+
+Refresh an active session to prevent timeout during long-running operations.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| POST | `/session/refresh` | Yes |
+
+### Request Body
+
+None required.
+
+### Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ticket` | string | Base64-encoded reentrance ticket |
+| `expiresAt` | number | Session expiration (Unix ms) |
+
+### Example
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/session/refresh \
+  -H "X-Session-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "ticket": "dGlja2V0LWRhdGE...",
+        "expiresAt": 1736717400000
+    }
+}
+```
+
+### Errors
+
+| Code | Status | Cause |
+|------|--------|-------|
+| `SESSION_NOT_FOUND` | 401 | Invalid or expired session ID |
+
+### Use Cases
+
+- **Long-running operations** — Keep session alive during batch processing
+- **Prevent timeout** — Extend session before it expires
+- **Background workers** — Maintain session in scheduled jobs
+
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+
+// Client with auto-refresh enabled (default)
+const [client, err] = createClient({
+    url: 'https://sap-server:443',
+    client: '100',
+    auth: { type: 'basic', username: 'user', password: 'pass' },
+    autoRefresh: { enabled: true, intervalMs: 30 * 60 * 1000 }  // 30 min
+});
+
+// Or disable auto-refresh
+const [client2, err2] = createClient({
+    url: 'https://sap-server:443',
+    client: '100',
+    auth: { type: 'basic', username: 'user', password: 'pass' },
+    autoRefresh: { enabled: false }
+});
+
+// Manual refresh
+const [result, refreshErr] = await client.refreshSession();
+if (refreshErr) {
+    console.error('Refresh failed:', refreshErr.message);
+    return;
+}
+
+console.log('Session expires at:', new Date(result.expiresAt));
+```
+
+---
+
 ## Authentication Types
 
 Three authentication methods are supported:
@@ -333,7 +420,10 @@ SAML-based SSO using browser automation. Requires Playwright to be installed.
 | `type` | `"saml"` | Yes | Auth type discriminator |
 | `username` | string | Yes | SAML username (often email) |
 | `password` | string | Yes | SAML password |
+| `sapUser` | string | Yes | SAP system username for object attribution |
 | `providerConfig` | object | No | Custom login form configuration |
+
+**Note:** The `sapUser` field is required because SAML identity providers typically use email addresses as usernames, but SAP systems require the actual SAP username for object attribution (`adtcore:responsible`).
 
 **providerConfig fields:**
 
@@ -350,7 +440,8 @@ SAML-based SSO using browser automation. Requires Playwright to be installed.
 {
     "type": "saml",
     "username": "user@example.com",
-    "password": "secret123"
+    "password": "secret123",
+    "sapUser": "SAPUSER01"
 }
 ```
 
@@ -360,6 +451,7 @@ SAML-based SSO using browser automation. Requires Playwright to be installed.
     "type": "saml",
     "username": "user@example.com",
     "password": "secret123",
+    "sapUser": "SAPUSER01",
     "providerConfig": {
         "ignoreHttpsErrors": true,
         "formSelectors": {
@@ -430,3 +522,7 @@ Kerberos-based SSO using mTLS certificates from SAP Secure Login Server (SLS).
 - Windows: Requires Active Directory integration (uses SSPI)
 - Linux/macOS: Requires MIT Kerberos with valid ticket (`kinit`)
 - `insecure: true` typically required (corporate CAs not in trust store)
+
+---
+
+*Last updated: v0.4.5*

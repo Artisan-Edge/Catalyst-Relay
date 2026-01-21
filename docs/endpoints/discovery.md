@@ -14,6 +14,8 @@ Browse SAP packages, objects, and transports.
   - [Library Usage](#library-usage-3)
 - [POST /transports](#post-transports)
   - [Library Usage](#library-usage-4)
+- [GET /packages/:name/stats](#get-packagesnamestats)
+  - [Library Usage](#library-usage-5)
 
 ---
 
@@ -269,6 +271,7 @@ Get hierarchical tree contents for a package. Returns structured response with s
 |-------|------|----------|-------------|
 | `package` | string | No | Package to browse. Omit to get top-level packages only. |
 | `path` | string | No | Path within the package for drilling down (e.g., `CORE_DATA_SERVICES/DDLS`) |
+| `owner` | string | No | Filter results by object owner/creator |
 
 ### Response
 
@@ -300,14 +303,7 @@ Structured tree response:
 | `name` | string | Object name (e.g., `ZSNAP_VIEW`) |
 | `objectType` | string | Object type label (e.g., `View`) |
 | `extension` | string | File extension (e.g., `asddls`) |
-| `apiState` | ApiState? | Release state flags (at TYPE level only) |
-
-**ApiState:**
-| Field | Type | Description |
-|-------|------|-------------|
-| `useInCloudDevelopment` | boolean | Released for cloud development |
-| `useInCloudDvlpmntActive` | boolean | Active in cloud development |
-| `useInKeyUserApps` | boolean | Released for key user apps |
+| `description` | string? | Object description text |
 
 ### Example
 
@@ -363,7 +359,7 @@ Structured tree response:
 }
 ```
 
-**Response (objects with apiState):**
+**Response (objects with descriptions):**
 ```json
 {
     "success": true,
@@ -375,13 +371,31 @@ Structured tree response:
                 "name": "ZSNAP_VIEW1",
                 "objectType": "View",
                 "extension": "asddls",
-                "apiState": {
-                    "useInCloudDevelopment": true,
-                    "useInCloudDvlpmntActive": false,
-                    "useInKeyUserApps": false
-                }
+                "description": "SNAP View Definition"
             }
         ]
+    }
+}
+```
+
+**Request (Filtered by owner):**
+```json
+{
+    "package": "$TMP",
+    "owner": "EBOSCH"
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "packages": [],
+        "folders": [
+            { "name": "CORE_DATA_SERVICES", "displayName": "Core Data Services", "numContents": 5 }
+        ],
+        "objects": []
     }
 }
 ```
@@ -399,7 +413,7 @@ Structured tree response:
 - **Package explorer** — Browse package hierarchy with subpackages
 - **Object discovery** — Navigate folder structure to find objects
 - **Top-level packages** — Get root packages without nested ones
-- **Release status** — Check `apiState` flags for cloud compatibility
+- **Owner filtering** — Filter by object creator for personal views
 
 ### Library Usage
 
@@ -434,10 +448,19 @@ const [objects, err3] = await client.getTree({
 if (!err3) {
   objects.objects.forEach(obj => {
     console.log(`${obj.name} (${obj.objectType})`);
-    if (obj.apiState) {
-      console.log(`  Cloud: ${obj.apiState.useInCloudDevelopment}`);
+    if (obj.description) {
+      console.log(`  ${obj.description}`);
     }
   });
+}
+
+// Filter by owner
+const [mine, err4] = await client.getTree({
+  package: '$TMP',
+  owner: 'EBOSCH'
+});
+if (!err4) {
+  console.log('My objects:', mine.objects.map(o => o.name));
 }
 ```
 
@@ -446,6 +469,7 @@ if (!err3) {
 interface TreeQuery {
   package?: string;  // Omit for top-level packages
   path?: string;     // Folder path (e.g., "CORE_DATA_SERVICES/DDLS")
+  owner?: string;    // Filter by object owner
 }
 
 interface TreeResponse {
@@ -470,13 +494,7 @@ interface ObjectNode {
   name: string;
   objectType: string;
   extension: string;
-  apiState?: ApiState;
-}
-
-interface ApiState {
-  useInCloudDevelopment: boolean;
-  useInCloudDvlpmntActive: boolean;
-  useInKeyUserApps: boolean;
+  description?: string;
 }
 
 type AsyncResult<TreeResponse> = Promise<[TreeResponse, null] | [null, Error]>;
@@ -486,7 +504,8 @@ type AsyncResult<TreeResponse> = Promise<[TreeResponse, null] | [null, Error]>;
 - Requires authentication
 - Omit `package` to get only top-level packages (unlike `getPackages()` which returns all)
 - Use `path` to drill into folder hierarchy (GROUP/TYPE facets)
-- At the TYPE level, objects include `apiState` with release flags
+- Use `owner` to filter results by object creator
+- At leaf level, objects include `description` with object text
 - Returns AsyncResult tuple
 
 ---
@@ -721,3 +740,83 @@ type AsyncResult<string> = Promise<[string, null] | [null, Error]>;
 - Returns AsyncResult tuple
 - Use returned transport ID for subsequent upsert/delete operations
 - Required when working with packages other than `$TMP`
+
+---
+
+## GET /packages/:name/stats
+
+Get stats (description and object count) for a specific package.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| GET | `/packages/:name/stats` | Yes |
+
+### Path Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Package name (URL-encoded) |
+
+### Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Package name |
+| `description` | string | Package description |
+| `numContents` | number | Recursive object count (includes subpackages) |
+
+### Example
+
+**Request:**
+```bash
+curl http://localhost:3000/packages/ZSNAP_F01/stats \
+  -H "X-Session-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "name": "ZSNAP_F01",
+        "description": "SNAP Package",
+        "numContents": 42
+    }
+}
+```
+
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+
+const [client] = createClient({ ... });
+await client.login();
+
+// Single package
+const [stats, err] = await client.getPackageStats('ZSNAP_F01');
+if (!err) {
+  console.log(`${stats.name}: ${stats.numContents} objects`);
+}
+
+// Multiple packages (batch)
+const [batchStats, batchErr] = await client.getPackageStats(['ZSNAP_F01', 'ZSNAP_F02']);
+if (!batchErr) {
+  batchStats.forEach(s => console.log(`${s.name}: ${s.numContents}`));
+}
+```
+
+**Method Signature:**
+```typescript
+// Single package
+getPackageStats(name: string): AsyncResult<PackageStats>
+
+// Multiple packages
+getPackageStats(names: string[]): AsyncResult<PackageStats[]>
+```
+
+---
+
+*Last updated: v0.4.5*

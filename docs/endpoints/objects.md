@@ -568,3 +568,7 @@ console.log('Objects deleted successfully');
 **Return type:** `AsyncResult<void>`
 
 The delete operation returns no data on success. Check the error tuple to determine if the operation succeeded.
+
+---
+
+*Last updated: v0.4.5*
