@@ -1,6 +1,6 @@
 {
   "name": "catalyst-relay",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "TypeScript middleware for SAP ADT integration",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
