@@ -53,34 +53,48 @@ import * as sessionOps from './session';
 import * as adt from './adt';
 import type { AuthStrategy } from './auth/types';
 import { createAuthStrategy } from './auth/factory';
+import * as http from 'http';
 import * as https from 'https';
 
+const MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+interface HttpRequestOptions {
+    method: string;
+    headers: Record<string, string>;
+    body?: string | undefined;
+    cert?: string | undefined;
+    key?: string | undefined;
+    rejectUnauthorized?: boolean | undefined;
+    timeout?: number | undefined;
+}
+
 /**
- * Make HTTP request using Node.js https module.
+ * Make HTTP request using Node.js http/https modules.
  *
- * Why https module instead of undici/fetch:
+ * Why http/https modules instead of undici/fetch:
  * - Undici doesn't work with mTLS client certificates (tested, fails with "unable to get local issuer certificate")
  * - Node.js https module works reliably with mTLS in all environments (Node.js, Electron, Bun)
  * - Simpler to maintain one implementation that works everywhere
  */
-async function httpsRequest(
+async function httpRequest(
     url: string,
-    options: {
-        method: string;
-        headers: Record<string, string>;
-        body?: string | undefined;
-        cert?: string | undefined;
-        key?: string | undefined;
-        rejectUnauthorized?: boolean | undefined;
-        timeout?: number | undefined;
-    }
+    options: HttpRequestOptions,
+    redirectCount = 0
 ): Promise<Response> {
+    if (redirectCount > MAX_REDIRECTS) {
+        throw new Error(`Too many redirects (max ${MAX_REDIRECTS})`);
+    }
+
     const urlObj = new URL(url);
+    const isHttps = urlObj.protocol === 'https:';
+    const requestFn = isHttps ? https.request : http.request;
+    const defaultPort = isHttps ? 443 : 80;
 
     return new Promise((resolve, reject) => {
-        const req = https.request({
+        const req = requestFn({
             hostname: urlObj.hostname,
-            port: urlObj.port || 443,
+            port: urlObj.port || defaultPort,
             path: urlObj.pathname + urlObj.search,
             method: options.method,
             headers: options.headers,
@@ -89,6 +103,21 @@ async function httpsRequest(
             rejectUnauthorized: options.rejectUnauthorized ?? true,
             timeout: options.timeout,
         }, (res) => {
+            const statusCode = res.statusCode || 0;
+
+            // Handle redirects
+            if (REDIRECT_STATUSES.has(statusCode) && res.headers.location) {
+                const redirectUrl = new URL(res.headers.location, url).toString();
+                // For 303, always use GET; for 307/308, preserve method
+                const redirectMethod = statusCode === 303 ? 'GET' : options.method;
+                const redirectBody = statusCode === 303 ? undefined : options.body;
+
+                httpRequest(redirectUrl, { ...options, method: redirectMethod, body: redirectBody }, redirectCount + 1)
+                    .then(resolve)
+                    .catch(reject);
+                return;
+            }
+
             const chunks: Buffer[] = [];
             res.on('data', chunk => chunks.push(chunk));
             res.on('end', () => {
@@ -105,7 +134,7 @@ async function httpsRequest(
                     }
                 }
                 resolve(new Response(body, {
-                    status: res.statusCode || 0,
+                    status: statusCode,
                     statusText: res.statusMessage || '',
                     headers,
                 }));
@@ -334,7 +363,7 @@ class ADTClientImpl implements ADTClient {
             debug(`Fetching URL: ${url}`);
             debug(`mTLS: ${!!this.ssoCerts}, insecure: ${config.insecure}`);
 
-            const response = await httpsRequest(url, {
+            const response = await httpRequest(url, {
                 method,
                 headers,
                 body,
@@ -365,7 +394,7 @@ class ADTClientImpl implements ADTClient {
                     }
                     debug(`Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
 
-                    const retryResponse = await httpsRequest(url, {
+                    const retryResponse = await httpRequest(url, {
                         method,
                         headers,
                         body,
