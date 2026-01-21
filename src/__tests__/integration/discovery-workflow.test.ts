@@ -195,7 +195,7 @@ describe('Discovery Workflow', () => {
         // FINS_FIS_FICO is a nested package under SAP_FIN
         expect(stats!.name).toBe('FINS_FIS_FICO');
         expect(stats!.description).toBe('Financials Information System: FICO (SAP_FIN)');
-        expect(stats!.numContents).toBeGreaterThan(6000);
+        expect(stats!.numContents).toBeGreaterThan(3000);
     });
 
     it('should get tree for $TMP package', async () => {

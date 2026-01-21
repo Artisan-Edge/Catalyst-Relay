@@ -5,29 +5,21 @@
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import { previewData } from './dataPreview';
+import { freestyleQuery } from './freestyle';
 
 /**
  * Count total rows in a table or view
  *
- * @param client - ADT client
- * @param objectName - Table or view name
- * @param objectType - 'table' or 'view'
- * @returns Row count or error
+ * Uses the freestyle endpoint which supports COUNT(*) aggregation.
  */
 export async function countRows(
     client: AdtRequestor,
     objectName: string,
-    objectType: 'table' | 'view'
+    _objectType: 'table' | 'view'
 ): AsyncResult<number, Error> {
-    const sqlQuery = `SELECT COUNT(*) AS count FROM ${objectName}`;
+    const sqlQuery = `SELECT COUNT(*) AS row_count FROM ${objectName}`;
 
-    const [dataFrame, error] = await previewData(client, {
-        objectName,
-        objectType,
-        sqlQuery,
-        limit: 1,
-    });
+    const [dataFrame, error] = await freestyleQuery(client, sqlQuery, 1);
 
     if (error) {
         return err(new Error(`Row count query failed: ${error.message}`));
