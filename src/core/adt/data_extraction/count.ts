@@ -6,6 +6,7 @@ import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import { freestyleQuery } from './freestyle';
+import { type Parameter, parametersToSQLParams } from './queryBuilder';
 
 /**
  * Count total rows in a table or view
@@ -15,9 +16,10 @@ import { freestyleQuery } from './freestyle';
 export async function countRows(
     client: AdtRequestor,
     objectName: string,
-    _objectType: 'table' | 'view'
+    _objectType: 'table' | 'view',
+    parameters: Parameter[] = []
 ): AsyncResult<number, Error> {
-    const sqlQuery = `SELECT COUNT(*) AS row_count FROM ${objectName}`;
+    const sqlQuery = `SELECT COUNT(*) AS row_count FROM ${objectName}${parametersToSQLParams(parameters)}`;
 
     const [dataFrame, error] = await freestyleQuery(client, sqlQuery, 1);
 

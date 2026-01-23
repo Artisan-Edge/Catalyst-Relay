@@ -95,7 +95,7 @@ export async function fetchCsrfToken(
         // Debug: show all headers
         debug('Response headers:');
         response.headers.forEach((value, key) => debug(`  ${key}: ${value.substring(0, 50)}`));
-        return err(new Error('No CSRF token returned in response headers'));
+        return err(new Error('Invalid credentials'));
     }
 
     // Update session state with new token.
@@ -172,7 +172,7 @@ export async function login(
     // Endpoint varies by auth type (handled in fetchCsrfToken).
     const [token, tokenErr] = await fetchCsrfToken(state, request);
     if (tokenErr) {
-        return err(new Error(`Login failed: ${tokenErr.message}`));
+        return err(tokenErr);
     }
 
     // Extract username from authentication config.

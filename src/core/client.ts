@@ -191,7 +191,7 @@ export interface ADTClient {
     // Data Preview
     previewData(query: PreviewSQL): AsyncResult<DataFrame>;
     getDistinctValues(objectName: string, parameters: Parameter[], column: string, objectType?: 'table' | 'view'): AsyncResult<DistinctResult>;
-    countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number>;
+    countRows(objectName: string, objectType: 'table' | 'view', parameters?: Parameter[]): AsyncResult<number>;
 
     // Search
     search(query: string, types?: string[]): AsyncResult<SearchResult[]>;
@@ -696,9 +696,9 @@ class ADTClientImpl implements ADTClient {
         return adt.getDistinctValues(this.requestor, objectName, parameters, column, objectType);
     }
 
-    async countRows(objectName: string, objectType: 'table' | 'view'): AsyncResult<number> {
+    async countRows(objectName: string, objectType: 'table' | 'view', parameters: Parameter[] = []): AsyncResult<number> {
         if (!this.state.session) return err(new Error('Not logged in'));
-        return adt.countRows(this.requestor, objectName, objectType);
+        return adt.countRows(this.requestor, objectName, objectType, parameters);
     }
 
     // --- Search ---
