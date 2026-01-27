@@ -63,7 +63,7 @@ export type {
 export type { Result, AsyncResult } from './types/result';
 
 // Session types
-export type { Session } from './core/session/types';
+export type { Session, ExportableSessionState } from './core/session/types';
 
 // ADT domain types
 export type {

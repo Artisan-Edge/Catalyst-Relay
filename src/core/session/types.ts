@@ -53,3 +53,17 @@ export const DEFAULT_SESSION_CONFIG: SessionConfig = {
     samlSessionTimeout: 1800,     // 30 minutes (SAML)
     cleanupInterval: 60,          // 1 minute
 };
+
+/**
+ * Serializable session state for export/import across processes
+ *
+ * Used to transfer authenticated session state from daemon to CLI processes,
+ * allowing session reuse without re-authentication.
+ */
+export interface ExportableSessionState {
+    csrfToken: string;
+    session: Session;
+    cookies: Array<{ name: string; value: string }>;
+    authType: AuthType;
+    ssoCertPaths?: { fullChainPath: string; keyPath: string };
+}

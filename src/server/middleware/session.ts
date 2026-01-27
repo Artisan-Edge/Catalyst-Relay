@@ -5,7 +5,7 @@
  */
 
 import { createMiddleware } from 'hono/factory';
-import type { ADTClient } from '../../core/client';
+import type { ADTClient } from '../../client';
 import type { ISessionManager, SessionContext } from '../routes/types';
 
 /**

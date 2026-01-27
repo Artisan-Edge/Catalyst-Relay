@@ -10,6 +10,7 @@ Session-based authentication for SAP ADT access.
   - [Library Usage](#library-usage-1)
 - [POST /session/refresh](#post-sessionrefresh)
   - [Library Usage](#library-usage-2)
+- [Session State Export/Import](#session-state-exportimport-library-only)
 - [Authentication Types](#authentication-types)
 
 ---
@@ -384,6 +385,74 @@ console.log('Session expires at:', new Date(result.expiresAt));
 
 ---
 
+## Session State Export/Import (Library Only)
+
+For CLI tools or multi-process architectures, sessions can be serialized and restored without re-authenticating. These methods have no HTTP endpoint equivalents.
+
+### exportSessionState
+
+Export the current session state for persistence or transfer to another process.
+
+```typescript
+// Returns ExportableSessionState | null (null if not logged in)
+const state = client.exportSessionState();
+
+if (state) {
+    // Save to file or send to another process
+    fs.writeFileSync('session.json', JSON.stringify(state));
+}
+```
+
+**Return type:**
+```typescript
+interface ExportableSessionState {
+    csrfToken: string;
+    session: Session;
+    cookies: Array<{ name: string; value: string }>;
+    authType: AuthType;
+    ssoCertPaths?: { fullChainPath: string; keyPath: string };
+}
+```
+
+**Security notes:**
+- Basic/SAML: Exports CSRF token and cookies (sensitive)
+- SSO: Exports certificate paths only (certificates re-read on import)
+
+### importSessionState
+
+Restore a previously exported session state.
+
+```typescript
+import type { ExportableSessionState } from 'catalyst-relay';
+
+// Load from file or receive from another process
+const state: ExportableSessionState = JSON.parse(
+    fs.readFileSync('session.json', 'utf-8')
+);
+
+// Import the session (validates against server)
+const [success, err] = await client.importSessionState(state);
+if (err) {
+    console.error('Import failed:', err.message);
+    // Session expired or invalid - need to re-login
+    return;
+}
+
+// Client is now authenticated, can make requests
+const [packages, pkgErr] = await client.getPackages();
+```
+
+**Validation steps:**
+1. Checks session expiration locally
+2. Restores CSRF token, session, and cookies
+3. For SSO, reloads certificates from stored paths
+4. Makes lightweight request to validate session is still active
+5. Starts auto-refresh if enabled
+
+**Use case:** Daemon-CLI architecture where a background daemon maintains the session and CLI processes import it on demand.
+
+---
+
 ## Authentication Types
 
 Three authentication methods are supported:
@@ -525,4 +594,4 @@ Kerberos-based SSO using mTLS certificates from SAP Secure Login Server (SLS).
 
 ---
 
-*Last updated: v0.4.5*
+*Last updated: v0.5.0*

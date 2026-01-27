@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'bun:test';
 import { SsoAuth } from '../../../core/auth/sso';
 import { enrollCertificate } from '../../../core/auth/sso/slsClient';
-import { createClient } from '../../../core/client';
+import { createClient } from '../../../client';
 import { Agent } from 'undici';
 
 // =============================================================================
