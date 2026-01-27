@@ -6,7 +6,7 @@
  */
 
 import type { Context } from 'hono';
-import type { ADTClient } from '../../core/client';
+import type { ADTClient } from '../../client';
 import type { AuthType } from '../../types';
 
 /**

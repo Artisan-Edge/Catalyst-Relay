@@ -6,8 +6,8 @@
  */
 
 // Re-export client
-export { createClient } from './client/index';
-export type { ADTClient } from './client/index';
+export { createClient } from '../client/index';
+export type { ADTClient } from '../client/index';
 
 // Re-export auth (when implemented)
 // export * as auth from './auth';

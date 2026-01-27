@@ -3,7 +3,7 @@
  */
 
 import type { Context } from 'hono';
-import { createClient } from '../../../core/client';
+import { createClient } from '../../../client';
 import { clientConfigSchema } from '../../../types/config';
 import type { ClientConfig } from '../../../types/config';
 import { hashConnectionConfig } from '../../../core/session/hash';
