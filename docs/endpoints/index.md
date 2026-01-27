@@ -94,6 +94,9 @@ if (err) {
 |--------------|----------------|
 | `POST /login` | `client.login()` |
 | `DELETE /logout` | `client.logout()` |
+| — | `client.refreshSession()` |
+| — | `client.exportSessionState()` |
+| — | `client.importSessionState(state)` |
 | `GET /object-config` | `client.getObjectConfig()` |
 | `GET /packages` | `client.getPackages()` |
 | `POST /tree` | `client.getTree(query)` |
@@ -111,6 +114,10 @@ if (err) {
 | `POST /git-diff` | `client.gitDiff(objects)` |
 
 See individual endpoint documentation for detailed type signatures and examples.
+
+---
+
+*Last updated: v0.5.0*
 
 ---
 

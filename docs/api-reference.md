@@ -69,3 +69,7 @@ HTTP endpoints available in Server Mode.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/git-diff` | Compare local content with server |
+
+---
+
+*Last updated: v0.5.0*
