@@ -80,6 +80,9 @@ export type {
     SearchResult,
     Dependency,
     DiffResult,
+    DiffHunk,
+    SimpleDiffHunk,
+    ModifiedDiffHunk,
     TransportConfig,
     ObjectConfig,
     // Tree types

@@ -343,13 +343,13 @@ describe('parametersToSQLParams', () => {
     it('should generate single string parameter', () => {
         const params: Parameter[] = [{ name: 'P_BUKRS', value: '1000' }];
         const result = parametersToSQLParams(params);
-        expect(result).toBe("( P_BUKRS = '1000')");
+        expect(result).toBe("( P_BUKRS = '1000' )");
     });
 
     it('should generate single numeric parameter', () => {
         const params: Parameter[] = [{ name: 'P_YEAR', value: 2024 }];
         const result = parametersToSQLParams(params);
-        expect(result).toBe('( P_YEAR = 2024)');
+        expect(result).toBe('( P_YEAR = 2024 )');
     });
 
     it('should generate multiple parameters', () => {
@@ -358,7 +358,7 @@ describe('parametersToSQLParams', () => {
             { name: 'P_GJAHR', value: 2024 },
         ];
         const result = parametersToSQLParams(params);
-        expect(result).toBe("( P_BUKRS = '1000', P_GJAHR = 2024)");
+        expect(result).toBe("( P_BUKRS = '1000', P_GJAHR = 2024 )");
     });
 
     it('should handle three parameters', () => {
@@ -368,7 +368,7 @@ describe('parametersToSQLParams', () => {
             { name: 'P_GJAHR', value: 2024 },
         ];
         const result = parametersToSQLParams(params);
-        expect(result).toBe("( P_MANDT = '100', P_BUKRS = '1000', P_GJAHR = 2024)");
+        expect(result).toBe("( P_MANDT = '100', P_BUKRS = '1000', P_GJAHR = 2024 )");
     });
 });
 
@@ -516,7 +516,7 @@ describe('buildSQLQuery', () => {
             const [result, error] = buildSQLQuery(query);
 
             expect(error).toBeNull();
-            expect(result?.sqlQuery).toContain("from I_COSTCENTER( P_LANGUAGE = 'EN') as main");
+            expect(result?.sqlQuery).toContain("from I_COSTCENTER( P_LANGUAGE = 'EN' ) as main");
         });
 
         it('should include multiple parameters', () => {
@@ -532,7 +532,7 @@ describe('buildSQLQuery', () => {
             const [result, error] = buildSQLQuery(query);
 
             expect(error).toBeNull();
-            expect(result?.sqlQuery).toContain("from I_GLACCOUNTBALANCE( P_FROMPERIOD = '001', P_TOPERIOD = '012') as main");
+            expect(result?.sqlQuery).toContain("from I_GLACCOUNTBALANCE( P_FROMPERIOD = '001', P_TOPERIOD = '012' ) as main");
         });
 
         it('should include numeric parameters', () => {
@@ -545,7 +545,7 @@ describe('buildSQLQuery', () => {
             const [result, error] = buildSQLQuery(query);
 
             expect(error).toBeNull();
-            expect(result?.sqlQuery).toContain('from I_FISCALYEARPERIOD( P_FISCALYEAR = 2024) as main');
+            expect(result?.sqlQuery).toContain('from I_FISCALYEARPERIOD( P_FISCALYEAR = 2024 ) as main');
         });
 
         it('should work without parameters (empty array)', () => {
@@ -575,7 +575,7 @@ describe('buildSQLQuery', () => {
             const [result, error] = buildSQLQuery(query);
 
             expect(error).toBeNull();
-            expect(result?.sqlQuery).toContain("from I_COSTCENTER( P_LANGUAGE = 'EN') as main");
+            expect(result?.sqlQuery).toContain("from I_COSTCENTER( P_LANGUAGE = 'EN' ) as main");
             expect(result?.sqlQuery).toContain("where CompanyCode = '1000'");
         });
     });
@@ -817,7 +817,7 @@ order by BUKRS ascending, GJAHR descending`
 \tmain~CostCenter,
 \tmain~CompanyCode,
 \tmain~ValidityEndDate
-from I_COSTCENTER( P_LANGUAGE = 'EN') as main
+from I_COSTCENTER( P_LANGUAGE = 'EN' ) as main
 `
             );
         });
@@ -846,7 +846,7 @@ from I_COSTCENTER( P_LANGUAGE = 'EN') as main
 \tmain~CompanyCode,
 \tmain~GLAccount,
 \tmain~AmountInCompanyCodeCurrency
-from I_GLACCOUNTBALANCE( P_FROMPERIOD = '001', P_TOPERIOD = '012') as main
+from I_GLACCOUNTBALANCE( P_FROMPERIOD = '001', P_TOPERIOD = '012' ) as main
 
 where CompanyCode = '1000'
 order by GLAccount ascending`

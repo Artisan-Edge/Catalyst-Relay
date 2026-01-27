@@ -93,7 +93,7 @@ export type Parameter = {
 
 export function parametersToSQLParams(params: Parameter[]): string {
     if (params.length === 0) return "";
-    return `( ${params.map(p => `${p.name} = ${quoteString(p.value)}`).join(", ")})`;
+    return `( ${params.map(p => `${p.name} = ${quoteString(p.value)}`).join(", ")} )`;
 }
 
 // Query Type
@@ -131,7 +131,7 @@ export function buildSQLQuery(query: DataPreviewQuery): Result<PreviewSQL> {
         }
         fieldSelections.push(`\tmain~${field}`);
     }
-    selectClause += fieldSelections.join(",\n") + `\nfrom ${query.objectName}${parametersToSQLParams(parameters)} as main\n`;
+    selectClause += fieldSelections.join(",\n") + `\nfrom ${query.objectName}${parametersToSQLParams(parameters)} as main`;
 
     // Build the rest of the clauses.
     const [whereClause, groupbyClause, orderbyClause] = [queryFiltersToWhere(filters), aggregations.length ? fieldsToGroupbyClause(groupingFields) : "", sortingsToOrderBy(sortings)];
