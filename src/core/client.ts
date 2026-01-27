@@ -18,8 +18,9 @@ import type {
     TreeQuery,
     PreviewSQL,
 } from '../types/requests';
-import type { Session } from './session/types';
+import type { Session, ExportableSessionState } from './session/types';
 import type { RefreshResult } from './session/refresh';
+import { getCertificatePaths } from './auth/sso/storage';
 import type {
     ObjectWithContent,
     UpsertResult,
@@ -172,6 +173,10 @@ export interface ADTClient {
     login(): AsyncResult<Session>;
     logout(): AsyncResult<void>;
     refreshSession(): AsyncResult<RefreshResult>;
+
+    // Session state export/import (for session caching across processes)
+    exportSessionState(): ExportableSessionState | null;
+    importSessionState(state: ExportableSessionState): AsyncResult<boolean>;
 
     // CRAUD Operations
     read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]>;
@@ -507,6 +512,93 @@ class ADTClientImpl implements ADTClient {
             return err(new Error('Not logged in'));
         }
         return sessionOps.refreshSession(this.state, this.request.bind(this));
+    }
+
+    // --- Session State Export/Import ---
+
+    exportSessionState(): ExportableSessionState | null {
+        if (!this.state.session || !this.state.csrfToken) return null;
+
+        // Convert cookies Map to array format
+        const cookies: Array<{ name: string; value: string }> = [];
+        for (const [name, value] of this.state.cookies) {
+            cookies.push({ name, value });
+        }
+
+        const state: ExportableSessionState = {
+            csrfToken: this.state.csrfToken,
+            session: this.state.session,
+            cookies,
+            authType: this.state.authStrategy.type,
+        };
+
+        // For SSO, include certificate paths (not contents for security)
+        if (this.state.authStrategy.type === 'sso' && this.ssoCerts) {
+            state.ssoCertPaths = getCertificatePaths();
+        }
+
+        return state;
+    }
+
+    async importSessionState(state: ExportableSessionState): AsyncResult<boolean> {
+        // Validate session hasn't expired
+        if (state.session.expiresAt <= Date.now()) {
+            return err(new Error('Session has expired'));
+        }
+
+        // Restore session state
+        this.state.session = state.session;
+        this.state.csrfToken = state.csrfToken;
+
+        // Restore cookies from array to Map
+        this.state.cookies.clear();
+        for (const cookie of state.cookies) {
+            this.state.cookies.set(cookie.name, cookie.value);
+        }
+
+        // For SSO, load certificates from paths
+        if (state.authType === 'sso' && state.ssoCertPaths) {
+            try {
+                const fs = await import('fs/promises');
+                const [fullChain, key] = await Promise.all([
+                    fs.readFile(state.ssoCertPaths.fullChainPath, 'utf-8'),
+                    fs.readFile(state.ssoCertPaths.keyPath, 'utf-8'),
+                ]);
+                this.ssoCerts = { cert: fullChain, key };
+            } catch (certErr) {
+                return err(new Error(`Failed to load SSO certificates: ${certErr instanceof Error ? certErr.message : String(certErr)}`));
+            }
+        }
+
+        // Validate session is still valid with a lightweight request
+        const [response, reqErr] = await this.request({
+            method: 'GET',
+            path: '/sap/bc/adt/compatibility/graph',
+        });
+
+        if (reqErr) {
+            this.state.session = null;
+            this.state.csrfToken = null;
+            this.state.cookies.clear();
+            return err(new Error(`Session validation failed: ${reqErr.message}`));
+        }
+
+        if (!response.ok) {
+            this.state.session = null;
+            this.state.csrfToken = null;
+            this.state.cookies.clear();
+            return err(new Error(`Session validation failed with status ${response.status}`));
+        }
+
+        // Start auto-refresh if enabled
+        const autoRefresh = this.state.config.autoRefresh ?? { enabled: true };
+        if (autoRefresh.enabled) {
+            const interval = autoRefresh.intervalMs ?? DEFAULT_REFRESH_INTERVAL;
+            this.startAutoRefresh(interval);
+            debug(`Auto-refresh started with ${interval}ms interval (after import)`);
+        }
+
+        return ok(true);
     }
 
     // --- CRAUD Operations ---
