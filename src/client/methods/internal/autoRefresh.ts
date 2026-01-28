@@ -28,6 +28,9 @@ export function createAutoRefresh(
                     debug(`Auto-refresh failed: ${refreshErr.message}`);
                 }
             }, intervalMs);
+            // Don't keep the process alive just for auto-refresh
+            // This allows CLI commands to exit naturally after completing their work
+            timer.unref();
         },
         stop() {
             if (timer) {

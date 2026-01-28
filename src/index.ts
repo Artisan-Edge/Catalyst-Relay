@@ -33,6 +33,9 @@
 export { createClient } from './core';
 export type { ADTClient } from './core';
 
+// Logging control
+export { activateLogging, deactivateLogging } from './core';
+
 // Config types
 export type {
     AuthType,
