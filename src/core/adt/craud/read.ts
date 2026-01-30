@@ -59,12 +59,16 @@ export async function readObject(
     );
     if (checkErr) return err(checkErr);
 
+    // Normalize line endings (CRLF → LF) and strip trailing newline.
+    // SAP servers return inconsistent trailing characters that cause false diffs.
+    const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '').replace(/\n$/, '');
+
     // Build result object with content.
     const result: ObjectWithContent = {
         name: object.name,
         extension: object.extension,
         package: '',
-        content,
+        content: normalized,
     };
 
     return ok(result);

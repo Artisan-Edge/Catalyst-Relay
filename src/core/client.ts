@@ -513,14 +513,7 @@ class ADTClientImpl implements ADTClient {
 
     async read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]> {
         if (!this.state.session) return err(new Error('Not logged in'));
-
-        const results: ObjectWithContent[] = [];
-        for (const obj of objects) {
-            const [result, readErr] = await adt.readObject(this.requestor, obj);
-            if (readErr) return err(readErr);
-            results.push(result);
-        }
-        return ok(results);
+        return resolveAllAsync(objects.map(obj => adt.readObject(this.requestor, obj)));
     }
 
     async create(object: ObjectContent, packageName: string, transport?: string): AsyncResult<void> {
@@ -725,14 +718,7 @@ class ADTClientImpl implements ADTClient {
     async gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]> {
         if (!this.state.session) return err(new Error('Not logged in'));
         if (objects.length === 0) return ok([]);
-
-        const results: DiffResult[] = [];
-        for (const obj of objects) {
-            const [result, diffErr] = await adt.gitDiff(this.requestor, obj);
-            if (diffErr) return err(diffErr);
-            results.push(result);
-        }
-        return ok(results);
+        return resolveAllAsync(objects.map(obj => adt.gitDiff(this.requestor, obj)));
     }
 
     // --- Configuration ---

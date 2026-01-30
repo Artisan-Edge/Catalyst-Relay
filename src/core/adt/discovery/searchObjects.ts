@@ -17,7 +17,7 @@ export interface SearchResult {
     objectType: string;
 }
 
-import { getConfigByType, getAllTypes } from '../types';
+import { getConfigByType, getConfigByExtension, getAllTypes } from '../types';
 import { extractError, safeParseXml } from '../../utils/xml';
 
 /**
@@ -35,7 +35,12 @@ export async function searchObjects(
 ): AsyncResult<SearchResult[], Error> {
     // Build search parameters.
     const searchPattern = query || '*';
-    const objectTypes = types && types.length > 0 ? types : getAllTypes();
+
+    // Convert extensions to ADT type identifiers (e.g. 'asddls' -> 'DDLS/DF').
+    // The SAP ADT API expects type identifiers, not file extensions.
+    const adtTypes = types && types.length > 0
+        ? types.map(ext => getConfigByExtension(ext)?.type).filter((t) => t !== undefined)
+        : getAllTypes();
 
     // Construct query parameters (matching Python reference exactly).
     const params: Array<[string, string]> = [
@@ -43,7 +48,7 @@ export async function searchObjects(
         ['query', searchPattern],
         ['maxResults', '10001'],
     ];
-    for (const type of objectTypes) {
+    for (const type of adtTypes) {
         params.push(['objectType', type]);
     }
 

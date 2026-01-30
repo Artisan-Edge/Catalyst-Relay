@@ -159,10 +159,11 @@ export async function gitDiff(
     const config = getConfigByExtension(object.extension);
     const label = config?.label ?? object.extension;
 
-    // Normalize line endings (CRLF → LF, strip trailing newline) before comparing.
-    const normalizeContent = (content: string) => content.replace(/\r\n/g, '\n').replace(/\r/g, '').replace(/\n$/, '');
-    const serverLines = normalizeContent(serverObj.content).split('\n');
-    const localLines = normalizeContent(object.content).split('\n');
+    // Server content is already normalized by readObject.
+    // Normalize local content to match (CRLF → LF, strip trailing newline).
+    const normalizeLocal = (content: string) => content.replace(/\r\n/g, '\n').replace(/\r/g, '').replace(/\n$/, '');
+    const serverLines = serverObj.content.split('\n');
+    const localLines = normalizeLocal(object.content).split('\n');
 
     // Compute diff.
     const diffs = computeDiff(serverLines, localLines);
