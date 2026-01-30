@@ -194,6 +194,7 @@ describe('OBJECT_CONFIG_MAP', () => {
         expect(OBJECT_CONFIG_MAP).toHaveProperty('asddls');
         expect(OBJECT_CONFIG_MAP).toHaveProperty('asdcls');
         expect(OBJECT_CONFIG_MAP).toHaveProperty('astabldt');
+        expect(OBJECT_CONFIG_MAP).toHaveProperty('astablds');
         expect(OBJECT_CONFIG_MAP).toHaveProperty('aclass');
         expect(OBJECT_CONFIG_MAP).toHaveProperty('asprog');
     });
@@ -222,6 +223,14 @@ describe('OBJECT_CONFIG_MAP', () => {
         expect(config.label).toBe(ObjectTypeLabel.TABLE);
         expect(config.dpEndpoint).toBe('ddic');
         expect(config.dpParam).toBe('ddicEntityName');
+    });
+
+    it('should have correct Structure configuration', () => {
+        const config = OBJECT_CONFIG_MAP['astablds'];
+        expect(config.endpoint).toBe('ddic/structures');
+        expect(config.type).toBe('STRU/D');
+        expect(config.label).toBe(ObjectTypeLabel.STRUCTURE);
+        expect(config.dpEndpoint).toBeUndefined();
     });
 
     it('should have correct Class configuration', () => {
@@ -298,7 +307,7 @@ describe('getAllExtensions', () => {
     it('should return array of extensions', () => {
         const extensions = getAllExtensions();
         expect(Array.isArray(extensions)).toBe(true);
-        expect(extensions.length).toBe(5);
+        expect(extensions.length).toBe(6);
     });
 
     it('should include all configured extensions', () => {
@@ -306,6 +315,7 @@ describe('getAllExtensions', () => {
         expect(extensions).toContain('asddls');
         expect(extensions).toContain('asdcls');
         expect(extensions).toContain('astabldt');
+        expect(extensions).toContain('astablds');
         expect(extensions).toContain('aclass');
         expect(extensions).toContain('asprog');
     });
@@ -315,7 +325,7 @@ describe('getAllTypes', () => {
     it('should return array of ADT types', () => {
         const types = getAllTypes();
         expect(Array.isArray(types)).toBe(true);
-        expect(types.length).toBe(5);
+        expect(types.length).toBe(6);
     });
 
     it('should include all configured types', () => {
@@ -323,6 +333,7 @@ describe('getAllTypes', () => {
         expect(types).toContain('DDLS/DF');
         expect(types).toContain('DCLS/DL');
         expect(types).toContain('TABL/DT');
+        expect(types).toContain('STRU/D');
         expect(types).toContain('CLAS/OC');
         expect(types).toContain('PROG/P');
     });

@@ -46,7 +46,7 @@ export interface UpsertResult {
 /**
  * Supported object types
  */
-export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'aclass' | 'asprog';
+export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog';
 
 /**
  * Object type labels
@@ -55,6 +55,7 @@ export enum ObjectTypeLabel {
     VIEW = 'View',
     ACCESS_CONTROL = 'Access Control',
     TABLE = 'Table',
+    STRUCTURE = 'Structure',
     CLASS = 'Class',
     PROGRAM = 'ABAP Program',
 }
@@ -101,6 +102,14 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         extension: 'astabldt',
         dpEndpoint: 'ddic',
         dpParam: 'ddicEntityName',
+    },
+    'astablds': {
+        endpoint: 'ddic/structures',
+        nameSpace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
+        rootName: 'blue:blueSource',
+        type: 'STRU/D',
+        label: ObjectTypeLabel.STRUCTURE,
+        extension: 'astablds',
     },
     'asprog': {
         endpoint: 'programs/programs',
