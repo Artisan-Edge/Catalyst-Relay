@@ -8,9 +8,22 @@
  * - Skip logic helpers
  */
 
+import { Entry } from '@napi-rs/keyring';
 import { createClient } from '../../core';
 import type { ADTClient } from '../../core';
 import type { ObjectRef } from '../../types/requests';
+
+// Keyring constants (matches Catalyst-CLI's storage format)
+const KEYRING_SERVICE = 'Catalyst-CLI';
+
+function readFromKeyring(alias: string, credType: 'username' | 'password'): string | null {
+    try {
+        const entry = new Entry(KEYRING_SERVICE, `${alias}:basic:${credType}`);
+        return entry.getPassword();
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Test configuration from environment variables
@@ -28,6 +41,8 @@ export const TEST_CONFIG = {
     package: process.env['SAP_TEST_PACKAGE'] ?? '$TMP',
     /** Transport request (optional, not needed for $TMP) */
     transport: process.env['SAP_TEST_TRANSPORT'] || undefined,
+    /** System alias for keyring credential lookup */
+    systemAlias: process.env['SAP_TEST_SYSTEM_ALIAS'] ?? '',
 };
 
 /**
@@ -44,11 +59,38 @@ export function generateTestName(prefix = 'ZSNAP_TEST'): string {
 }
 
 /**
+ * Resolve credentials from OS keyring if not provided via environment variables.
+ * Uses the Catalyst-CLI keyring format: {alias}:basic:{credType}
+ */
+function resolveCredentials(): void {
+    const alias = TEST_CONFIG.systemAlias;
+    if (!alias) return;
+
+    if (!TEST_CONFIG.password) {
+        const keyringPassword = readFromKeyring(alias, 'password');
+        if (keyringPassword) {
+            TEST_CONFIG.password = keyringPassword;
+            console.log(`Resolved password from OS keyring (${KEYRING_SERVICE}/${alias}:basic:password)`);
+        }
+    }
+
+    if (!TEST_CONFIG.username) {
+        const keyringUsername = readFromKeyring(alias, 'username');
+        if (keyringUsername) {
+            TEST_CONFIG.username = keyringUsername;
+            console.log(`Resolved username from OS keyring (${KEYRING_SERVICE}/${alias}:basic:username)`);
+        }
+    }
+}
+
+/**
  * Validate that all required credentials are set
  *
  * @throws Error if any required credential is missing
  */
 export function validateCredentials(): void {
+    resolveCredentials();
+
     const missing: string[] = [];
     if (!TEST_CONFIG.adtUrl) missing.push('SAP_TEST_ADT_URL');
     if (!TEST_CONFIG.client) missing.push('SAP_TEST_CLIENT');
@@ -56,7 +98,10 @@ export function validateCredentials(): void {
     if (!TEST_CONFIG.password) missing.push('SAP_PASSWORD');
 
     if (missing.length > 0) {
-        throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+        const hint = TEST_CONFIG.systemAlias
+            ? ` (keyring lookup for alias "${TEST_CONFIG.systemAlias}" also failed — store credentials with: catalyst systems add ${TEST_CONFIG.systemAlias})`
+            : ' (set SAP_TEST_SYSTEM_ALIAS to enable keyring fallback)';
+        throw new Error(`Missing required credentials: ${missing.join(', ')}${hint}`);
     }
 }
 

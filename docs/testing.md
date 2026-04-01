@@ -7,6 +7,7 @@ How to run tests in Catalyst-Relay.
 - [Running Unit Tests](#running-unit-tests)
 - [Node.js Compatibility](#nodejs-compatibility)
 - [Running Integration Tests](#running-integration-tests)
+- [Credentials](#credentials)
 - [Environment Variables](#environment-variables)
 - [Integration Test Workflows](#integration-test-workflows)
 
@@ -34,35 +35,78 @@ node --experimental-strip-types -e "import('.')"
 
 ## Running Integration Tests
 
-Integration tests require SAP credentials and connect to a live SAP system.
+Integration tests connect to a live SAP system and require credentials (see [Credentials](#credentials) below).
 
-**To run integration tests:**
-1. Set the required environment variables (see below)
-2. Ask the user to run: `./test.bat <SAP_PASSWORD>`
-3. Wait for them to confirm the tests have completed
-4. Read `test.output` to see the results
+**Quick start (keyring):**
+```bash
+bun test
+```
 
-The test.bat script:
-- Runs unit tests first (no credentials needed)
-- Runs all integration tests if password is provided
-- Saves integration test output to `test.output`
+**Quick start (explicit password):**
+```bash
+./test.bat <SAP_PASSWORD>
+```
+
+**Using `test.bat`:**
+1. Runs unit tests first (no credentials needed)
+2. Runs all integration tests
+3. Saves integration test output to `test.output`
+
+You can also run integration tests directly:
+```bash
+bun test src/__tests__/integration/                         # All integration tests
+bun test src/__tests__/integration/discovery-workflow.test.ts  # Single workflow
+```
+
+---
+
+## Credentials
+
+Integration tests need SAP credentials. There are two ways to provide them:
+
+### Option 1: OS Keyring (Recommended)
+
+If you use [Catalyst-CLI](../README.md) and have already logged into the target system, your credentials are stored in the OS keyring. The test suite can read them automatically.
+
+**Setup:**
+1. Log in via the CLI: `catalyst adt login TKO-DS4`
+2. Set `SAP_TEST_SYSTEM_ALIAS` in your `.env` file to match the system alias:
+   ```
+   SAP_TEST_SYSTEM_ALIAS="TKO-DS4"
+   ```
+3. Run tests — no password argument needed: `bun test`
+
+The test helpers look up credentials from the OS keyring using the same service (`Catalyst-CLI`) and key format (`{alias}:basic:password`) that the CLI uses. If `SAP_PASSWORD` is also set as an env var, it takes priority over the keyring.
+
+### Option 2: Environment Variable
+
+Set `SAP_PASSWORD` directly:
+```bash
+# Via test.bat argument
+./test.bat MyPassword123
+
+# Or export it
+export SAP_PASSWORD=MyPassword123
+bun test
+```
 
 ---
 
 ## Environment Variables
 
-Integration tests require the following environment variables:
+Configured in `.env` (see `.env.templ` for a template).
 
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
 | `SAP_TEST_ADT_URL` | Yes | SAP ADT server URL | `https://hostname:port` |
 | `SAP_TEST_CLIENT` | Yes | SAP client number | `100` |
 | `SAP_TEST_USERNAME` | Yes | SAP username | `USERABC` |
-| `SAP_PASSWORD` | Yes | SAP password (passed to test.bat) | - |
+| `SAP_TEST_SYSTEM_ALIAS` | No | System alias for keyring lookup | `TKO-DS4` |
+| `SAP_PASSWORD` | No* | SAP password | - |
 | `SAP_TEST_PACKAGE` | No | Target package (default: `$TMP`) | `$TMP` |
 | `SAP_TEST_TRANSPORT` | No | Transport request | `DEVK900123` |
 
-See `.env.templ` for a template.
+\* `SAP_PASSWORD` is required unless `SAP_TEST_SYSTEM_ALIAS` is set and credentials exist in the OS keyring.
 
 ---
 
@@ -81,4 +125,4 @@ See `.env.templ` for a template.
 
 ---
 
-*Last updated: v0.4.5*
+*Last updated: v0.5.2*

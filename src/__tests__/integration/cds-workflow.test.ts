@@ -3,23 +3,13 @@
  *
  * Tests the full lifecycle: create → activate → preview → delete
  *
- * Requires environment variables:
- * - SAP_USERNAME: SAP username
- * - SAP_PASSWORD: SAP password
- *
  * Run with: bun test src/__tests__/integration/cds-workflow.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { createClient } from '../../core';
 import type { ADTClient } from '../../core';
+import { createTestClient, safeLogout, TEST_CONFIG } from './test-helpers';
 
-// Test configuration from environment
-const ADT_URL = process.env['SAP_TEST_ADT_URL'] ?? '';
-const CLIENT = process.env['SAP_TEST_CLIENT'] ?? '';
-const USERNAME = process.env['SAP_TEST_USERNAME'] ?? '';
-const PACKAGE_NAME = process.env['SAP_TEST_PACKAGE'] ?? '$TMP';
-const TRANSPORT = process.env['SAP_TEST_TRANSPORT'] || undefined;
 const TEST_VIEW_NAME = 'ZSNAP_TEST_' + Date.now().toString(36).toUpperCase();
 const TEST_DCL_NAME = TEST_VIEW_NAME + '_DCL';
 
@@ -40,44 +30,14 @@ define role ${TEST_DCL_NAME} {
 }`;
 
 describe('CDS View Workflow', () => {
-    let client: ADTClient;
+    let client: ADTClient | null = null;
     let viewCreated = false;
     let dclCreated = false;
 
     beforeAll(async () => {
-        // Validate required credentials
-        const password = process.env['SAP_PASSWORD'];
-        const missing: string[] = [];
-        if (!ADT_URL) missing.push('SAP_TEST_ADT_URL');
-        if (!CLIENT) missing.push('SAP_TEST_CLIENT');
-        if (!USERNAME) missing.push('SAP_TEST_USERNAME');
-        if (!password) missing.push('SAP_PASSWORD');
-
-        if (missing.length > 0) {
-            throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
-        }
-
-        // Create client directly from environment variables
-        const [newClient, clientErr] = createClient({
-            url: ADT_URL,
-            client: CLIENT,
-            auth: { type: 'basic', username: USERNAME, password: password! },
-            insecure: true,
-        });
-
-        if (clientErr) {
-            throw new Error(`Failed to create client: ${clientErr.message}`);
-        }
-
+        const [newClient, err] = await createTestClient();
+        if (err) throw err;
         client = newClient;
-
-        // Login
-        const [session, loginErr] = await client.login();
-        if (loginErr) {
-            throw new Error(`Failed to login: ${loginErr.message}`);
-        }
-
-        console.log(`Logged in as ${session.username}`);
     });
 
     afterAll(async () => {
@@ -88,7 +48,7 @@ describe('CDS View Workflow', () => {
             console.log(`Cleaning up: deleting ${TEST_DCL_NAME}`);
             const [, deleteDclErr] = await client.delete(
                 [{ name: TEST_DCL_NAME, extension: 'asdcls' }],
-                TRANSPORT
+                TEST_CONFIG.transport
             );
             if (deleteDclErr) {
                 console.warn(`Failed to delete DCL: ${deleteDclErr.message}`);
@@ -99,15 +59,14 @@ describe('CDS View Workflow', () => {
             console.log(`Cleaning up: deleting ${TEST_VIEW_NAME}`);
             const [, deleteErr] = await client.delete(
                 [{ name: TEST_VIEW_NAME, extension: 'asddls' }],
-                TRANSPORT
+                TEST_CONFIG.transport
             );
             if (deleteErr) {
                 console.warn(`Failed to delete test view: ${deleteErr.message}`);
             }
         }
 
-        // Logout
-        await client.logout();
+        await safeLogout(client);
     });
 
     it('should create a CDS view', async () => {
@@ -122,8 +81,8 @@ describe('CDS View Workflow', () => {
                 content: CDS_SOURCE,
                 description: 'Test CDS view created by integration test',
             },
-            PACKAGE_NAME,
-            TRANSPORT
+            TEST_CONFIG.package,
+            TEST_CONFIG.transport
         );
 
         expect(createErr).toBeNull();
@@ -192,8 +151,8 @@ describe('CDS View Workflow', () => {
                 content: DCL_SOURCE,
                 description: 'Test DCL created by integration test',
             },
-            PACKAGE_NAME,
-            TRANSPORT
+            TEST_CONFIG.package,
+            TEST_CONFIG.transport
         );
 
         expect(createErr).toBeNull();
