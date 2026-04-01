@@ -28,7 +28,7 @@ HTTP endpoints available in Server Mode.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/object-config` | List supported object types (no auth) |
-| GET | `/packages?filter=` | List packages (filter: `Z*`, `$TMP`, etc.) |
+| GET | `/packages?filter=&includeDescriptions=` | List packages with optional descriptions |
 | POST | `/tree` | Hierarchical package browser |
 | GET | `/transports/:package` | List transports for a package |
 | POST | `/transports` | Create a new transport request |
@@ -42,6 +42,7 @@ HTTP endpoints available in Server Mode.
 | POST | `/objects/read` | Batch read with content |
 | POST | `/objects/upsert/:package/:transport?` | Create/update objects |
 | POST | `/objects/activate` | Activate objects |
+| POST | `/objects/check` | Syntax check objects |
 | DELETE | `/objects/:transport?` | Delete objects |
 
 ---
@@ -73,4 +74,4 @@ HTTP endpoints available in Server Mode.
 
 ---
 
-*Last updated: v0.5.0*
+*Last updated: v0.5.3*

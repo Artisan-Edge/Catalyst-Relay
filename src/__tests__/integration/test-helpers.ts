@@ -158,10 +158,32 @@ export function shouldSkip(client: ADTClient | null): boolean {
 }
 
 /**
- * Safely delete test objects with error handling
+ * Generate valid stub source for an object type.
+ * Used to overwrite objects (potentially with invalid source) before activation.
+ */
+function stubSource(name: string, extension: string): string | null {
+    const lower = name.toLowerCase();
+    switch (extension) {
+        case 'aclass':
+            return `CLASS ${lower} DEFINITION PUBLIC FINAL CREATE PUBLIC. ENDCLASS.\nCLASS ${lower} IMPLEMENTATION. ENDCLASS.`;
+        case 'asprog':
+            return `REPORT ${lower}.`;
+        case 'asddls':
+            return `@AbapCatalog.sqlViewName: '${name.substring(0, 16)}'\n@AbapCatalog.compiler.compareFilter: true\ndefine view ${name} as select from t000 { mandt }`;
+        case 'asdcls':
+            return `@MappingRole: true\ndefine role ${name} { }`;
+        case 'astabldt':
+            return `@EndUserText.label: 'Test'\ndefine table ${lower} {\n  key client: abap.clnt;\n}`;
+        default:
+            return null;
+    }
+}
+
+/**
+ * Safely delete test objects with error handling.
  *
- * Logs warnings on failure but doesn't throw.
- * Use in afterAll for cleanup.
+ * Overwrites with valid stub source and activates before deleting,
+ * to prevent ghost inactive objects in SAP's repository.
  *
  * @param client - ADT client
  * @param objects - Objects to delete
@@ -176,10 +198,24 @@ export async function safeDelete(
     if (objects.length === 0) return;
 
     for (const obj of objects) {
-        console.log(`Cleaning up: deleting ${obj.name}`);
+        console.log(`Cleaning up: ${obj.name}`);
+
+        const stub = stubSource(obj.name, obj.extension);
+        if (stub) {
+            const [, updateErr] = await client.update({ ...obj, content: stub }, transport);
+            if (updateErr) {
+                console.warn(`  Failed to overwrite ${obj.name}: ${updateErr.message}`);
+            }
+
+            const [, activateErr] = await client.activate([obj]);
+            if (activateErr) {
+                console.warn(`  Failed to activate ${obj.name}: ${activateErr.message}`);
+            }
+        }
+
         const [, deleteErr] = await client.delete([obj], transport);
         if (deleteErr) {
-            console.warn(`Failed to delete ${obj.name}: ${deleteErr.message}`);
+            console.warn(`  Failed to delete ${obj.name}: ${deleteErr.message}`);
         }
     }
 }

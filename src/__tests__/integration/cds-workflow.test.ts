@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import type { ADTClient } from '../../core';
-import { createTestClient, safeLogout, TEST_CONFIG } from './test-helpers';
+import { createTestClient, safeDelete, safeLogout, TEST_CONFIG } from './test-helpers';
 
 const TEST_VIEW_NAME = 'ZSNAP_TEST_' + Date.now().toString(36).toUpperCase();
 const TEST_DCL_NAME = TEST_VIEW_NAME + '_DCL';
@@ -45,25 +45,10 @@ describe('CDS View Workflow', () => {
 
         // Cleanup: delete DCL first (dependency), then test view
         if (dclCreated) {
-            console.log(`Cleaning up: deleting ${TEST_DCL_NAME}`);
-            const [, deleteDclErr] = await client.delete(
-                [{ name: TEST_DCL_NAME, extension: 'asdcls' }],
-                TEST_CONFIG.transport
-            );
-            if (deleteDclErr) {
-                console.warn(`Failed to delete DCL: ${deleteDclErr.message}`);
-            }
+            await safeDelete(client, [{ name: TEST_DCL_NAME, extension: 'asdcls' }], TEST_CONFIG.transport);
         }
-
         if (viewCreated) {
-            console.log(`Cleaning up: deleting ${TEST_VIEW_NAME}`);
-            const [, deleteErr] = await client.delete(
-                [{ name: TEST_VIEW_NAME, extension: 'asddls' }],
-                TEST_CONFIG.transport
-            );
-            if (deleteErr) {
-                console.warn(`Failed to delete test view: ${deleteErr.message}`);
-            }
+            await safeDelete(client, [{ name: TEST_VIEW_NAME, extension: 'asddls' }], TEST_CONFIG.transport);
         }
 
         await safeLogout(client);

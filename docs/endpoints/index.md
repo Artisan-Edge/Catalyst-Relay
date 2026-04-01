@@ -98,7 +98,7 @@ if (err) {
 | — | `client.exportSessionState()` |
 | — | `client.importSessionState(state)` |
 | `GET /object-config` | `client.getObjectConfig()` |
-| `GET /packages` | `client.getPackages()` |
+| `GET /packages` | `client.getPackages(options?)` |
 | `GET /packages/:name/stats` | `client.getPackageStats(name)` |
 | `POST /tree` | `client.getTree(query)` |
 | `GET /transports/:pkg` | `client.getTransports(packageName)` |
@@ -106,6 +106,7 @@ if (err) {
 | `POST /objects/read` | `client.read(objects)` |
 | `POST /objects/upsert/...` | `client.upsert(objects, pkg, transport?)` |
 | `POST /objects/activate` | `client.activate(objects)` |
+| `POST /objects/check` | `client.checkSyntax(objects)` |
 | `DELETE /objects/...` | `client.delete(objects, transport?)` |
 | `POST /preview/data` | `client.previewData(query)` |
 | `POST /preview/distinct` | `client.getDistinctValues(...)` |
@@ -118,7 +119,7 @@ See individual endpoint documentation for detailed type signatures and examples.
 
 ---
 
-*Last updated: v0.5.0*
+*Last updated: v0.5.3*
 
 ---
 
@@ -160,10 +161,11 @@ All endpoints return a consistent envelope:
 | `OBJECT_NOT_FOUND` | 404 | Object does not exist |
 | `TRANSPORT_REQUIRED` | 400 | Transport needed for non-$TMP package |
 | `ACTIVATION_FAILED` | 500 | Object activation error |
+| `CHECK_FAILED` | 500 | Syntax check error |
 | `VALIDATION_ERROR` | 400 | Invalid request format |
 | `NETWORK_ERROR` | 502 | SAP server unreachable |
 | `UNKNOWN_ERROR` | 500 | Unexpected server error |
 
 ---
 
-*Last updated: v0.5.0*
+*Last updated: v0.5.3*

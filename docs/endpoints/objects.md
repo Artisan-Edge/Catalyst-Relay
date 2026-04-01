@@ -10,8 +10,10 @@ CRAUD (Create, Read, Activate, Update, Delete) operations for SAP development ob
   - [Library Usage](#library-usage-1)
 - [POST /objects/activate](#post-objectsactivate)
   - [Library Usage](#library-usage-2)
-- [DELETE /objects/:transport?](#delete-objectstransport)
+- [POST /objects/check](#post-objectscheck)
   - [Library Usage](#library-usage-3)
+- [DELETE /objects/:transport?](#delete-objectstransport)
+  - [Library Usage](#library-usage-4)
 
 ---
 
@@ -462,6 +464,131 @@ if (hasErrors) {
 
 ---
 
+## POST /objects/check
+
+Syntax check objects for errors and warnings without activating them. Reads the source from SAP and sends it inline for checking.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| POST | `/objects/check` | Yes |
+
+### Request Body
+
+Array of object references:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Object name |
+| `extension` | string | Yes | File extension |
+
+All objects in a single request must share the same extension.
+
+### Response
+
+Array of check results:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Object name |
+| `extension` | string | File extension |
+| `status` | enum | `success`, `warning`, or `error` |
+| `messages` | array | Check messages |
+
+Each message:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `severity` | enum | `error`, `warning`, or `info` |
+| `text` | string | Message text |
+| `line` | number? | Source line number |
+| `column` | number? | Source column number |
+
+### Example
+
+**Request:**
+```json
+[
+    { "name": "ZMYPROGRAM", "extension": "asprog" }
+]
+```
+
+**Response (with errors):**
+```json
+{
+    "success": true,
+    "data": [
+        {
+            "name": "ZMYPROGRAM",
+            "extension": "asprog",
+            "status": "error",
+            "messages": [
+                {
+                    "severity": "error",
+                    "text": "Variable \"LV_UNDEFINED\" is unknown",
+                    "line": 4,
+                    "column": 1
+                }
+            ]
+        }
+    ]
+}
+```
+
+### Errors
+
+| Code | Status | Cause |
+|------|--------|-------|
+| `VALIDATION_ERROR` | 400 | Invalid object reference |
+| `CHECK_FAILED` | 500 | Syntax check request failed |
+| `SESSION_NOT_FOUND` | 401 | Invalid session |
+
+### Use Cases
+
+- **AI agent validation** — Check generated code for syntax errors before activation
+- **Pre-activation gate** — Validate objects without side effects
+- **Error diagnostics** — Get line/column positions for errors and warnings
+
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+import type { ObjectRef } from 'catalyst-relay';
+
+const [client, clientErr] = createClient(config);
+if (clientErr) throw clientErr;
+await client.login();
+
+const objects: ObjectRef[] = [
+    { name: 'ZMYPROGRAM', extension: 'asprog' }
+];
+
+const [results, err] = await client.checkSyntax(objects);
+if (err) {
+    console.error('Check failed:', err.message);
+    return;
+}
+
+results.forEach(result => {
+    console.log(`${result.name}: ${result.status}`);
+    result.messages.forEach(msg => {
+        const loc = msg.line ? ` (line ${msg.line}, col ${msg.column})` : '';
+        console.log(`  [${msg.severity}]${loc}: ${msg.text}`);
+    });
+});
+```
+
+**Return type:** `AsyncResult<CheckResult[]>`
+
+`CheckResult` contains:
+- `name` — Object name
+- `extension` — File extension
+- `status` — `'success'`, `'warning'`, or `'error'`
+- `messages` — Array of `ActivationMessage`
+
+---
+
 ## DELETE /objects/:transport?
 
 Delete objects from the SAP system.
@@ -571,4 +698,4 @@ The delete operation returns no data on success. Check the error tuple to determ
 
 ---
 
-*Last updated: v0.4.5*
+*Last updated: v0.5.3*

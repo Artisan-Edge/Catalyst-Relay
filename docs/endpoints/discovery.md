@@ -154,6 +154,7 @@ List available packages in the SAP system, optionally filtered by name pattern.
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `filter` | string | No | `*` | Package name pattern (e.g., `Z*`, `$TMP`, `ZSNAP*`) |
+| `includeDescriptions` | string | No | `false` | Set to `true` to enrich results with package descriptions |
 
 ### Request Body
 
@@ -179,6 +180,12 @@ curl http://localhost:3000/packages \
 **Request (filtered - fast):**
 ```bash
 curl "http://localhost:3000/packages?filter=Z*" \
+  -H "X-Session-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+```
+
+**Request (with descriptions):**
+```bash
+curl "http://localhost:3000/packages?filter=Z*&includeDescriptions=true" \
   -H "X-Session-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 ```
 
@@ -222,9 +229,11 @@ await client.login({ username: 'USER', password: 'PASS' });
 const [allPackages, err1] = await client.getPackages();
 
 // Get filtered packages (fast - recommended)
-const [customPackages, err2] = await client.getPackages('Z*');      // Custom packages
-const [localPackages, err3] = await client.getPackages('$TMP');     // Local only
-const [snapPackages, err4] = await client.getPackages('ZSNAP*');    // Specific prefix
+const [customPackages, err2] = await client.getPackages({ filter: 'Z*' });
+const [localPackages, err3] = await client.getPackages({ filter: '$TMP' });
+
+// Get packages with descriptions (additional API call per batch)
+const [withDesc, err4] = await client.getPackages({ filter: 'ZSNAP*', includeDescriptions: true });
 
 if (err2) {
   console.error('Failed to fetch packages:', err2.message);
@@ -241,6 +250,11 @@ customPackages.forEach(pkg => {
 ```typescript
 type AsyncResult<Package[]> = Promise<[Package[], null] | [null, Error]>;
 
+interface GetPackagesOptions {
+  filter?: string;             // Default: '*'
+  includeDescriptions?: boolean; // Default: false
+}
+
 interface Package {
   name: string;
   description?: string;
@@ -250,8 +264,10 @@ interface Package {
 **Notes:**
 - Requires authentication (call `client.login()` first)
 - Returns AsyncResult tuple for error handling
-- Use filter parameter (`'Z*'`, `'$TMP'`, etc.) for faster queries
+- Use `filter` option (`'Z*'`, `'$TMP'`, etc.) for faster queries
 - Without filter, returns all packages which can be slow on large systems
+- Descriptions require an additional API call (virtualfolders); omitted by default for performance
+- If description lookup fails, results are returned without descriptions (no error)
 
 ---
 
@@ -819,4 +835,4 @@ getPackageStats(names: string[]): AsyncResult<PackageStats[]>
 
 ---
 
-*Last updated: v0.4.5*
+*Last updated: v0.5.3*

@@ -121,8 +121,10 @@ Configured in `.env` (see `.env.templ` for a template).
 | `discovery-workflow.test.ts` | Packages, tree, transports |
 | `search-workflow.test.ts` | Search + where-used |
 | `data-preview-workflow.test.ts` | Preview on T000 table |
+| `structure-workflow.test.ts` | Structure read workflow |
+| `syntax-check-errors-workflow.test.ts` | Syntax check error detection |
 | `upsert-workflow.test.ts` | Create vs update detection |
 
 ---
 
-*Last updated: v0.5.2*
+*Last updated: v0.5.3*
