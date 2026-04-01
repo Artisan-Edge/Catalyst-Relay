@@ -28,6 +28,7 @@ import type {
     PackageNode,
     Transport,
     Package,
+    GetPackagesOptions,
     DataFrame,
     DistinctResult,
     SearchResult,
@@ -83,7 +84,7 @@ export interface ADTClient {
     delete(objects: ObjectRef[], transport?: string): AsyncResult<void>;
 
     // Discovery
-    getPackages(filter?: string): AsyncResult<Package[]>;
+    getPackages(options?: GetPackagesOptions): AsyncResult<Package[]>;
     getTree(query: TreeQuery): AsyncResult<TreeResponse>;
     getPackageStats(packageName: string): AsyncResult<PackageNode>;
     getPackageStats(packageNames: string[]): AsyncResult<PackageNode[]>;
@@ -250,8 +251,8 @@ export class ADTClientImpl implements ADTClient {
 
     // --- Discovery ---
 
-    async getPackages(filter?: string): AsyncResult<Package[]> {
-        return discoveryMethods.getPackages(this.state, this.requestor, filter);
+    async getPackages(options?: GetPackagesOptions): AsyncResult<Package[]> {
+        return discoveryMethods.getPackages(this.state, this.requestor, options);
     }
 
     async getTree(query: TreeQuery): AsyncResult<TreeResponse> {

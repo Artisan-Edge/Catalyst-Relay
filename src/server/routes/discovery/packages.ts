@@ -23,10 +23,11 @@ export type PackagesResponse = Package[];
 export async function packagesHandler(c: RouteContext) {
     const client = c.get('client');
 
-    // Get optional filter from query params (e.g., /packages?filter=Z*)
+    // Get optional filter and description flag from query params.
     const filter = c.req.query('filter') || '*';
+    const includeDescriptions = c.req.query('includeDescriptions') === 'true';
 
-    const [packages, error] = await client.getPackages(filter);
+    const [packages, error] = await client.getPackages({ filter, includeDescriptions });
 
     if (error) {
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);

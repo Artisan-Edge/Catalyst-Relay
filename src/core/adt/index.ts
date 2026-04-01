@@ -31,7 +31,7 @@ export type { ActivationResult, ActivationMessage } from './craud/activation';
 
 // Discovery types
 export type { TreeResponse, PackageNode, FolderNode, ObjectNode } from './discovery/tree';
-export type { Package } from './discovery/packages';
+export type { Package, GetPackagesOptions } from './discovery/packages';
 export type { Transport } from './transports/transports';
 
 // Preview types

@@ -33,7 +33,7 @@ describe('Discovery Workflow', () => {
     it('should get packages list with filter', async () => {
         if (shouldSkip(client)) return;
 
-        const [packages, err] = await client!.getPackages('Z*');
+        const [packages, err] = await client!.getPackages({ filter: 'Z*', includeDescriptions: true });
 
         expect(err).toBeNull();
         expect(packages).toBeDefined();
@@ -45,12 +45,17 @@ describe('Discovery Workflow', () => {
         sample.forEach(pkg => {
             console.log(`  - ${pkg.name}: ${pkg.description || '(no description)'}`);
         });
+
+        // Verify at least some packages have descriptions.
+        const withDescriptions = packages!.filter(pkg => pkg.description && pkg.description.length > 0);
+        console.log(`Packages with descriptions: ${withDescriptions.length}/${packages!.length}`);
+        expect(withDescriptions.length).toBeGreaterThan(0);
     });
 
     it('should return only packages matching the Z* filter', async () => {
         if (shouldSkip(client)) return;
 
-        const [packages, err] = await client!.getPackages('Z*');
+        const [packages, err] = await client!.getPackages({ filter: 'Z*' });
 
         expect(err).toBeNull();
         expect(packages).toBeDefined();

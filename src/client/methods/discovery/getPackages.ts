@@ -3,7 +3,7 @@
  */
 
 import type { AsyncResult } from '../../../types/result';
-import type { AdtRequestor, Package } from '../../../core/adt';
+import type { AdtRequestor, Package, GetPackagesOptions } from '../../../core/adt';
 import type { ClientState } from '../../types';
 import { err } from '../../../types/result';
 import * as adt from '../../../core/adt';
@@ -11,8 +11,8 @@ import * as adt from '../../../core/adt';
 export async function getPackages(
     state: ClientState,
     requestor: AdtRequestor,
-    filter?: string
+    options?: GetPackagesOptions
 ): AsyncResult<Package[]> {
     if (!state.session) return err(new Error('Not logged in'));
-    return adt.getPackages(requestor, filter);
+    return adt.getPackages(requestor, options);
 }
