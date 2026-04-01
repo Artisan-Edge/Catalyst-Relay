@@ -8,3 +8,4 @@ export { update } from './update';
 export { upsert, upsertSingle } from './upsert';
 export { activate } from './activate';
 export { deleteObjects } from './delete';
+export { checkSyntax } from './checkSyntax';

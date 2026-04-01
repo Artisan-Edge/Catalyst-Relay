@@ -34,6 +34,7 @@ export type ErrorCode =
     | 'OBJECT_NOT_FOUND'
     | 'TRANSPORT_REQUIRED'
     | 'ACTIVATION_FAILED'
+    | 'CHECK_FAILED'
     | 'VALIDATION_ERROR'
     | 'NETWORK_ERROR'
     | 'UNKNOWN_ERROR';

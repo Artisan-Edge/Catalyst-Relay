@@ -63,6 +63,22 @@ describe('ABAP Program Workflow', () => {
         console.log(`Created ABAP program: ${TEST_NAME}`);
     });
 
+    it('should syntax check the ABAP program (clean)', async () => {
+        if (shouldSkip(client) || !objectCreated) {
+            console.log('Skipping - no session or program not created');
+            return;
+        }
+
+        const [results, checkErr] = await client!.checkSyntax([
+            { name: TEST_NAME, extension: 'asprog' }
+        ]);
+
+        expect(checkErr).toBeNull();
+        expect(results).toHaveLength(1);
+        expect(results![0]!.status).toBe('success');
+        console.log(`Syntax check passed for ABAP program: ${TEST_NAME}`);
+    }, 15000);
+
     it('should activate the ABAP program', async () => {
         if (shouldSkip(client) || !objectCreated) {
             console.log('Skipping - no session or program not created');

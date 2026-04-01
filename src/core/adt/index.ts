@@ -29,6 +29,9 @@ export type { ObjectMetadata, ObjectWithContent } from './craud/read';
 // Activation
 export type { ActivationResult, ActivationMessage } from './craud/activation';
 
+// Syntax Check
+export type { CheckResult } from './craud/syntaxCheck';
+
 // Discovery types
 export type { TreeResponse, PackageNode, FolderNode, ObjectNode } from './discovery/tree';
 export type { Package, GetPackagesOptions } from './discovery/packages';
@@ -52,6 +55,9 @@ export { deleteObject } from './craud/delete';
 
 // Activation
 export { activateObjects } from './craud/activation';
+
+// Syntax Check
+export { checkSyntax } from './craud/syntaxCheck';
 
 // Discovery operations
 export { getPackages } from './discovery/packages';

@@ -90,6 +90,20 @@ describe('CDS View Workflow', () => {
         console.log(`Created CDS view: ${TEST_VIEW_NAME}`);
     });
 
+    it('should syntax check the CDS view (clean)', async () => {
+        if (!client?.session) throw new Error('No active session');
+        if (!viewCreated) throw new Error('View was not created - previous test failed');
+
+        const [results, checkErr] = await client.checkSyntax([
+            { name: TEST_VIEW_NAME, extension: 'asddls' }
+        ]);
+
+        expect(checkErr).toBeNull();
+        expect(results).toHaveLength(1);
+        expect(results![0]!.status).toBe('success');
+        console.log(`Syntax check passed for CDS view: ${TEST_VIEW_NAME}`);
+    }, 15000);
+
     it('should activate the CDS view', async () => {
         if (!client?.session) throw new Error('No active session');
         if (!viewCreated) throw new Error('View was not created - previous test failed');
@@ -159,6 +173,20 @@ describe('CDS View Workflow', () => {
         dclCreated = true;
         console.log(`Created DCL: ${TEST_DCL_NAME}`);
     });
+
+    it('should syntax check the access control (clean)', async () => {
+        if (!client?.session) throw new Error('No active session');
+        if (!dclCreated) throw new Error('DCL was not created - previous test failed');
+
+        const [results, checkErr] = await client.checkSyntax([
+            { name: TEST_DCL_NAME, extension: 'asdcls' }
+        ]);
+
+        expect(checkErr).toBeNull();
+        expect(results).toHaveLength(1);
+        expect(results![0]!.status).not.toBe('error');
+        console.log(`Syntax check passed for DCL: ${TEST_DCL_NAME} (status: ${results![0]!.status})`);
+    }, 15000);
 
     it('should activate the access control', async () => {
         if (!client?.session) throw new Error('No active session');

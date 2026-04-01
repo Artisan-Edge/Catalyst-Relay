@@ -84,6 +84,22 @@ describe('ABAP Class Workflow', () => {
         console.log(`Created ABAP class: ${TEST_NAME}`);
     });
 
+    it('should syntax check the ABAP class (clean)', async () => {
+        if (shouldSkip(client) || !objectCreated) {
+            console.log('Skipping - no session or class not created');
+            return;
+        }
+
+        const [results, checkErr] = await client!.checkSyntax([
+            { name: TEST_NAME, extension: 'aclass' }
+        ]);
+
+        expect(checkErr).toBeNull();
+        expect(results).toHaveLength(1);
+        expect(results![0]!.status).toBe('success');
+        console.log(`Syntax check passed for ABAP class: ${TEST_NAME}`);
+    }, 15000);
+
     it('should activate the ABAP class', async () => {
         if (shouldSkip(client) || !objectCreated) {
             console.log('Skipping - no session or class not created');

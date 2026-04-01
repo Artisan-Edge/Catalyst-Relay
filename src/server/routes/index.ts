@@ -28,6 +28,7 @@ import { objectConfigHandler } from './discovery/objectConfig';
 import { readHandler } from './objects/read';
 import { upsertHandler } from './objects/upsert';
 import { activateHandler } from './objects/activate';
+import { checkHandler } from './objects/check';
 import { deleteHandler } from './objects/delete';
 
 // Preview routes
@@ -80,6 +81,7 @@ export function createRoutes(
     app.post('/objects/read', sessionMiddleware, readHandler);
     app.post('/objects/upsert/:package/:transport?', sessionMiddleware, upsertHandler);
     app.post('/objects/activate', sessionMiddleware, activateHandler);
+    app.post('/objects/check', sessionMiddleware, checkHandler);
     app.delete('/objects/:transport?', sessionMiddleware, deleteHandler);
 
     // ─────────────────────────────────────────────────────────────────────────

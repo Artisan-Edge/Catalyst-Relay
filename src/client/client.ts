@@ -24,6 +24,7 @@ import type {
     ObjectWithContent,
     UpsertResult,
     ActivationResult,
+    CheckResult,
     TreeResponse,
     PackageNode,
     Transport,
@@ -81,6 +82,7 @@ export interface ADTClient {
     update(object: ObjectContent, transport?: string): AsyncResult<void>;
     upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]>;
     activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]>;
+    checkSyntax(objects: ObjectRef[]): AsyncResult<CheckResult[]>;
     delete(objects: ObjectRef[], transport?: string): AsyncResult<void>;
 
     // Discovery
@@ -243,6 +245,10 @@ export class ADTClientImpl implements ADTClient {
 
     async activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]> {
         return craudMethods.activate(this.state, this.requestor, objects);
+    }
+
+    async checkSyntax(objects: ObjectRef[]): AsyncResult<CheckResult[]> {
+        return craudMethods.checkSyntax(this.state, this.requestor, objects);
     }
 
     async delete(objects: ObjectRef[], transport?: string): AsyncResult<void> {

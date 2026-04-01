@@ -77,6 +77,22 @@ describe('Table Workflow', () => {
         console.log(`Created table: ${TEST_NAME}`);
     });
 
+    it('should syntax check the table (clean)', async () => {
+        if (shouldSkip(client) || !objectCreated) {
+            console.log('Skipping - no session or table not created');
+            return;
+        }
+
+        const [results, checkErr] = await client!.checkSyntax([
+            { name: TEST_NAME, extension: 'astabldt' }
+        ]);
+
+        expect(checkErr).toBeNull();
+        expect(results).toHaveLength(1);
+        expect(results![0]!.status).toBe('success');
+        console.log(`Syntax check passed for table: ${TEST_NAME}`);
+    }, 15000);
+
     it('should activate the table', async () => {
         if (shouldSkip(client) || !objectCreated) {
             console.log('Skipping - no session or table not created');
