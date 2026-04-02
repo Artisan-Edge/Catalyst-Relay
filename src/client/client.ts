@@ -33,6 +33,7 @@ import type {
     DataFrame,
     DistinctResult,
     SearchResult,
+    SearchOptions,
     Dependency,
     TransportConfig,
     DiffResult,
@@ -98,7 +99,7 @@ export interface ADTClient {
     countRows(objectName: string, objectType: 'table' | 'view', parameters?: Parameter[]): AsyncResult<number>;
 
     // Search
-    search(query: string, types?: string[]): AsyncResult<SearchResult[]>;
+    search(query: string, options?: SearchOptions): AsyncResult<SearchResult[]>;
     whereUsed(object: ObjectRef): AsyncResult<Dependency[]>;
 
     // Transport Management
@@ -291,8 +292,8 @@ export class ADTClientImpl implements ADTClient {
 
     // --- Search ---
 
-    async search(query: string, types?: string[]): AsyncResult<SearchResult[]> {
-        return searchMethods.search(this.state, this.requestor, query, types);
+    async search(query: string, options?: SearchOptions): AsyncResult<SearchResult[]> {
+        return searchMethods.search(this.state, this.requestor, query, options);
     }
 
     async whereUsed(object: ObjectRef): AsyncResult<Dependency[]> {

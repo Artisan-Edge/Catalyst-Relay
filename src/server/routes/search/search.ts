@@ -46,7 +46,7 @@ export async function searchHandler(c: RouteContext) {
     const types = validation.data;
     const client = c.get('client');
 
-    const [results, error] = await client.search(query, types.length > 0 ? types : undefined);
+    const [results, error] = await client.search(query, types.length > 0 ? { types } : undefined);
 
     if (error) {
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);

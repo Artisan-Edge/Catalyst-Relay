@@ -11,6 +11,7 @@ import type { AdtRequestor } from '../types';
  */
 export interface SearchResult {
     name: string;
+    uri: string;
     extension: string;
     package: string;
     description?: string;
@@ -28,11 +29,17 @@ import { extractError, safeParseXml } from '../../utils/xml';
  * @param types - Optional array of object type filters
  * @returns Array of matching objects or error
  */
+export interface SearchOptions {
+    types?: string[];
+    includePackages?: boolean;
+}
+
 export async function searchObjects(
     client: AdtRequestor,
     query: string,
-    types?: string[]
+    options?: SearchOptions
 ): AsyncResult<SearchResult[], Error> {
+    const { types, includePackages = true } = options ?? {};
     // Build search parameters.
     const searchPattern = query || '*';
     const objectTypes = types && types.length > 0 ? types : getAllTypes();
@@ -71,7 +78,40 @@ export async function searchObjects(
     const text = await response.text();
     const [results, parseErr] = parseSearchResults(text);
     if (parseErr) { return err(parseErr); }
+
+    // Enrich results with package info from object properties endpoint.
+    if (includePackages) await enrichWithPackages(client, results);
     return ok(results);
+}
+
+// Fetch package info for results that are missing it.
+async function enrichWithPackages(client: AdtRequestor, results: SearchResult[]): Promise<void> {
+    const needsPackage = results.filter(r => !r.package);
+    if (needsPackage.length === 0) return;
+
+    // Fetch object properties in parallel.
+    const promises = needsPackage.map(async (result) => {
+        const encodedUri = encodeURIComponent(result.uri);
+        const [response, reqErr] = await client.request({
+            method: 'GET',
+            path: `/sap/bc/adt/repository/informationsystem/objectproperties/values?uri=${encodedUri}&facet=package`,
+        });
+        if (reqErr || !response.ok) return;
+
+        const text = await response.text();
+        const [doc, parseErr] = safeParseXml(text);
+        if (parseErr) return;
+
+        // Package is an attribute on the opr:object element.
+        const oprNs = 'http://www.sap.com/adt/ris/objectProperties';
+        const objEl = doc.getElementsByTagNameNS(oprNs, 'object')[0];
+        if (!objEl) return;
+
+        const pkg = objEl.getAttribute('package');
+        if (pkg) result.package = pkg;
+    });
+
+    await Promise.all(promises);
 }
 
 // Parse search results from XML.
@@ -92,8 +132,9 @@ function parseSearchResults(xml: string): Result<SearchResult[], Error> {
         // Extract object metadata.
         const name = obj.getAttributeNS('http://www.sap.com/adt/core', 'name') || obj.getAttribute('adtcore:name');
         const type = obj.getAttributeNS('http://www.sap.com/adt/core', 'type') || obj.getAttribute('adtcore:type');
+        const uri = obj.getAttributeNS('http://www.sap.com/adt/core', 'uri') || obj.getAttribute('adtcore:uri');
         const description = obj.getAttributeNS('http://www.sap.com/adt/core', 'description') || obj.getAttribute('adtcore:description');
-        if (!name || !type) continue;
+        if (!name || !type || !uri) continue;
 
         // Look up object type configuration.
         const config = getConfigByType(type);
@@ -108,6 +149,7 @@ function parseSearchResults(xml: string): Result<SearchResult[], Error> {
         // Build search result object.
         const result: SearchResult = {
             name,
+            uri,
             extension: config.extension,
             package: packageName || '',
             objectType: config.label,

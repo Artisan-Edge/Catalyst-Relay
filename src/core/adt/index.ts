@@ -42,7 +42,7 @@ export type { DataFrame, ColumnInfo } from './data_extraction/previewParser';
 export type { DistinctResult } from './data_extraction/distinct';
 
 // Search types
-export type { SearchResult } from './discovery/searchObjects';
+export type { SearchResult, SearchOptions } from './discovery/searchObjects';
 export type { Dependency } from './discovery/whereUsed';
 
 // Lock management

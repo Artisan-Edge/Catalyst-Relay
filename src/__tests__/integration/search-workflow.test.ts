@@ -52,7 +52,7 @@ describe('Search Workflow', () => {
     it('should search with type filter', async () => {
         if (shouldSkip(client)) return;
 
-        const [results, err] = await client!.search('Z*', ['DDLS/DF']);
+        const [results, err] = await client!.search('Z*', { types: ['DDLS/DF'] });
 
         expect(err).toBeNull();
         expect(results).toBeDefined();
@@ -92,6 +92,22 @@ describe('Search Workflow', () => {
         expect(err2).toBeNull();
         expect(results2).toBeDefined();
         console.log(`Second search (after refresh) found ${results2!.length} objects`);
+    });
+
+    it('should return package info when searching for ZSNAP_F01S_C01', async () => {
+        if (shouldSkip(client)) return;
+
+        const [results, err] = await client!.search('ZSNAP_F01S_C01');
+
+        expect(err).toBeNull();
+        expect(results).toBeDefined();
+        expect(results!.length).toBeGreaterThan(0);
+
+        const match = results!.find(r => r.name === 'ZSNAP_F01S_C01');
+        expect(match).toBeDefined();
+        expect(match!.package).toBeTruthy();
+
+        console.log(`ZSNAP_F01S_C01 found in package: ${match!.package}`);
     });
 
     it('should find where P_APJrnlEntrItmAgingGrid4 is used', async () => {
