@@ -74,4 +74,4 @@ HTTP endpoints available in Server Mode.
 
 ---
 
-*Last updated: v0.5.3*
+*Last updated: v0.5.4*

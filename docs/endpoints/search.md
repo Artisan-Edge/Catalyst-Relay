@@ -59,8 +59,9 @@ Array of search results:
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Object name |
+| `uri` | string | ADT resource URI |
 | `extension` | string | File extension |
-| `package` | string | Containing package |
+| `package` | string | Containing package (enriched via objectproperties API) |
 | `description` | string? | Object description |
 | `objectType` | string | SAP object type code |
 
@@ -81,6 +82,7 @@ POST /search/Z*TEST*
     "data": [
         {
             "name": "ZCL_TEST_HELPER",
+            "uri": "/sap/bc/adt/oo/classes/zcl_test_helper",
             "extension": "clas.abap",
             "package": "ZDEV",
             "description": "Test helper class",
@@ -88,6 +90,7 @@ POST /search/Z*TEST*
         },
         {
             "name": "ZTEST_VIEW",
+            "uri": "/sap/bc/adt/ddic/ddl/sources/ztest_view",
             "extension": "asddls",
             "package": "ZDEV",
             "description": "Test CDS view",
@@ -95,6 +98,7 @@ POST /search/Z*TEST*
         },
         {
             "name": "ZCL_UNIT_TEST",
+            "uri": "/sap/bc/adt/oo/classes/zcl_unit_test",
             "extension": "clas.abap",
             "package": "$TMP",
             "objectType": "CLAS"
@@ -160,6 +164,7 @@ if (searchErr) {
 // results: SearchResult[]
 // SearchResult = {
 //     name: string,
+//     uri: string,
 //     extension: string,
 //     package: string,
 //     description?: string,
@@ -167,27 +172,31 @@ if (searchErr) {
 // }
 
 results.forEach(obj => {
-    console.log(`${obj.name} (${obj.objectType}) - ${obj.description ?? 'No description'}`);
+    console.log(`${obj.name} (${obj.objectType}) in ${obj.package} - ${obj.description ?? 'No description'}`);
 });
 
 // Search specific types only
-const [classes, classErr] = await client.search('Z*TEST*', ['CLAS', 'DDLS']);
+const [classes, classErr] = await client.search('Z*TEST*', { types: ['CLAS', 'DDLS'] });
 if (classErr) {
     console.error('Filtered search failed:', classErr);
     return;
 }
 
 console.log(`Found ${classes.length} classes and CDS views`);
+
+// Search without package enrichment (faster)
+const [quick, quickErr] = await client.search('Z*', { includePackages: false });
 ```
 
 **Method Signature:**
 ```typescript
-search(query: string, types?: string[]): AsyncResult<SearchResult[]>
+search(query: string, options?: SearchOptions): AsyncResult<SearchResult[]>
 ```
 
 **Parameters:**
 - `query` — Search pattern (supports wildcards: `*`, `?`)
-- `types` — Optional array of object type codes to filter results (empty/omitted = all types)
+- `options.types` — Optional array of object type codes to filter results (empty/omitted = all types)
+- `options.includePackages` — Enrich results with package info (default: `true`)
 
 **Returns:** `AsyncResult<SearchResult[]>` — Result tuple containing search results or error
 
@@ -381,4 +390,4 @@ whereUsed(object: ObjectRef): AsyncResult<Dependency[]>
 
 ---
 
-*Last updated: v0.4.5*
+*Last updated: v0.5.4*
