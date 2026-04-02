@@ -81,6 +81,7 @@ export type {
     ColumnInfo,
     DistinctResult,
     SearchResult,
+    SearchOptions,
     Dependency,
     DiffResult,
     TransportConfig,
