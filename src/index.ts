@@ -88,6 +88,10 @@ export type {
     TransportObject,
     TaskContents,
     ObjectConfig,
+    InactiveEntry,
+    InactiveObject,
+    InactiveTransport,
+    InactiveRef,
     // Tree types
     TreeResponse,
     PackageNode,

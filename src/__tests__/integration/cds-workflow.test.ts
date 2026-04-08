@@ -75,6 +75,33 @@ describe('CDS View Workflow', () => {
         console.log(`Created CDS view: ${TEST_VIEW_NAME}`);
     });
 
+    it('should appear in inactive objects after create (before activation)', async () => {
+        if (!client?.session) throw new Error('No active session');
+        if (!viewCreated) throw new Error('View was not created - previous test failed');
+
+        const [entries, err] = await client.getInactiveObjects();
+
+        expect(err).toBeNull();
+        expect(entries).toBeDefined();
+        expect(entries!.length).toBeGreaterThan(0);
+
+        // Find our newly created view in the inactive list
+        const ourEntry = entries!.find(e =>
+            e.object?.ref.name === TEST_VIEW_NAME
+        );
+
+        expect(ourEntry).toBeDefined();
+        expect(ourEntry!.object).toBeDefined();
+        expect(ourEntry!.object!.ref.type).toBe('DDLS/DF');
+        expect(typeof ourEntry!.object!.deleted).toBe('boolean');
+        console.log(`Found ${TEST_VIEW_NAME} in inactive objects (deleted: ${ourEntry!.object!.deleted}, user: ${ourEntry!.object!.user})`);
+
+        // Log overall counts
+        const withObjects = entries!.filter(e => e.object);
+        const withTransports = entries!.filter(e => e.transport);
+        console.log(`Total inactive entries: ${entries!.length} (${withObjects.length} objects, ${withTransports.length} transports)`);
+    });
+
     it('should syntax check the CDS view (clean)', async () => {
         if (!client?.session) throw new Error('No active session');
         if (!viewCreated) throw new Error('View was not created - previous test failed');

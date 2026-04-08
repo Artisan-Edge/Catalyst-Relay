@@ -41,6 +41,9 @@ export type { Transport } from './transports/transports';
 export type { DataFrame, ColumnInfo } from './data_extraction/previewParser';
 export type { DistinctResult } from './data_extraction/distinct';
 
+// Inactive objects types
+export type { InactiveEntry, InactiveObject, InactiveTransport, InactiveRef } from './discovery/inactiveObjects';
+
 // Search types
 export type { SearchResult, SearchOptions } from './discovery/searchObjects';
 export type { Dependency } from './discovery/whereUsed';
@@ -64,6 +67,9 @@ export { getPackages } from './discovery/packages';
 export { getTree } from './discovery/tree';
 export { getPackageStats } from './discovery/tree/packageStats';
 export { getTransports } from './transports/transports';
+
+// Inactive objects
+export { getInactiveObjects } from './discovery/inactiveObjects';
 
 // Data preview operations
 export { previewData } from './data_extraction/dataPreview';

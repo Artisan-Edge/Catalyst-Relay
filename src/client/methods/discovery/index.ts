@@ -6,3 +6,4 @@ export { getPackages } from './getPackages';
 export { getTree } from './getTree';
 export { getPackageStats } from './getPackageStats';
 export { getTransports } from './getTransports';
+export { getInactiveObjects } from './getInactiveObjects';

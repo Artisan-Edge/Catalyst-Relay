@@ -26,6 +26,7 @@ import { deleteTransportHandler } from './discovery/deleteTransport';
 import { removeFromTransportHandler } from './discovery/removeFromTransport';
 import { objectConfigHandler } from './discovery/objectConfig';
 import { viewTransportObjectsHandler } from './discovery/viewTransportObjects';
+import { inactiveObjectsHandler } from './discovery/inactiveObjects';
 
 // Objects routes
 import { readHandler } from './objects/read';
@@ -79,6 +80,7 @@ export function createRoutes(
     app.delete('/transports/:transportId', sessionMiddleware, deleteTransportHandler);
     app.put('/transports/:transportId/objects', sessionMiddleware, removeFromTransportHandler);
     app.get('/transports/:transportId/objects', sessionMiddleware, viewTransportObjectsHandler);
+    app.get('/inactive-objects', sessionMiddleware, inactiveObjectsHandler);
 
     // ─────────────────────────────────────────────────────────────────────────
     // Object CRAUD Routes (session required)

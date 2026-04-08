@@ -41,6 +41,7 @@ import type {
     ObjectConfig,
     Parameter,
     AdtRequestor,
+    InactiveEntry,
 } from '../core/adt';
 import type { AsyncResult } from '../types/result';
 import { createAuthStrategy } from '../core/auth/factory';
@@ -93,6 +94,7 @@ export interface ADTClient {
     getPackageStats(packageName: string): AsyncResult<PackageNode>;
     getPackageStats(packageNames: string[]): AsyncResult<PackageNode[]>;
     getTransports(packageName: string): AsyncResult<Transport[]>;
+    getInactiveObjects(): AsyncResult<InactiveEntry[]>;
 
     // Data Preview
     previewData(query: PreviewSQL): AsyncResult<DataFrame>;
@@ -278,6 +280,10 @@ export class ADTClientImpl implements ADTClient {
 
     async getTransports(packageName: string): AsyncResult<Transport[]> {
         return discoveryMethods.getTransports(this.state, this.requestor, packageName);
+    }
+
+    async getInactiveObjects(): AsyncResult<InactiveEntry[]> {
+        return discoveryMethods.getInactiveObjects(this.state, this.requestor);
     }
 
     // --- Data Preview ---
