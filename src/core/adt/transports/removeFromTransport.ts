@@ -5,8 +5,8 @@
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import { extractError, escapeXml } from '../../utils/xml';
-import { getTransportContents } from './getTransportContents';
+import { extractError, escapeXml, safeParseXml } from '../../utils/xml';
+import { parseTransportTasks } from './parseTransportTasks';
 
 const ACCEPT_HEADER = 'application/vnd.sap.adt.transportorganizer.v1+xml';
 
@@ -66,20 +66,40 @@ export async function removeTransportEntry(
 
 /**
  * Remove an object from a transport by name.
- * Lists the transport contents, finds the matching object, and removes it.
+ * Reads the transport XML, finds which task the object lives on, and removes it
+ * using the task ID (not the request ID).
  */
 export async function removeFromTransport(
     client: AdtRequestor,
     transportId: string,
     objectName: string
 ): AsyncResult<void, Error> {
-    const [objects, listErr] = await getTransportContents(client, transportId);
-    if (listErr) return err(listErr);
+    // Fetch transport XML to get the task hierarchy.
+    const [response, requestErr] = await client.request({
+        method: 'GET',
+        path: `/sap/bc/adt/cts/transportrequests/${transportId}`,
+        headers: { 'Accept': ACCEPT_HEADER },
+    });
 
-    const object = objects.find(o => o.name === objectName);
-    if (!object) {
-        return err(new Error(`Object '${objectName}' not found on transport ${transportId}`));
+    if (requestErr) return err(requestErr);
+    if (!response.ok) {
+        const text = await response.text();
+        const errorMsg = extractError(text);
+        return err(new Error(`Failed to read transport ${transportId}: ${errorMsg}`));
     }
 
-    return removeTransportEntry(client, transportId, object);
+    const text = await response.text();
+    const [doc, parseErr] = safeParseXml(text);
+    if (parseErr) return err(parseErr);
+
+    // Find which task contains the object.
+    const tasks = parseTransportTasks(doc);
+    for (const task of tasks) {
+        const object = task.objects.find(o => o.name === objectName);
+        if (!object) continue;
+
+        return removeTransportEntry(client, task.taskId, object);
+    }
+
+    return err(new Error(`Object '${objectName}' not found on transport ${transportId}`));
 }
