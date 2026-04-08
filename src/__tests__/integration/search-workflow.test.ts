@@ -24,12 +24,12 @@ describe('Search Workflow', () => {
         const [newClient, err] = await createTestClient();
         if (err) throw err;
         client = newClient;
-    });
+    }, 60_000);
 
     afterAll(async () => {
         // No cleanup needed for read-only tests
         await safeLogout(client);
-    });
+    }, 60_000);
 
     it('should search for objects starting with Z', async () => {
         if (shouldSkip(client)) return;
@@ -47,7 +47,7 @@ describe('Search Workflow', () => {
                 console.log(`  - ${result.name} (${result.objectType}): ${result.description || '(no description)'}`);
             });
         }
-    });
+    }, 60_000);
 
     it('should search with type filter', async () => {
         if (shouldSkip(client)) return;
@@ -66,7 +66,7 @@ describe('Search Workflow', () => {
                 expect(result.objectType).toBe('View');
             });
         }
-    });
+    }, 60_000);
 
     it('should refresh session and continue working', async () => {
         if (shouldSkip(client)) return;
@@ -92,7 +92,7 @@ describe('Search Workflow', () => {
         expect(err2).toBeNull();
         expect(results2).toBeDefined();
         console.log(`Second search (after refresh) found ${results2!.length} objects`);
-    });
+    }, 60_000);
 
     it('should return package info when searching for ZSNAP_F01S_C01', async () => {
         if (shouldSkip(client)) return;
@@ -108,7 +108,7 @@ describe('Search Workflow', () => {
         expect(match!.package).toBeTruthy();
 
         console.log(`ZSNAP_F01S_C01 found in package: ${match!.package}`);
-    });
+    }, 60_000);
 
     it('should find where P_APJrnlEntrItmAgingGrid4 is used', async () => {
         if (shouldSkip(client)) return;
@@ -130,5 +130,5 @@ describe('Search Workflow', () => {
                 console.log(`  - ${dep.name} (${dep.usageType}) in ${dep.package}`);
             });
         }
-    });
+    }, 60_000);
 });
