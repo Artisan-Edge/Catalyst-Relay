@@ -85,6 +85,8 @@ export { deleteTransport } from './transports/deleteTransport';
 export { removeFromTransport } from './transports/removeFromTransport';
 export type { TransportObject } from './transports/removeFromTransport';
 export { getTransportContents } from './transports/getTransportContents';
+export { viewTransportObjects } from './transports/viewTransportObjects';
+export type { TaskContents } from './transports/parseTransportTasks';
 
 // Diff operations
 export { gitDiff } from './craud/gitDiff';

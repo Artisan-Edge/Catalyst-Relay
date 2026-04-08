@@ -5,7 +5,8 @@
  * 1. Create two transports up front (avoids SAP lock issues from create-after-delete)
  * 2. Delete the first transport immediately
  * 3. Create objects of all types on the second transport → activate them
- * 4. Delete the objects → delete the transport
+ * 4. View transport objects (verify all tasks and objects are visible)
+ * 5. Delete the objects → delete the transport
  *
  * Requires a transportable package (not $TMP).
  *
@@ -337,7 +338,45 @@ describe('Transport Lifecycle Workflow', () => {
         console.log(`Activated ABAP program: ${PROG_NAME}`);
     }, 15000);
 
-    // ── Phase 5: Remove an object from the transport by name ──────────────
+    // ── Phase 5: View transport objects ─────────────────────────────────────
+
+    it('should view all tasks and objects on the transport', async () => {
+        if (shouldSkip(client)) return;
+        if (!workingTransportId) throw new Error('Working transport was not created');
+
+        const [tasks, err] = await client!.viewTransportObjects(workingTransportId);
+
+        expect(err).toBeNull();
+        expect(tasks).toBeDefined();
+        expect(tasks!.length).toBeGreaterThan(0);
+
+        // Every task should have a taskId
+        for (const task of tasks!) {
+            expect(task.taskId).toBeTruthy();
+        }
+
+        // Collect all object names across all tasks
+        const allObjectNames = tasks!.flatMap(t => t.objects.map(o => o.name));
+
+        // All created objects should appear somewhere in the transport
+        expect(allObjectNames).toContain(CDS_NAME);
+        expect(allObjectNames).toContain(DCL_NAME);
+        expect(allObjectNames).toContain(TABLE_NAME);
+        expect(allObjectNames).toContain(CLASS_NAME);
+        expect(allObjectNames).toContain(PROG_NAME);
+
+        // Each object should have the expected fields populated
+        const allObjects = tasks!.flatMap(t => t.objects);
+        for (const obj of allObjects) {
+            expect(obj.name).toBeTruthy();
+            expect(obj.pgmid).toBeTruthy();
+            expect(obj.type).toBeTruthy();
+        }
+
+        console.log(`Viewed transport ${workingTransportId}: ${tasks!.length} task(s), ${allObjects.length} object(s)`);
+    });
+
+    // ── Phase 6: Remove an object from the transport by name ─────────────
 
     it('should remove the ABAP program from the transport by name', async () => {
         if (shouldSkip(client)) return;
@@ -349,7 +388,7 @@ describe('Transport Lifecycle Workflow', () => {
         console.log(`Removed ${PROG_NAME} from transport: ${workingTransportId}`);
     });
 
-    // ── Phase 6: Delete all objects (DCL before CDS due to dependency) ────
+    // ── Phase 7: Delete all objects (DCL before CDS due to dependency) ────
 
     it('should delete the access control', async () => {
         if (shouldSkip(client)) return;
@@ -421,7 +460,7 @@ describe('Transport Lifecycle Workflow', () => {
         console.log(`Deleted ABAP program: ${PROG_NAME}`);
     });
 
-    // ── Phase 7: Delete the working transport ─────────────────────────────
+    // ── Phase 8: Delete the working transport ─────────────────────────────
 
     it('should delete the working transport', async () => {
         if (shouldSkip(client)) return;

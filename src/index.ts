@@ -86,6 +86,7 @@ export type {
     DiffResult,
     TransportConfig,
     TransportObject,
+    TaskContents,
     ObjectConfig,
     // Tree types
     TreeResponse,

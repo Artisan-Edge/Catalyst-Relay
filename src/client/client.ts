@@ -36,6 +36,7 @@ import type {
     SearchOptions,
     Dependency,
     TransportConfig,
+    TaskContents,
     DiffResult,
     ObjectConfig,
     Parameter,
@@ -106,6 +107,7 @@ export interface ADTClient {
     createTransport(config: TransportConfig): AsyncResult<string>;
     deleteTransport(transportId: string, removeObjects?: boolean): AsyncResult<void>;
     removeFromTransport(transportId: string, objectName: string): AsyncResult<void>;
+    viewTransportObjects(transportId: string): AsyncResult<TaskContents[]>;
 
     // Diff Operations
     gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]>;
@@ -314,6 +316,10 @@ export class ADTClientImpl implements ADTClient {
 
     async removeFromTransport(transportId: string, objectName: string): AsyncResult<void> {
         return transportMethods.removeFromTransport(this.state, this.requestor, transportId, objectName);
+    }
+
+    async viewTransportObjects(transportId: string): AsyncResult<TaskContents[]> {
+        return transportMethods.viewTransportObjects(this.state, this.requestor, transportId);
     }
 
     // --- Diff Operations ---
