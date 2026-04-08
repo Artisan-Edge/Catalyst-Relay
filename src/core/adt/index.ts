@@ -81,6 +81,10 @@ export { findWhereUsed } from './discovery/whereUsed';
 // Transport management
 export { createTransport } from './transports/createTransport';
 export type { TransportConfig } from './transports/createTransport';
+export { deleteTransport } from './transports/deleteTransport';
+export { removeFromTransport } from './transports/removeFromTransport';
+export type { TransportObject } from './transports/removeFromTransport';
+export { getTransportContents } from './transports/getTransportContents';
 
 // Diff operations
 export { gitDiff } from './craud/gitDiff';

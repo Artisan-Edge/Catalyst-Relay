@@ -8,6 +8,7 @@
  * - Skip logic helpers
  */
 
+import { execSync } from 'child_process';
 import { Entry } from '@napi-rs/keyring';
 import { createClient } from '../../core';
 import type { ADTClient } from '../../core';
@@ -59,12 +60,34 @@ export function generateTestName(prefix = 'ZSNAP_TEST'): string {
 }
 
 /**
- * Resolve credentials from OS keyring if not provided via environment variables.
- * Uses the Catalyst-CLI keyring format: {alias}:basic:{credType}
+ * Resolve system URL and client from Catalyst CLI when a system alias is configured.
+ */
+function resolveSystemConfig(alias: string): { url: string; client: string } | null {
+    try {
+        const output = execSync('catalyst adt systems list --format json', { encoding: 'utf-8' });
+        const data = JSON.parse(output) as { systems: { alias: string; url: string; client: string }[] };
+        const system = data.systems.find(s => s.alias === alias);
+        return system ? { url: system.url, client: system.client } : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Resolve credentials and system config when SAP_TEST_SYSTEM_ALIAS is set.
+ * Uses the Catalyst CLI for URL/client and OS keyring for username/password.
  */
 function resolveCredentials(): void {
     const alias = TEST_CONFIG.systemAlias;
     if (!alias) return;
+
+    // Resolve URL and client from Catalyst CLI
+    const systemConfig = resolveSystemConfig(alias);
+    if (systemConfig) {
+        TEST_CONFIG.adtUrl = systemConfig.url;
+        TEST_CONFIG.client = systemConfig.client;
+        console.log(`Resolved system config from Catalyst CLI (${alias}): ${systemConfig.url} client ${systemConfig.client}`);
+    }
 
     if (!TEST_CONFIG.password) {
         const keyringPassword = readFromKeyring(alias, 'password');

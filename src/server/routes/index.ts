@@ -22,6 +22,8 @@ import { packagesHandler } from './discovery/packages';
 import { treeHandler } from './discovery/tree';
 import { transportsHandler } from './discovery/transports';
 import { createTransportHandler } from './discovery/createTransport';
+import { deleteTransportHandler } from './discovery/deleteTransport';
+import { removeFromTransportHandler } from './discovery/removeFromTransport';
 import { objectConfigHandler } from './discovery/objectConfig';
 
 // Objects routes
@@ -73,6 +75,8 @@ export function createRoutes(
     app.post('/tree', sessionMiddleware, treeHandler);
     app.get('/transports/:package', sessionMiddleware, transportsHandler);
     app.post('/transports', sessionMiddleware, createTransportHandler);
+    app.delete('/transports/:transportId', sessionMiddleware, deleteTransportHandler);
+    app.put('/transports/:transportId/objects', sessionMiddleware, removeFromTransportHandler);
 
     // ─────────────────────────────────────────────────────────────────────────
     // Object CRAUD Routes (session required)

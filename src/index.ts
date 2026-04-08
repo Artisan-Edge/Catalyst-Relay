@@ -85,6 +85,7 @@ export type {
     Dependency,
     DiffResult,
     TransportConfig,
+    TransportObject,
     ObjectConfig,
     // Tree types
     TreeResponse,
