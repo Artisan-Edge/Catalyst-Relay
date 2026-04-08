@@ -13,10 +13,6 @@ import type { RouteContext } from '../types';
 
 export const removeFromTransportRequestSchema = z.object({
     name: z.string().min(1, 'Object name is required'),
-    description: z.string().min(1, 'Object description is required'),
-    pgmid: z.string().min(1, 'Program ID is required'),
-    type: z.string().min(1, 'Object type is required'),
-    position: z.string().min(1, 'Position is required'),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,7 +40,7 @@ export async function removeFromTransportHandler(c: RouteContext) {
 
     const client = c.get('client');
 
-    const [, error] = await client.removeFromTransport(transportId, validation.data);
+    const [, error] = await client.removeFromTransport(transportId, validation.data.name);
 
     if (error) {
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);

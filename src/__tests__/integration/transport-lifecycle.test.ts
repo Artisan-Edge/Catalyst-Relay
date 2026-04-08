@@ -337,7 +337,19 @@ describe('Transport Lifecycle Workflow', () => {
         console.log(`Activated ABAP program: ${PROG_NAME}`);
     }, 15000);
 
-    // ── Phase 5: Delete all objects (DCL before CDS due to dependency) ───
+    // ── Phase 5: Remove an object from the transport by name ──────────────
+
+    it('should remove the ABAP program from the transport by name', async () => {
+        if (shouldSkip(client)) return;
+        if (!workingTransportId) throw new Error('Working transport was not created');
+
+        const [, err] = await client!.removeFromTransport(workingTransportId, PROG_NAME);
+
+        expect(err).toBeNull();
+        console.log(`Removed ${PROG_NAME} from transport: ${workingTransportId}`);
+    });
+
+    // ── Phase 6: Delete all objects (DCL before CDS due to dependency) ────
 
     it('should delete the access control', async () => {
         if (shouldSkip(client)) return;
@@ -409,7 +421,7 @@ describe('Transport Lifecycle Workflow', () => {
         console.log(`Deleted ABAP program: ${PROG_NAME}`);
     });
 
-    // ── Phase 6: Delete the working transport ─────────────────────────────
+    // ── Phase 7: Delete the working transport ─────────────────────────────
 
     it('should delete the working transport', async () => {
         if (shouldSkip(client)) return;

@@ -5,13 +5,13 @@
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import { extractError } from '../../utils/xml';
-import { escapeXml } from '../../utils/xml';
+import { extractError, escapeXml } from '../../utils/xml';
+import { getTransportContents } from './getTransportContents';
 
 const ACCEPT_HEADER = 'application/vnd.sap.adt.transportorganizer.v1+xml';
 
 /**
- * Object entry to remove from a transport
+ * Object entry on a transport
  */
 export interface TransportObject {
     /** Object name (e.g., 'ZSNAP_F72TG_103') */
@@ -27,19 +27,14 @@ export interface TransportObject {
 }
 
 /**
- * Remove an object from a transport request
- *
- * @param client - ADT client
- * @param transportId - Transport request ID (e.g., 'DS4K904588')
- * @param object - Object to remove
- * @returns void on success or error
+ * Remove a specific object entry from a transport (internal helper).
+ * Requires full object details — used by deleteTransport and removeFromTransport.
  */
-export async function removeFromTransport(
+export async function removeTransportEntry(
     client: AdtRequestor,
     transportId: string,
     object: TransportObject
 ): AsyncResult<void, Error> {
-    // Build XML body matching SAP ADT format.
     const body = [
         '<?xml version="1.0" encoding="ASCII"?>',
         `<tm:root xmlns:tm="http://www.sap.com/cts/adt/tm" tm:number="${escapeXml(transportId)}" tm:useraction="removeobject">`,
@@ -67,4 +62,24 @@ export async function removeFromTransport(
     }
 
     return ok(undefined);
+}
+
+/**
+ * Remove an object from a transport by name.
+ * Lists the transport contents, finds the matching object, and removes it.
+ */
+export async function removeFromTransport(
+    client: AdtRequestor,
+    transportId: string,
+    objectName: string
+): AsyncResult<void, Error> {
+    const [objects, listErr] = await getTransportContents(client, transportId);
+    if (listErr) return err(listErr);
+
+    const object = objects.find(o => o.name === objectName);
+    if (!object) {
+        return err(new Error(`Object '${objectName}' not found on transport ${transportId}`));
+    }
+
+    return removeTransportEntry(client, transportId, object);
 }

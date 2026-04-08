@@ -10,7 +10,7 @@ import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import { extractError, safeParseXml } from '../../utils/xml';
-import { removeFromTransport } from './removeFromTransport';
+import { removeTransportEntry } from './removeFromTransport';
 import type { TransportObject } from './removeFromTransport';
 
 const ACCEPT_HEADER = 'application/vnd.sap.adt.transportorganizer.v1+xml';
@@ -167,7 +167,7 @@ export async function deleteTransport(
                 const name = el.getAttribute('tm:name');
                 if (!name) continue;
 
-                const [, removeErr] = await removeFromTransport(client, task.taskId, {
+                const [, removeErr] = await removeTransportEntry(client, task.taskId, {
                     name,
                     description: el.getAttribute('tm:obj_desc') || el.getAttribute('tm:obj_info') || '',
                     pgmid: el.getAttribute('tm:pgmid') || '',
