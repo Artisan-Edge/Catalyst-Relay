@@ -25,21 +25,21 @@ export interface ActivationMessage {
     column?: number;
 }
 
+const MAX_POLL_ATTEMPTS = 30;
+const RUN_ID_REGEX = /\/activation\/runs\/([^?/]+)/;
+
 export async function activateObjects(
     client: AdtRequestor,
     objects: ObjectRef[]
 ): AsyncResult<ActivationResult[], Error> {
-    // Handle empty input.
     if (objects.length === 0) {
         return ok([]);
     }
 
-    // Validate object extension is supported.
     const extension = objects[0]!.extension;
     const config = getConfigByExtension(extension);
     if (!config) return err(new Error(`Unsupported extension: ${extension}`));
 
-    // Verify all objects have same extension for batch activation.
     for (const obj of objects) {
         if (obj.extension !== extension) {
             return err(new Error('All objects must have the same extension for batch activation'));
@@ -47,24 +47,20 @@ export async function activateObjects(
     }
 
     // Build XML request body with object references.
-    const objectRefs = objects.map(obj => `<adtcore:objectReference
-                adtcore:uri="/sap/bc/adt/${config.endpoint}/${obj.name.toLowerCase()}"
-                adtcore:type="${config.type}"
-                adtcore:name="${obj.name}"
-                adtcore:description="*"/>`).join('\n            ');
+    const objectRefs = objects.map(obj => `<adtcore:objectReference adtcore:uri="/sap/bc/adt/${config.endpoint}/${obj.name.toLowerCase()}" adtcore:type="${config.type}" adtcore:name="${obj.name}"/>`).join('\n    ');
 
     const body = `<?xml version="1.0" encoding="UTF-8"?>
-            <adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">
-            ${objectRefs}
-            </adtcore:objectReferences>`;
+<adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">
+    ${objectRefs}
+</adtcore:objectReferences>`;
 
-    // Execute activation request.
-    const [response, requestErr] = await client.request({
+    // Step 1: Start the activation run. SAP returns a run ID in the Location header.
+    const [startRes, startErr] = await client.request({
         method: 'POST',
-        path: '/sap/bc/adt/activation',
+        path: '/sap/bc/adt/activation/runs',
         params: {
             'method': 'activate',
-            'preAuditRequested': 'true',
+            'preauditRequested': 'false',
         },
         headers: {
             'Content-Type': 'application/xml',
@@ -72,20 +68,60 @@ export async function activateObjects(
         },
         body,
     });
-
-    // Validate successful response.
-    if (requestErr) { return err(requestErr); }
-    const text = await response.text();
-    debug(`Activation response status: ${response.status}`);
-    debug(`Activation response: ${text.substring(0, 500)}`);
-    if (!response.ok) {
-        const errorMsg = extractError(text);
-        return err(new Error(`Activation failed: ${errorMsg}`));
+    if (startErr) return err(startErr);
+    debug(`Activation run start status: ${startRes.status}`);
+    if (!startRes.ok) {
+        const errText = await startRes.text();
+        return err(new Error(`Activation start failed: ${extractError(errText)}`));
     }
 
-    // Parse activation results from response.
-    const [results, parseErr] = extractActivationErrors(objects, text, extension);
-    if (parseErr) { return err(parseErr); }
+    const location = startRes.headers.get('location');
+    if (!location) return err(new Error('Activation start response missing Location header'));
+
+    const runIdMatch = RUN_ID_REGEX.exec(location);
+    if (!runIdMatch || !runIdMatch[1]) {
+        return err(new Error(`Could not extract run ID from Location header: ${location}`));
+    }
+    const runId = runIdMatch[1];
+    debug(`Activation run ID: ${runId}`);
+
+    // Step 2: Long-poll until the run completes. withLongPolling=true blocks server-side
+    // until the run finishes, but some servers may return before completion — retry if so.
+    let pollAttempt = 0;
+    while (pollAttempt < MAX_POLL_ATTEMPTS) {
+        const [pollRes, pollErr] = await client.request({
+            method: 'GET',
+            path: `/sap/bc/adt/activation/runs/${runId}`,
+            params: { 'withLongPolling': 'true' },
+            headers: { 'Accept': 'application/xml' },
+        });
+        if (pollErr) return err(pollErr);
+        debug(`Activation poll attempt ${pollAttempt + 1} status: ${pollRes.status}`);
+        if (pollRes.ok) break;
+
+        pollAttempt++;
+        if (pollAttempt >= MAX_POLL_ATTEMPTS) {
+            const errText = await pollRes.text();
+            return err(new Error(`Activation run ${runId} did not complete: ${extractError(errText)}`));
+        }
+    }
+
+    // Step 3: Fetch the completed run's results.
+    const [resultsRes, resultsErr] = await client.request({
+        method: 'GET',
+        path: `/sap/bc/adt/activation/results/${runId}`,
+        headers: { 'Accept': 'application/xml' },
+    });
+    if (resultsErr) return err(resultsErr);
+    const resultsText = await resultsRes.text();
+    debug(`Activation results status: ${resultsRes.status}`);
+    debug(`Activation results body: ${resultsText.substring(0, 500)}`);
+    if (!resultsRes.ok) {
+        return err(new Error(`Failed to fetch activation results: ${extractError(resultsText)}`));
+    }
+
+    const [results, parseErr] = extractActivationErrors(objects, resultsText, extension);
+    if (parseErr) return err(parseErr);
     return ok(results);
 }
 
