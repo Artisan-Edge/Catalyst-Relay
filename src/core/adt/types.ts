@@ -46,7 +46,7 @@ export interface UpsertResult {
 /**
  * Supported object types
  */
-export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog';
+export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog' | 'asinc';
 
 /**
  * Object type labels
@@ -58,6 +58,7 @@ export enum ObjectTypeLabel {
     STRUCTURE = 'Structure',
     CLASS = 'Class',
     PROGRAM = 'ABAP Program',
+    INCLUDE = 'ABAP Include',
 }
 
 /**
@@ -118,6 +119,14 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'PROG/P',
         label: ObjectTypeLabel.PROGRAM,
         extension: 'asprog',
+    },
+    'asinc': {
+        endpoint: 'programs/includes',
+        nameSpace: 'xmlns:include="http://www.sap.com/adt/programs/includes"',
+        rootName: 'include:abapInclude',
+        type: 'PROG/I',
+        label: ObjectTypeLabel.INCLUDE,
+        extension: 'asinc',
     },
 };
 

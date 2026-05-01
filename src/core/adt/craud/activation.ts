@@ -34,24 +34,21 @@ export async function activateObjects(
         return ok([]);
     }
 
-    // Validate object extension is supported.
-    const extension = objects[0]!.extension;
-    const config = getConfigByExtension(extension);
-    if (!config) return err(new Error(`Unsupported extension: ${extension}`));
-
-    // Verify all objects have same extension for batch activation.
+    // Validate all object extensions are supported.
     for (const obj of objects) {
-        if (obj.extension !== extension) {
-            return err(new Error('All objects must have the same extension for batch activation'));
-        }
+        const config = getConfigByExtension(obj.extension);
+        if (!config) return err(new Error(`Unsupported extension: ${obj.extension}`));
     }
 
-    // Build XML request body with object references.
-    const objectRefs = objects.map(obj => `<adtcore:objectReference
+    // Build XML request body with object references (supports mixed types).
+    const objectRefs = objects.map(obj => {
+        const config = getConfigByExtension(obj.extension)!;
+        return `<adtcore:objectReference
                 adtcore:uri="/sap/bc/adt/${config.endpoint}/${obj.name.toLowerCase()}"
                 adtcore:type="${config.type}"
                 adtcore:name="${obj.name}"
-                adtcore:description="*"/>`).join('\n            ');
+                adtcore:description="*"/>`;
+    }).join('\n            ');
 
     const body = `<?xml version="1.0" encoding="UTF-8"?>
             <adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">
@@ -84,7 +81,7 @@ export async function activateObjects(
     }
 
     // Parse activation results from response.
-    const [results, parseErr] = extractActivationErrors(objects, text, extension);
+    const [results, parseErr] = extractActivationErrors(objects, text);
     if (parseErr) { return err(parseErr); }
     return ok(results);
 }
@@ -93,7 +90,6 @@ export async function activateObjects(
 function extractActivationErrors(
     objects: ObjectRef[],
     xml: string,
-    _extension: string
 ): Result<ActivationResult[], Error> {
     // Parse XML response.
     const [doc, parseErr] = safeParseXml(xml);
