@@ -1,12 +1,10 @@
-/**
- * Delete objects method
- */
+// Delete objects method — orchestrates multi-delete with dependency analysis.
 
 import type { AsyncResult } from '../../../types/result';
 import type { ObjectRef } from '../../../types/requests';
-import type { AdtRequestor } from '../../../core/adt';
+import type { AdtRequestor, DeleteResult } from '../../../core/adt';
 import type { ClientState } from '../../types';
-import { ok, err } from '../../../types/result';
+import { err } from '../../../types/result';
 import * as adt from '../../../core/adt';
 
 export async function deleteObjects(
@@ -14,21 +12,7 @@ export async function deleteObjects(
     requestor: AdtRequestor,
     objects: ObjectRef[],
     transport?: string
-): AsyncResult<void> {
+): AsyncResult<DeleteResult[]> {
     if (!state.session) return err(new Error('Not logged in'));
-
-    for (const obj of objects) {
-        // Lock object before deletion
-        const [lockHandle, lockErr] = await adt.lockObject(requestor, obj);
-        if (lockErr) return err(lockErr);
-
-        // Delete object
-        const [, deleteErr] = await adt.deleteObject(requestor, obj, lockHandle, transport);
-        if (deleteErr) {
-            // Attempt to unlock on failure
-            await adt.unlockObject(requestor, obj, lockHandle);
-            return err(deleteErr);
-        }
-    }
-    return ok(undefined);
+    return adt.multiDeleteObjects(requestor, objects, transport);
 }

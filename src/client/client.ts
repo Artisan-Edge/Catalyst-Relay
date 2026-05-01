@@ -42,6 +42,7 @@ import type {
     Parameter,
     AdtRequestor,
     InactiveEntry,
+    DeleteResult,
 } from '../core/adt';
 import type { AsyncResult } from '../types/result';
 import { createAuthStrategy } from '../core/auth/factory';
@@ -86,7 +87,7 @@ export interface ADTClient {
     upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]>;
     activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]>;
     checkSyntax(objects: ObjectRef[]): AsyncResult<CheckResult[]>;
-    delete(objects: ObjectRef[], transport?: string): AsyncResult<void>;
+    delete(objects: ObjectRef[], transport?: string): AsyncResult<DeleteResult[]>;
 
     // Discovery
     getPackages(options?: GetPackagesOptions): AsyncResult<Package[]>;
@@ -258,7 +259,7 @@ export class ADTClientImpl implements ADTClient {
         return craudMethods.checkSyntax(this.state, this.requestor, objects);
     }
 
-    async delete(objects: ObjectRef[], transport?: string): AsyncResult<void> {
+    async delete(objects: ObjectRef[], transport?: string): AsyncResult<DeleteResult[]> {
         return craudMethods.deleteObjects(this.state, this.requestor, objects, transport);
     }
 

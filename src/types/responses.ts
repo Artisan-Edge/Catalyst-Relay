@@ -37,4 +37,5 @@ export type ErrorCode =
     | 'CHECK_FAILED'
     | 'VALIDATION_ERROR'
     | 'NETWORK_ERROR'
+    | 'EXTERNAL_REFERENCES'
     | 'UNKNOWN_ERROR';

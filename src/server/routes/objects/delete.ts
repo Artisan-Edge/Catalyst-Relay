@@ -1,9 +1,9 @@
-/**
- * DELETE /objects/:transport — Delete objects from transport
- */
+// DELETE /objects/:transport — Multi-delete with dependency analysis
 
 import { z } from 'zod';
 import { objectRefSchema } from '../../../types/requests';
+import type { DeleteResult } from '../../../core/adt';
+import { ExternalReferencesError } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';
@@ -18,7 +18,7 @@ export const deleteRequestSchema = z.array(objectRefSchema);
 // Response Type (colocated)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type DeleteResponse = null;
+export type DeleteResponse = DeleteResult[];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handler
@@ -28,7 +28,6 @@ export async function deleteHandler(c: RouteContext) {
     const transport = c.req.param('transport');
     const body = await c.req.json();
 
-    // Validate array of object refs
     const validation = deleteRequestSchema.safeParse(body);
     if (!validation.success) {
         throw new ApiError(
@@ -41,14 +40,25 @@ export async function deleteHandler(c: RouteContext) {
     const objectRefs = validation.data;
     const client = c.get('client');
 
-    const [, error] = await client.delete(objectRefs, transport || undefined);
+    const [results, error] = await client.delete(objectRefs, transport || undefined);
 
     if (error) {
+        if (error instanceof ExternalReferencesError) {
+            return c.json(
+                {
+                    success: false as const,
+                    error: error.message,
+                    code: 'EXTERNAL_REFERENCES' as const,
+                    references: error.references,
+                },
+                409
+            );
+        }
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);
     }
 
     return c.json({
         success: true,
-        data: null as DeleteResponse,
+        data: results satisfies DeleteResponse,
     });
 }

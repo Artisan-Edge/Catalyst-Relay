@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import type { ADTClient } from '../../core';
+import { ExternalReferencesError } from '../../core/adt';
 import { createTestClient, safeDelete, safeLogout, TEST_CONFIG } from './test-helpers';
 
 const TEST_VIEW_NAME = 'ZSNAP_TEST_' + Date.now().toString(36).toUpperCase();
@@ -228,4 +229,50 @@ describe('CDS View Workflow', () => {
         expect(objects![0]!.content).toContain(TEST_VIEW_NAME);
         console.log(`Read DCL source: ${objects![0]!.content.substring(0, 50)}...`);
     });
+
+    it('should reject deleting only the view while DCL still references it', async () => {
+        if (!client?.session) throw new Error('No active session');
+        if (!viewCreated || !dclCreated) throw new Error('Setup incomplete');
+
+        const [results, error] = await client.delete(
+            [{ name: TEST_VIEW_NAME, extension: 'asddls' }],
+            TEST_CONFIG.transport
+        );
+
+        expect(results).toBeNull();
+        expect(error).toBeInstanceOf(ExternalReferencesError);
+
+        const extErr = error as ExternalReferencesError;
+        expect(extErr.references.length).toBeGreaterThan(0);
+        const refNames = extErr.references.map(r => r.referencedBy.name.toUpperCase());
+        expect(refNames).toContain(TEST_DCL_NAME);
+        console.log(`External references blocking delete: ${refNames.join(', ')}`);
+    }, 30000);
+
+    it('should multi-delete view and DCL together in dependency order', async () => {
+        if (!client?.session) throw new Error('No active session');
+        if (!viewCreated || !dclCreated) throw new Error('Setup incomplete');
+
+        const [results, error] = await client.delete(
+            [
+                { name: TEST_VIEW_NAME, extension: 'asddls' },
+                { name: TEST_DCL_NAME, extension: 'asdcls' },
+            ],
+            TEST_CONFIG.transport
+        );
+
+        expect(error).toBeNull();
+        expect(results).toHaveLength(2);
+        expect(results!.every(r => r.status === 'success')).toBe(true);
+
+        // DCL references the view, so DCL must be deleted before the view.
+        const order = results!.map(r => r.name.toUpperCase());
+        const dclIdx = order.indexOf(TEST_DCL_NAME);
+        const viewIdx = order.indexOf(TEST_VIEW_NAME);
+        expect(dclIdx).toBeLessThan(viewIdx);
+        console.log(`Multi-delete order: ${order.join(' → ')}`);
+
+        viewCreated = false;
+        dclCreated = false;
+    }, 60000);
 });

@@ -29,6 +29,10 @@ export type { ObjectMetadata, ObjectWithContent } from './craud/read';
 // Activation
 export type { ActivationResult, ActivationMessage } from './craud/activation';
 
+// Multi-delete
+export type { DeleteResult, ExternalReference } from './craud/multiDelete';
+export { ExternalReferencesError, multiDeleteObjects } from './craud/multiDelete';
+
 // Syntax Check
 export type { CheckResult } from './craud/syntaxCheck';
 
