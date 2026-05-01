@@ -26,7 +26,9 @@ export interface ActivationMessage {
 }
 
 const MAX_POLL_ATTEMPTS = 30;
+const POLL_RETRY_DELAY_MS = 1_000;
 const RUN_ID_REGEX = /\/activation\/runs\/([^?/]+)/;
+const BACKGROUND_RUN_MEDIA_TYPE = 'application/vnd.sap.adt.backgroundrun.v1+xml';
 
 export async function activateObjects(
     client: AdtRequestor,
@@ -63,7 +65,7 @@ export async function activateObjects(
         },
         headers: {
             'Content-Type': 'application/xml',
-            'Accept': 'application/xml',
+            'Accept': BACKGROUND_RUN_MEDIA_TYPE,
         },
         body,
     });
@@ -86,23 +88,29 @@ export async function activateObjects(
 
     // Step 2: Long-poll until the run completes. withLongPolling=true blocks server-side
     // until the run finishes, but some servers may return before completion — retry if so.
-    let pollAttempt = 0;
-    while (pollAttempt < MAX_POLL_ATTEMPTS) {
+    // 4xx responses are terminal (config/protocol errors won't recover by retrying).
+    for (let pollAttempt = 1; pollAttempt <= MAX_POLL_ATTEMPTS; pollAttempt++) {
         const [pollRes, pollErr] = await client.request({
             method: 'GET',
             path: `/sap/bc/adt/activation/runs/${runId}`,
             params: { 'withLongPolling': 'true' },
-            headers: { 'Accept': 'application/xml' },
+            headers: { 'Accept': BACKGROUND_RUN_MEDIA_TYPE },
         });
         if (pollErr) return err(pollErr);
-        debug(`Activation poll attempt ${pollAttempt + 1} status: ${pollRes.status}`);
+        debug(`Activation poll attempt ${pollAttempt} status: ${pollRes.status}`);
         if (pollRes.ok) break;
 
-        pollAttempt++;
+        if (pollRes.status >= 400 && pollRes.status < 500) {
+            const errText = await pollRes.text();
+            return err(new Error(`Activation run ${runId} polling rejected (${pollRes.status}): ${extractError(errText)}`));
+        }
+
         if (pollAttempt >= MAX_POLL_ATTEMPTS) {
             const errText = await pollRes.text();
-            return err(new Error(`Activation run ${runId} did not complete: ${extractError(errText)}`));
+            return err(new Error(`Activation run ${runId} did not complete after ${MAX_POLL_ATTEMPTS} attempts: ${extractError(errText)}`));
         }
+
+        await new Promise(resolve => setTimeout(resolve, POLL_RETRY_DELAY_MS));
     }
 
     // Step 3: Fetch the completed run's results.
