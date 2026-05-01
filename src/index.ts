@@ -75,8 +75,12 @@ export type {
     UpsertResult,
     ActivationResult,
     ActivationMessage,
+    CheckResult,
+    DeleteResult,
+    ExternalReference,
     Transport,
     Package,
+    GetPackagesOptions,
     DataFrame,
     ColumnInfo,
     DistinctResult,
@@ -84,6 +88,9 @@ export type {
     SearchOptions,
     Dependency,
     DiffResult,
+    DiffHunk,
+    SimpleDiffHunk,
+    ModifiedDiffHunk,
     TransportConfig,
     TransportObject,
     TaskContents,
@@ -98,6 +105,9 @@ export type {
     FolderNode,
     ObjectNode,
 } from './core/adt';
+
+// Error classes (for instanceof checks on AsyncResult errors)
+export { ExternalReferencesError } from './core/adt';
 
 // Query builder (optional helper for data preview)
 export { buildSQLQuery } from './core/adt';

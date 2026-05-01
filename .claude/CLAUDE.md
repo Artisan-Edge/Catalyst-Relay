@@ -343,5 +343,17 @@ if (error) return handleError(error);
 
 - **Always resolve ALL TypeScript errors** — Even if errors are unrelated to your changes, you must fix them before completing your task. Run `bun run typecheck` and ensure it passes with zero errors.
 
+### Public API Surface
+
+When adding any new function, type, or class that is reachable through the `ADTClient` interface (as a parameter type, return type, or thrown/returned error), you MUST also re-export it from `src/index.ts`. Library consumers cannot reach into `core/adt` — anything they need to write code against the client must be at the top-level entry point.
+
+Checklist when adding a new client method or extending an existing one:
+1. Add the implementation to `core/`.
+2. Re-export the function/types/error classes from `src/core/adt/index.ts`.
+3. Re-export them again from `src/index.ts` — both the type re-exports and any runtime values (error classes, helper functions, enums).
+4. Verify with: every `AsyncResult<T, E>` in the `ADTClient` interface — both `T` and any concrete `E` subclass — and every parameter type must be importable directly from `'catalyst-relay'`.
+
+Common items that get forgotten: error subclasses (e.g., `ExternalReferencesError`) used for `instanceof` narrowing, options/parameter types (e.g., `GetPackagesOptions`), and members of discriminated unions (e.g., `SimpleDiffHunk`/`ModifiedDiffHunk` under `DiffHunk`).
+
 ---
 
