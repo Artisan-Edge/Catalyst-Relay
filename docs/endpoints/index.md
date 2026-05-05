@@ -103,6 +103,10 @@ if (err) {
 | `POST /tree` | `client.getTree(query)` |
 | `GET /transports/:pkg` | `client.getTransports(packageName)` |
 | `POST /transports` | `client.createTransport(config)` |
+| `DELETE /transports/:transportId` | `client.deleteTransport(id, removeObjects?)` |
+| `PUT /transports/:transportId/objects` | `client.removeFromTransport(id, objectName)` |
+| `GET /transports/:transportId/objects` | `client.viewTransportObjects(id)` |
+| `GET /inactive-objects` | `client.getInactiveObjects()` |
 | `POST /objects/read` | `client.read(objects)` |
 | `POST /objects/upsert/...` | `client.upsert(objects, pkg, transport?)` |
 | `POST /objects/activate` | `client.activate(objects)` |
@@ -119,7 +123,7 @@ See individual endpoint documentation for detailed type signatures and examples.
 
 ---
 
-*Last updated: v0.5.3*
+*Last updated: v0.5.13*
 
 ---
 
@@ -158,6 +162,7 @@ All endpoints return a consistent envelope:
 | `SESSION_NOT_FOUND` | 401 | Invalid session ID |
 | `CSRF_INVALID` | 403 | CSRF token validation failed |
 | `OBJECT_LOCKED` | 409 | Object locked by another user |
+| `EXTERNAL_REFERENCES` | 409 | Multi-delete blocked: objects outside the set still reference the targets |
 | `OBJECT_NOT_FOUND` | 404 | Object does not exist |
 | `TRANSPORT_REQUIRED` | 400 | Transport needed for non-$TMP package |
 | `ACTIVATION_FAILED` | 500 | Object activation error |
@@ -168,4 +173,4 @@ All endpoints return a consistent envelope:
 
 ---
 
-*Last updated: v0.5.3*
+*Last updated: v0.5.13*

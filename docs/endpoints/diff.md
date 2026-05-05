@@ -186,11 +186,13 @@ type DiffHunk = SimpleDiffHunk | ModifiedDiffHunk;
 ```typescript
 import { createClient, type ObjectContent } from 'catalyst-relay';
 
-const client = createClient({
-    host: 'https://sap-server.example.com',
-    port: 443,
+const [client, createErr] = createClient({
+    url: 'https://sap-server.example.com:443',
+    client: '100',
     auth: { type: 'basic', username: 'DEVELOPER', password: 'password123' }
 });
+if (createErr) throw createErr;
+await client.login();
 
 const objects: ObjectContent[] = [
     {
@@ -272,4 +274,4 @@ console.log(`Successfully compared ${diffs.length} object(s)`);
 
 ---
 
-*Last updated: v0.4.5*
+*Last updated: v0.5.13*

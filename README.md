@@ -188,7 +188,9 @@ curl -X POST http://localhost:3000/login \
 | `asdcls` | Access Control | DCLS/DL |
 | `aclass` | ABAP Class | CLAS/OC |
 | `asprog` | ABAP Program | PROG/P |
+| `asinc` | ABAP Include | PROG/I |
 | `astabldt` | Table | TABL/DT |
+| `astablds` | Structure | STRU/D |
 
 ## Library Mode API Reference
 
@@ -199,21 +201,28 @@ curl -X POST http://localhost:3000/login \
 | `login()` | Authenticate and create session |
 | `logout()` | End session |
 | `refreshSession()` | Manually refresh session (keepalive) |
+| `exportSessionState()` | Serialize session for transfer to another process |
+| `importSessionState(state)` | Restore a previously exported session |
 | `read(objects)` | Batch read with content |
-| `create(object, package, transport?)` | Create new object |
-| `update(object, transport?)` | Update existing object |
-| `upsert(objects, package, transport?)` | Create or update |
-| `activate(objects)` | Compile and validate |
-| `delete(objects, transport?)` | Remove objects |
-| `getPackages()` | List packages |
-| `getPackageStats(name)` | Get package metadata and object count |
+| `create(object, package, transport?)` | Create a new object |
+| `update(object, transport?)` | Update an existing object |
+| `upsert(objects, package, transport?)` | Create or update a batch |
+| `activate(objects)` | Run-based activation; mixed extensions allowed |
+| `checkSyntax(objects)` | Syntax check (single extension per batch) |
+| `delete(objects, transport?)` | Multi-delete with dependency ordering; returns `DeleteResult[]` |
+| `getPackages(options?)` | List packages (filter, includeDescriptions) |
+| `getPackageStats(nameOrNames)` | Package description and recursive object count |
 | `getTree(query)` | Browse package tree (supports owner filter) |
 | `getTransports(package)` | List transports |
 | `createTransport(config)` | Create transport |
+| `deleteTransport(id, removeObjects?)` | Delete transport (optionally clear contents first) |
+| `removeFromTransport(id, objectName)` | Remove a single object from a transport |
+| `viewTransportObjects(id)` | List tasks and objects on a transport |
+| `getInactiveObjects()` | List objects/transports awaiting activation |
 | `previewData(query)` | Query table/view |
-| `getDistinctValues(object, column)` | Distinct values |
-| `countRows(object, type)` | Row count |
-| `search(query, types?)` | Search objects |
+| `getDistinctValues(name, parameters, column, type?)` | Distinct values with counts |
+| `countRows(name, type, parameters?)` | Row count |
+| `search(query, options?)` | Search objects (`{ types?, includePackages? }`) |
 | `whereUsed(object)` | Find dependencies |
 | `gitDiff(objects)` | Compare with server |
 | `getObjectConfig()` | Supported object types |
@@ -261,11 +270,11 @@ if (error) {
 #### Searching Objects
 
 ```typescript
-const [results, error] = await client.search('ZSNAP*', ['DDLS/DF', 'CLAS/OC']);
+const [results, error] = await client.search('ZSNAP*', { types: ['DDLS', 'CLAS'] });
 
 if (!error) {
     for (const result of results) {
-        console.log(`${result.name} (${result.type})`);
+        console.log(`${result.name} (${result.objectType})`);
     }
 }
 ```
@@ -294,12 +303,17 @@ const [data, error] = await client.previewData({
 | GET | `/packages` | List available packages |
 | GET | `/packages/:name/stats` | Get package metadata and count |
 | POST | `/tree` | Browse package tree (supports owner filter) |
-| GET | `/transports/:package` | List transports |
+| GET | `/transports/:package` | List transports for a package |
 | POST | `/transports` | Create transport |
+| DELETE | `/transports/:transportId` | Delete a transport (`?removeObjects=true` to clear first) |
+| GET | `/transports/:transportId/objects` | List tasks/objects on a transport |
+| PUT | `/transports/:transportId/objects` | Remove a single object from a transport |
+| GET | `/inactive-objects` | List objects/transports awaiting activation |
 | POST | `/objects/read` | Batch read objects |
 | POST | `/objects/upsert/:package/:transport?` | Create/update objects |
 | POST | `/objects/activate` | Activate objects |
-| DELETE | `/objects/:transport?` | Delete objects |
+| POST | `/objects/check` | Syntax check objects |
+| DELETE | `/objects/:transport?` | Multi-delete with dependency ordering |
 | POST | `/preview/data` | Query table/view data |
 | POST | `/preview/distinct` | Get distinct values |
 | POST | `/preview/count` | Count rows |
@@ -346,7 +360,7 @@ curl -X POST http://localhost:3000/preview/data \
 curl -X POST "http://localhost:3000/search/ZSNAP*" \
   -H "Content-Type: application/json" \
   -H "x-session-id: abc123" \
-  -d '{ "types": ["DDLS/DF", "CLAS/OC"] }'
+  -d '["DDLS", "CLAS"]'
 ```
 
 ## Error Handling
@@ -483,4 +497,4 @@ Egan Bosch
 
 ---
 
-*Last updated: v0.4.5*
+*Last updated: v0.5.13*

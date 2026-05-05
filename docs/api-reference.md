@@ -29,9 +29,14 @@ HTTP endpoints available in Server Mode.
 |--------|----------|-------------|
 | GET | `/object-config` | List supported object types (no auth) |
 | GET | `/packages?filter=&includeDescriptions=` | List packages with optional descriptions |
+| GET | `/packages/:name/stats` | Package description and recursive object count |
 | POST | `/tree` | Hierarchical package browser |
 | GET | `/transports/:package` | List transports for a package |
 | POST | `/transports` | Create a new transport request |
+| DELETE | `/transports/:transportId?removeObjects=` | Delete a transport (optionally clear contents first) |
+| GET | `/transports/:transportId/objects` | List tasks and objects on a transport |
+| PUT | `/transports/:transportId/objects` | Remove a single object from a transport |
+| GET | `/inactive-objects` | List objects/transports awaiting activation |
 
 ---
 
@@ -41,9 +46,9 @@ HTTP endpoints available in Server Mode.
 |--------|----------|-------------|
 | POST | `/objects/read` | Batch read with content |
 | POST | `/objects/upsert/:package/:transport?` | Create/update objects |
-| POST | `/objects/activate` | Activate objects |
-| POST | `/objects/check` | Syntax check objects |
-| DELETE | `/objects/:transport?` | Delete objects |
+| POST | `/objects/activate` | Activate objects (run-based, mixed extensions allowed) |
+| POST | `/objects/check` | Syntax check objects (single extension per batch) |
+| DELETE | `/objects/:transport?` | Multi-delete with dependency ordering; returns per-object results |
 
 ---
 
@@ -74,4 +79,4 @@ HTTP endpoints available in Server Mode.
 
 ---
 
-*Last updated: v0.5.4*
+*Last updated: v0.5.13*

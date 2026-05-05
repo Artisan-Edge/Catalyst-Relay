@@ -312,7 +312,9 @@ results.forEach(result => {
 
 ## POST /objects/activate
 
-Activate objects to make them runtime-available.
+Activate objects to make them runtime-available. Uses SAP's run-based flow — `POST /activation/runs` to start the run, long-polled `GET /activation/runs/{id}` until it completes, then `GET /activation/results/{id}` for the per-object outcomes — so the response reflects the true post-activation state instead of returning before SAP has finished.
+
+A single batch may mix object extensions (e.g. activate a DDLS, a class, and an include in one call).
 
 ### Request
 
@@ -591,7 +593,7 @@ results.forEach(result => {
 
 ## DELETE /objects/:transport?
 
-Delete objects from the SAP system.
+Multi-delete with where-used dependency analysis. Independent objects are deleted in parallel; dependent objects are sequenced into waves so referencers go before referents. Partial failures do not abort the batch — every object is attempted and the per-object outcome is reported in the response.
 
 ### Request
 
@@ -616,9 +618,14 @@ Array of object references:
 
 ### Response
 
+`data` is an array of per-object results:
+
 | Field | Type | Description |
 |-------|------|-------------|
-| `data` | null | Always null on success |
+| `name` | string | Object name |
+| `extension` | string | File extension |
+| `status` | enum | `success` or `error` |
+| `message` | string? | Error message (when `status` is `error`) |
 
 ### Example
 
@@ -636,7 +643,27 @@ DELETE /objects/DEVK900123
 ```json
 {
     "success": true,
-    "data": null
+    "data": [
+        { "name": "ZOLD_VIEW", "extension": "asddls", "status": "success" }
+    ]
+}
+```
+
+**External references blocked the operation (409):**
+
+If any object in the deletion set is referenced by an object **outside** the set, the operation is refused before any deletes are attempted. The `references` payload is intended to be surfaced to the user so they can extend the deletion set and retry — there is no force/cascade flag.
+
+```json
+{
+    "success": false,
+    "error": "Cannot delete: 1 external reference(s) prevent the operation",
+    "code": "EXTERNAL_REFERENCES",
+    "references": [
+        {
+            "object": { "name": "ZCL_HELPER", "extension": "clas.abap" },
+            "referencedBy": { "name": "ZCL_CONSUMER", "extension": "clas.abap" }
+        }
+    ]
 }
 ```
 
@@ -645,6 +672,7 @@ DELETE /objects/DEVK900123
 | Code | Status | Cause |
 |------|--------|-------|
 | `VALIDATION_ERROR` | 400 | Invalid object reference |
+| `EXTERNAL_REFERENCES` | 409 | Objects outside the set still reference the targets |
 | `OBJECT_LOCKED` | 409 | Object locked by another user |
 | `OBJECT_NOT_FOUND` | 404 | Object does not exist |
 | `SESSION_NOT_FOUND` | 401 | Invalid session |
@@ -657,45 +685,50 @@ DELETE /objects/DEVK900123
 
 ### Library Usage
 
-When using the TypeScript client library directly, use the `delete()` method:
+When using the TypeScript client library directly, use the `delete()` method. The top-level error covers operations that abort the whole batch (e.g. external references block the delete); per-object outcomes are in the returned array.
 
 ```typescript
-import { createClient } from 'catalyst-relay';
-import type { ObjectRef } from 'catalyst-relay';
+import { createClient, ExternalReferencesError } from 'catalyst-relay';
+import type { ObjectRef, DeleteResult } from 'catalyst-relay';
 
-// Create client instance
-const [client, clientErr] = await createClient(config);
-if (clientErr) {
-    console.error('Failed to create client:', clientErr);
-    return;
-}
+const [client, clientErr] = createClient(config);
+if (clientErr) throw clientErr;
+await client.login();
 
-// Define objects to delete
 const objects: ObjectRef[] = [
     { name: 'ZOLD_VIEW', extension: 'asddls' }
 ];
 
-// Delete without transport (local objects only)
-const [, err] = await client.delete(objects);
-if (err) {
-    console.error('Failed to delete objects:', err);
+const [results, error] = await client.delete(objects, 'DEVK900123');
+
+if (error) {
+    if (error instanceof ExternalReferencesError) {
+        // Surface external references to the user so they can extend the set.
+        for (const ref of error.references) {
+            console.error(`${ref.object.name} is still used by ${ref.referencedBy.name}`);
+        }
+        return;
+    }
+    console.error('Delete failed:', error.message);
     return;
 }
 
-// Or delete with transport (for transportable objects)
-const [, err2] = await client.delete(objects, 'DEVK900123');
-if (err2) {
-    console.error('Failed to delete objects:', err2);
-    return;
+const failed = results.filter(r => r.status === 'error');
+if (failed.length > 0) {
+    failed.forEach(r => console.warn(`${r.name}.${r.extension}: ${r.message}`));
 }
-
-console.log('Objects deleted successfully');
 ```
 
-**Return type:** `AsyncResult<void>`
+**Return type:** `AsyncResult<DeleteResult[]>`
 
-The delete operation returns no data on success. Check the error tuple to determine if the operation succeeded.
+`DeleteResult` contains:
+- `name` — Object name
+- `extension` — File extension
+- `status` — `'success'` or `'error'`
+- `message?` — Error message when status is `'error'`
+
+When the deletion is blocked by external references, the error tuple's error is an `ExternalReferencesError` whose `references: ExternalReference[]` lists each `(object, referencedBy)` pair. Use `instanceof ExternalReferencesError` to narrow.
 
 ---
 
-*Last updated: v0.5.3*
+*Last updated: v0.5.13*

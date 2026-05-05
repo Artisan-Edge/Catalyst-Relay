@@ -16,6 +16,14 @@ Browse SAP packages, objects, and transports.
   - [Library Usage](#library-usage-4)
 - [GET /packages/:name/stats](#get-packagesnamestats)
   - [Library Usage](#library-usage-5)
+- [DELETE /transports/:transportId](#delete-transportstransportid)
+  - [Library Usage](#library-usage-6)
+- [PUT /transports/:transportId/objects](#put-transportstransportidobjects)
+  - [Library Usage](#library-usage-7)
+- [GET /transports/:transportId/objects](#get-transportstransportidobjects)
+  - [Library Usage](#library-usage-8)
+- [GET /inactive-objects](#get-inactive-objects)
+  - [Library Usage](#library-usage-9)
 
 ---
 
@@ -99,9 +107,14 @@ curl http://localhost:3000/object-config
 ```typescript
 import { createClient } from 'catalyst-relay';
 
-const client = createClient({ baseUrl: 'https://sap-server.com' });
+const [client, createErr] = createClient({
+    url: 'https://sap-server.com:443',
+    client: '100',
+    auth: { type: 'basic', username: 'USER', password: 'PASS' }
+});
+if (createErr) throw createErr;
 
-// Synchronous method - returns ObjectConfig[] directly
+// Synchronous method — returns ObjectConfig[] directly (no auth required)
 const configs = client.getObjectConfig();
 
 // Access configuration properties
@@ -220,10 +233,14 @@ curl "http://localhost:3000/packages?filter=Z*&includeDescriptions=true" \
 import { createClient } from 'catalyst-relay';
 import type { Package } from 'catalyst-relay';
 
-const client = createClient({ baseUrl: 'https://sap-server.com' });
+const [client, createErr] = createClient({
+    url: 'https://sap-server.com:443',
+    client: '100',
+    auth: { type: 'basic', username: 'USER', password: 'PASS' }
+});
+if (createErr) throw createErr;
 
-// Login first
-await client.login({ username: 'USER', password: 'PASS' });
+await client.login();
 
 // Get all packages (slow - returns hundreds of packages)
 const [allPackages, err1] = await client.getPackages();
@@ -437,10 +454,14 @@ Structured tree response:
 import { createClient } from 'catalyst-relay';
 import type { TreeQuery, TreeResponse } from 'catalyst-relay';
 
-const client = createClient({ baseUrl: 'https://sap-server.com' });
+const [client, createErr] = createClient({
+    url: 'https://sap-server.com:443',
+    client: '100',
+    auth: { type: 'basic', username: 'USER', password: 'PASS' }
+});
+if (createErr) throw createErr;
 
-// Login first
-await client.login({ username: 'USER', password: 'PASS' });
+await client.login();
 
 // Get top-level packages only (no subpackages)
 const [topLevel, err1] = await client.getTree({});
@@ -602,10 +623,14 @@ curl http://localhost:3000/transports/ZDEV \
 import { createClient } from 'catalyst-relay';
 import type { Transport } from 'catalyst-relay';
 
-const client = createClient({ baseUrl: 'https://sap-server.com' });
+const [client, createErr] = createClient({
+    url: 'https://sap-server.com:443',
+    client: '100',
+    auth: { type: 'basic', username: 'USER', password: 'PASS' }
+});
+if (createErr) throw createErr;
 
-// Login first
-await client.login({ username: 'USER', password: 'PASS' });
+await client.login();
 
 // Get transports for a package
 const [transports, err] = await client.getTransports('ZDEV');
@@ -709,10 +734,14 @@ curl -X POST http://localhost:3000/transports \
 import { createClient } from 'catalyst-relay';
 import type { TransportConfig } from 'catalyst-relay';
 
-const client = createClient({ baseUrl: 'https://sap-server.com' });
+const [client, createErr] = createClient({
+    url: 'https://sap-server.com:443',
+    client: '100',
+    auth: { type: 'basic', username: 'USER', password: 'PASS' }
+});
+if (createErr) throw createErr;
 
-// Login first
-await client.login({ username: 'USER', password: 'PASS' });
+await client.login();
 
 // Create a new transport
 const config: TransportConfig = {
@@ -808,7 +837,12 @@ curl http://localhost:3000/packages/ZSNAP_F01/stats \
 ```typescript
 import { createClient } from 'catalyst-relay';
 
-const [client] = createClient({ ... });
+const [client, createErr] = createClient({
+    url: 'https://sap-server.com:443',
+    client: '100',
+    auth: { type: 'basic', username: 'USER', password: 'PASS' }
+});
+if (createErr) throw createErr;
 await client.login();
 
 // Single package
@@ -835,4 +869,206 @@ getPackageStats(names: string[]): AsyncResult<PackageStats[]>
 
 ---
 
-*Last updated: v0.5.3*
+## DELETE /transports/:transportId
+
+Delete a transport request. Optionally clear the transport's contents first via `?removeObjects=true` — by default the request fails if the transport still owns objects.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| DELETE | `/transports/:transportId?removeObjects=` | Yes |
+
+### Path Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `transportId` | string | Yes | Transport request ID (e.g., `DEVK900123`) |
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `removeObjects` | boolean | No | Remove all objects from the transport before deleting (default: `false`) |
+
+### Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `transportId` | string | The deleted transport ID |
+
+### Errors
+
+| Code | Status | Cause |
+|------|--------|-------|
+| `VALIDATION_ERROR` | 400 | Transport ID is required |
+| `SESSION_NOT_FOUND` | 401 | Invalid session |
+| `UNKNOWN_ERROR` | 500 | Transport not empty (without `removeObjects`) or SAP rejected |
+
+### Library Usage
+
+```typescript
+const [, err] = await client.deleteTransport('DEVK900123');
+// Or remove all objects first, then delete:
+const [, err2] = await client.deleteTransport('DEVK900123', true);
+```
+
+**Method Signature:**
+```typescript
+deleteTransport(transportId: string, removeObjects?: boolean): AsyncResult<void>
+```
+
+---
+
+## PUT /transports/:transportId/objects
+
+Remove a single object from a transport's task list without deleting the object itself.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| PUT | `/transports/:transportId/objects` | Yes |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Object name to remove from the transport |
+
+### Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `transportId` | string | Transport ID |
+| `removed` | string | Object name that was removed |
+
+### Library Usage
+
+```typescript
+const [, err] = await client.removeFromTransport('DEVK900123', 'ZTEST_VIEW');
+```
+
+**Method Signature:**
+```typescript
+removeFromTransport(transportId: string, objectName: string): AsyncResult<void>
+```
+
+---
+
+## GET /transports/:transportId/objects
+
+List every task on a transport request along with the objects in each task. Useful for inspecting the full contents of a transport before release or re-assignment.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| GET | `/transports/:transportId/objects` | Yes |
+
+### Response
+
+Array of tasks. Each task contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `taskId` | string | Task request ID |
+| `objects` | array | Objects on the task (see below) |
+
+Each task object:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Object name |
+| `pgmid` | string | SAP program ID (e.g., `R3TR`) |
+| `type` | string | SAP object type (e.g., `DDLS`, `CLAS`) |
+
+### Example
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": [
+        {
+            "taskId": "NPLK900043",
+            "objects": [
+                { "name": "ZTEST_VIEW", "pgmid": "R3TR", "type": "DDLS" },
+                { "name": "ZCL_HELPER", "pgmid": "R3TR", "type": "CLAS" }
+            ]
+        }
+    ]
+}
+```
+
+### Library Usage
+
+```typescript
+const [tasks, err] = await client.viewTransportObjects('NPLK900042');
+if (!err) {
+    tasks.forEach(task => {
+        console.log(`Task ${task.taskId}: ${task.objects.length} objects`);
+    });
+}
+```
+
+**Method Signature:**
+```typescript
+viewTransportObjects(transportId: string): AsyncResult<TaskContents[]>
+```
+
+---
+
+## GET /inactive-objects
+
+List all objects and transports currently in an inactive state. An object is "inactive" after it has been created or modified but before it has been activated. Use this to verify that newly upserted objects are pending activation, or to inspect what a user has staged.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| GET | `/inactive-objects` | Yes |
+
+### Response
+
+Array of `InactiveEntry`. Each entry may contain `object`, `transport`, or both:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `object` | object? | Inactive object (see below) |
+| `transport` | object? | Linked transport (see below) |
+
+**Inactive object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user` | string | User who created the inactive version |
+| `deleted` | boolean | `true` if the inactive change is a pending deletion |
+| `ref` | object | Reference: `{ uri, type, name, description? }` |
+
+**Inactive transport:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user` | string | Owner |
+| `linked` | boolean | Whether the transport is linked to the inactive object |
+| `ref` | object | Reference: `{ uri, type, name, description? }` |
+
+### Library Usage
+
+```typescript
+const [entries, err] = await client.getInactiveObjects();
+if (!err) {
+    const pending = entries.filter(e => e.object && !e.object.deleted);
+    console.log(`${pending.length} object(s) pending activation`);
+}
+```
+
+**Method Signature:**
+```typescript
+getInactiveObjects(): AsyncResult<InactiveEntry[]>
+```
+
+---
+
+*Last updated: v0.5.13*

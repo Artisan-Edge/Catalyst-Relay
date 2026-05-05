@@ -135,12 +135,12 @@ When using Catalyst-Relay as a TypeScript library, call `client.previewData()` t
 import { createClient, type PreviewSQL, type AsyncResult, type DataFrame } from 'catalyst-relay';
 
 // Create authenticated client
-const client = createClient({
-    host: 'https://sap-server.example.com',
+const [client, createErr] = createClient({
+    url: 'https://sap-server.example.com:443',
     client: '100',
-    authStrategy: 'basic',
-    credentials: { username: 'developer', password: 'password' }
+    auth: { type: 'basic', username: 'developer', password: 'password' }
 });
+if (createErr) throw createErr;
 
 const [_, loginErr] = await client.login();
 if (loginErr) {
@@ -244,9 +244,10 @@ Get distinct values for a column with occurrence counts.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `objectName` | string | Yes | Table or view name |
-| `objectType` | enum | No | `table` or `view` (default: `view`) |
 | `parameters` | array | No | CDS view parameters (default: `[]`) |
 | `column` | string | Yes | Column to analyze |
+
+The HTTP route always treats the target as a CDS view. To distinguish table vs. view, use the library method (which accepts an `objectType` argument).
 
 **Parameter Object:**
 
@@ -275,7 +276,6 @@ Each value entry:
 ```json
 {
     "objectName": "MARA",
-    "objectType": "table",
     "column": "MTART"
 }
 ```
@@ -284,7 +284,6 @@ Each value entry:
 ```json
 {
     "objectName": "I_JOURNALENTRY",
-    "objectType": "view",
     "parameters": [
         { "name": "P_FISCALYEAR", "value": "2024" }
     ],
@@ -332,12 +331,12 @@ When using Catalyst-Relay as a TypeScript library, call `client.getDistinctValue
 import { createClient, type Parameter, type AsyncResult, type DistinctResult } from 'catalyst-relay';
 
 // Create authenticated client
-const client = createClient({
-    host: 'https://sap-server.example.com',
+const [client, createErr] = createClient({
+    url: 'https://sap-server.example.com:443',
     client: '100',
-    authStrategy: 'basic',
-    credentials: { username: 'developer', password: 'password' }
+    auth: { type: 'basic', username: 'developer', password: 'password' }
 });
+if (createErr) throw createErr;
 
 await client.login();
 
@@ -514,12 +513,12 @@ When using Catalyst-Relay as a TypeScript library, call `client.countRows()` to 
 import { createClient, type AsyncResult } from 'catalyst-relay';
 
 // Create authenticated client
-const client = createClient({
-    host: 'https://sap-server.example.com',
+const [client, createErr] = createClient({
+    url: 'https://sap-server.example.com:443',
     client: '100',
-    authStrategy: 'basic',
-    credentials: { username: 'developer', password: 'password' }
+    auth: { type: 'basic', username: 'developer', password: 'password' }
 });
+if (createErr) throw createErr;
 
 await client.login();
 
@@ -540,7 +539,8 @@ console.log(`Total rows in MARA: ${count}`);
 ```typescript
 async countRows(
     objectName: string,
-    objectType: 'table' | 'view'
+    objectType: 'table' | 'view',
+    parameters?: Parameter[]   // optional CDS view parameters
 ): AsyncResult<number>
 ```
 
@@ -640,4 +640,4 @@ console.log(`Total rows: ${count}`);
 
 ---
 
-*Last updated: v0.4.5*
+*Last updated: v0.5.13*

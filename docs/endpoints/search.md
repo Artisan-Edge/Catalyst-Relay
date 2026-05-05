@@ -148,11 +148,13 @@ Use the `client.search()` method to search for objects directly:
 import { createClient } from 'catalyst-relay';
 import type { SearchResult } from 'catalyst-relay';
 
-const [client, err] = await createClient({
-    clientId: 'DEV',
+const [client, createErr] = createClient({
+    url: 'https://sap-server.example.com:443',
+    client: '100',
     auth: { type: 'basic', username: 'user', password: 'pass' }
 });
-if (err) throw err;
+if (createErr) throw createErr;
+await client.login();
 
 // Search all types
 const [results, searchErr] = await client.search('Z*TEST*');
@@ -317,11 +319,13 @@ Use the `client.whereUsed()` method to analyze dependencies for a single object:
 import { createClient } from 'catalyst-relay';
 import type { ObjectRef, Dependency } from 'catalyst-relay';
 
-const [client, err] = await createClient({
-    clientId: 'DEV',
+const [client, createErr] = createClient({
+    url: 'https://sap-server.example.com:443',
+    client: '100',
     auth: { type: 'basic', username: 'user', password: 'pass' }
 });
-if (err) throw err;
+if (createErr) throw createErr;
+await client.login();
 
 // Analyze a single object
 const obj: ObjectRef = {
@@ -390,4 +394,4 @@ whereUsed(object: ObjectRef): AsyncResult<Dependency[]>
 
 ---
 
-*Last updated: v0.5.4*
+*Last updated: v0.5.13*

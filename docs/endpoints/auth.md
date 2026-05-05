@@ -594,4 +594,4 @@ Kerberos-based SSO using mTLS certificates from SAP Secure Login Server (SLS).
 
 ---
 
-*Last updated: v0.5.0*
+*Last updated: v0.5.13*
