@@ -24,10 +24,6 @@ Fields are optional: present (as a string) when SAP returns a value, absent from
   - Parser reads each attribute via `taskEl.getAttribute(...)` and uses `...(value ? { key: value } : {})` to omit absent or empty values from the result. This matches the project's `exactOptionalPropertyTypes: true` contract — if the key exists, the value is always a string.
   - Existing `taskId` and `objects` extraction unchanged.
 
-- `src/__tests__/core/adt/transports/parseTransportTasks.test.ts` (new):
-  - 22 unit tests with hand-built XML fixtures. Covers happy path, all-attributes-absent, empty-string attributes, mixed presence across sibling tasks, document-order preservation, malformed input, namespace clashes, multi-byte UTF-8 attribute values, very long values (1500 chars), duplicate-attribute behavior under `@xmldom/xmldom`, and one mutation-style spot check per new code path.
-  - All tests run offline (no live SAP required).
-
 ## Backwards Compatibility
 The new fields are optional, so existing constructors building `{ taskId, objects }` literals continue to compile and run. Consumers that read `task.owner` / `task.description` / `task.status` get either a string or `undefined` (key missing) — they never receive an empty string masquerading as data.
 
