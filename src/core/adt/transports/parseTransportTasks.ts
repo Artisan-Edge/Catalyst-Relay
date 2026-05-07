@@ -6,6 +6,9 @@ import type { TransportObject } from './removeFromTransport';
 
 export interface TaskContents {
     taskId: string;
+    owner?: string;
+    description?: string;
+    status?: string;
     objects: TransportObject[];
 }
 
@@ -42,7 +45,17 @@ export function parseTransportTasks(doc: Document): TaskContents[] {
             });
         }
 
-        tasks.push({ taskId, objects });
+        const owner = taskEl.getAttribute('tm:owner');
+        const description = taskEl.getAttribute('tm:desc');
+        const status = taskEl.getAttribute('tm:status');
+
+        tasks.push({
+            taskId,
+            ...(owner ? { owner } : {}),
+            ...(description ? { description } : {}),
+            ...(status ? { status } : {}),
+            objects,
+        });
     }
 
     return tasks;
