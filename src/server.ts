@@ -64,31 +64,17 @@ app.onError((error, c) => {
 });
 
 // Start server
-// const port = Number(process.env['PORT']) || 3000;
-
-// console.log(`Starting Catalyst-Relay server on port ${port}`);
-
-// // Use standard fetch API export for runtime compatibility
-// export default {
-//     port,
-//     fetch: app.fetch,
-// };
-
-// // Also export app and session manager for testing
-// export { app, sessionManager, cleanupHandle };
-
-// node server
-
 const port = Number(process.env['PORT']) || 3000;
 
 console.log(`Starting Catalyst-Relay server on port ${port}`);
 
-import { serve } from '@hono/node-server';
-
-serve({
-    fetch: app.fetch,
+// Use standard fetch API export for runtime compatibility
+export default {
     port,
-});
+    fetch: app.fetch,
+};
+
+
 
 console.log(`Catalyst-Relay running at http://localhost:${port}`);
 
