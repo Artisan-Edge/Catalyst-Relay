@@ -75,8 +75,5 @@ export default {
 };
 
 
-
-console.log(`Catalyst-Relay running at http://localhost:${port}`);
-
 // Optional exports
 export { app, sessionManager, cleanupHandle };
