@@ -74,5 +74,6 @@ export default {
     fetch: app.fetch,
 };
 
-// Also export app and session manager for testing
+
+// Optional exports
 export { app, sessionManager, cleanupHandle };
