@@ -50,21 +50,77 @@ export function parseDataPreview(
     const metadataElements = doc.getElementsByTagNameNS(namespace, 'metadata');
     const columns: ColumnInfo[] = [];
 
+    // console.log("metadata", metadataElements);
+    const SAP_TYPE_MAP: Record<string, string> = {
+        '8': 'integer',   // Int8
+        'I': 'integer',   // Integer
+        'P': 'decimal',   // Packed decimal
+        'F': 'float',     // Floating point
+        'D': 'date',      // Date (YYYYMMDD)
+        'T': 'time',      // Time (HHMMSS)
+        'S': 'timestamp', // Timestamp
+        'C': 'string',    // Character
+        'N': 'string',    // Numeric character string
+        'V': 'string',    // Variable-length character
+        'X': 'binary',    // Raw binary/hex
+    };
+
     for (let i = 0; i < metadataElements.length; i++) {
         const meta = metadataElements[i];
+        // console.log("meta data index", i);
         if (!meta) continue;
 
         // Tables use 'name', views use 'camelCaseName'.
         const nameAttr = isTable ? 'name' : 'camelCaseName';
         const name = meta.getAttributeNS(namespace, nameAttr) || meta.getAttribute('name');
-        const dataType = meta.getAttributeNS(namespace, 'colType') || meta.getAttribute('colType');
-        if (!name || !dataType) continue;
 
+
+        const colType = meta.getAttributeNS(namespace, 'colType') || meta.getAttribute('colType');
+        const rawType = meta.getAttributeNS(namespace, 'type') || meta.getAttribute('type');
+        const isKeyFigure = meta.getAttributeNS(namespace, 'isKeyFigure') === 'true';
+
+        let dataType: string;
+
+        if (colType && colType.trim() !== '') {
+            // Highest priority: Explicit Dictionary Type (CHAR, DATS, etc.)
+            dataType = colType;
+        } else if (isKeyFigure) {
+            // If it's a Key Figure (Amount/Quantity), it's always numeric
+            dataType = 'decimal';
+        } else if (rawType && SAP_TYPE_MAP[rawType]) {
+            // Fallback to mapping the raw 'I' or '8' codes
+            dataType = SAP_TYPE_MAP[rawType];
+        } else {
+            // Absolute fallback
+            dataType = 'string';
+        }
+
+        const allAttrs: Record<string, string> = {};
+        // The attributes property is a NamedNodeMap
+        for (let j = 0; j < meta.attributes.length; j++) {
+            const attr = meta.attributes[j];
+            if (!attr) {
+                continue;
+            }
+            allAttrs[attr.name] = attr.value;
+        }
+        console.log("All available attributes for this element:", allAttrs);
+        if (!name || !dataType) continue;
+           
         columns.push({ name, dataType });
     }
 
+    console.log("columns extracted from metadata", columns.length, columns);
+
     // Extract data values organized by column.
     const dataSetElements = doc.getElementsByTagNameNS(namespace, 'dataSet');
+    // console.log("dataSet", dataSetElements);
+
+    for (let i = 0; i < dataSetElements.length; i++) {
+        console.log("dataSet element index", i);
+        const dataSet = dataSetElements[i];
+        if (!dataSet) continue;
+    }
 
     // If no metadata, infer columns from dataSet elements (aggregate queries).
     if (columns.length === 0 && dataSetElements.length > 0) {
