@@ -49,7 +49,7 @@ export async function freestyleQuery(
         const text = await response.text();
         debug(`Freestyle query error response: ${text.substring(0, 500)}`);
         const errorMsg = extractError(text);
-        return err(new Error(`Freestyle query failed: ${errorMsg}`));
+        return err(new Error(`Freestyle query failed: ${errorMsg}`, { cause: text }));
     }
 
     const text = await response.text();

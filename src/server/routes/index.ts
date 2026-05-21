@@ -39,6 +39,7 @@ import { deleteHandler } from './objects/delete';
 import { dataHandler } from './preview/data';
 import { distinctHandler } from './preview/distinct';
 import { countHandler } from './preview/count';
+import { freestyleHandler } from './preview/freestyle';
 
 // Search routes
 import { searchHandler } from './search/search';
@@ -99,6 +100,7 @@ export function createRoutes(
     app.post('/preview/data', sessionMiddleware, dataHandler);
     app.post('/preview/distinct', sessionMiddleware, distinctHandler);
     app.post('/preview/count', sessionMiddleware, countHandler);
+    app.post('/preview/freestyle', sessionMiddleware, freestyleHandler);
 
     // ─────────────────────────────────────────────────────────────────────────
     // Search Routes (session required)
