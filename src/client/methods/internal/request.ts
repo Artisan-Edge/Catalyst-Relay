@@ -59,7 +59,7 @@ export async function executeRequest(
     // Log the outgoing request path (strip sap-client for readability)
     const displayUrl = new URL(url);
     displayUrl.searchParams.delete('sap-client');
-    console.log(`--> ${method} ${displayUrl.pathname}${displayUrl.search}`);
+    // console.log(`--> ${method} ${displayUrl.pathname}${displayUrl.search}`);
 
     try {
         // Execute HTTP request using Node.js https module
@@ -76,7 +76,7 @@ export async function executeRequest(
             timeout: config.timeout ?? DEFAULT_TIMEOUT,
         });
 
-        console.log(`<-- ${method} ${displayUrl.pathname}${displayUrl.search} ${response.status}`);
+        // console.log(`<-- ${method} ${displayUrl.pathname}${displayUrl.search} ${response.status}`);
 
         // Store any cookies from response
         storeCookies(response);
@@ -98,7 +98,7 @@ export async function executeRequest(
                     headers['Cookie'] = retryCookieHeader;
                 }
                 debug(`Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
-                console.log(`--> ${method} ${displayUrl.pathname}${displayUrl.search} (CSRF retry)`);
+                // console.log(`--> ${method} ${displayUrl.pathname}${displayUrl.search} (CSRF retry)`);
 
                 const retryResponse = await httpRequest(url, {
                     method,
@@ -109,7 +109,7 @@ export async function executeRequest(
                     rejectUnauthorized: !config.insecure,
                     timeout: config.timeout ?? DEFAULT_TIMEOUT,
                 });
-                console.log(`<-- ${method} ${displayUrl.pathname}${displayUrl.search} ${retryResponse.status}`);
+                // console.log(`<-- ${method} ${displayUrl.pathname}${displayUrl.search} ${retryResponse.status}`);
                 storeCookies(retryResponse);
                 return ok(retryResponse);
             }
