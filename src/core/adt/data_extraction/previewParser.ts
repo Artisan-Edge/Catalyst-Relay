@@ -50,7 +50,6 @@ export function parseDataPreview(
     const metadataElements = doc.getElementsByTagNameNS(namespace, 'metadata');
     const columns: ColumnInfo[] = [];
 
-    // console.log("metadata", metadataElements);
     const SAP_TYPE_MAP: Record<string, string> = {
         '8': 'integer',   // Int8
         'I': 'integer',   // Integer
@@ -104,20 +103,16 @@ export function parseDataPreview(
             }
             allAttrs[attr.name] = attr.value;
         }
-        // console.log("All available attributes for this element:", allAttrs);
         if (!name || !dataType) continue;
            
         columns.push({ name, dataType });
     }
 
-    // console.log("columns extracted from metadata", columns.length, columns);
 
     // Extract data values organized by column.
     const dataSetElements = doc.getElementsByTagNameNS(namespace, 'dataSet');
-    // console.log("dataSet", dataSetElements);
 
     for (let i = 0; i < dataSetElements.length; i++) {
-        // console.log("dataSet element index", i);
         const dataSet = dataSetElements[i];
         if (!dataSet) continue;
     }
