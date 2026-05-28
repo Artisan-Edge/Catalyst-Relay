@@ -15,6 +15,7 @@ import type { RouteContext } from '../types';
 export const freestyleRequestSchema = z.object({
     sqlQuery: z.string().min(1),
     limit: z.number().positive().max(50000).optional(),
+    timeout: z.number().positive().max(300000).optional(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,10 +40,10 @@ export async function freestyleHandler(c: RouteContext) {
         );
     }
 
-    const { sqlQuery, limit } = validation.data;
+    const { sqlQuery, limit, timeout } = validation.data;
     const client = c.get('client');
 
-    const [dataFrame, error] = await client.freestyleQuery(sqlQuery, limit);
+    const [dataFrame, error] = await client.freestyleQuery(sqlQuery, limit, timeout);
 
     if (error) {
         throw new ApiError('UNKNOWN_ERROR', error.message, 500, error.cause);

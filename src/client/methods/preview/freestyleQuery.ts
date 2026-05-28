@@ -12,8 +12,9 @@ export async function freestyleQuery(
     state: ClientState,
     requestor: AdtRequestor,
     sqlQuery: string,
-    limit?: number
+    limit?: number,
+    timeout?: number
 ): AsyncResult<DataFrame> {
     if (!state.session) return err(new Error('Not logged in'));
-    return adt.freestyleQuery(requestor, sqlQuery, limit);
+    return adt.freestyleQuery(requestor, sqlQuery, limit, timeout);
 }

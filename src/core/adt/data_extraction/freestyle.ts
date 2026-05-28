@@ -26,7 +26,8 @@ const DEFAULT_ROW_LIMIT = 100;
 export async function freestyleQuery(
     client: AdtRequestor,
     sqlQuery: string,
-    limit = DEFAULT_ROW_LIMIT
+    limit = DEFAULT_ROW_LIMIT,
+    timeout?: number
 ): AsyncResult<DataFrame, Error> {
     debug(`Freestyle query: ${sqlQuery}`);
 
@@ -41,6 +42,7 @@ export async function freestyleQuery(
             'Content-Type': 'text/plain',
         },
         body: sqlQuery,
+        ...(timeout !== undefined && { timeout }),
     });
 
     if (requestErr) return err(requestErr);
