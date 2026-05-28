@@ -40,6 +40,10 @@ export async function freestyleQuery(
         headers: {
             'Accept': 'application/xml, application/vnd.sap.adt.datapreview.table.v1+xml',
             'Content-Type': 'text/plain',
+            // Override stateful base header: each preview request is independent; stateless
+            // lets SAP route to any work process and recycle it after the request, preventing
+            // GENERATE_SUBPOOL_DIR_FULL (36-pool limit per work process).
+            'X-sap-adt-sessiontype': 'stateless',
         },
         body: sqlQuery,
         ...(timeout !== undefined && { timeout }),
