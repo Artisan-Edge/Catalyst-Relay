@@ -170,6 +170,7 @@ curl -X POST http://localhost:3000/login \
 - Query table/view data with filtering and sorting
 - Get distinct column values
 - Count rows
+- Run freestyle OpenSQL queries with per-request row limits and timeouts
 
 ### Search
 - Search objects by name pattern
@@ -222,6 +223,7 @@ curl -X POST http://localhost:3000/login \
 | `previewData(query)` | Query table/view |
 | `getDistinctValues(name, parameters, column, type?)` | Distinct values with counts |
 | `countRows(name, type, parameters?)` | Row count |
+| `freestyleQuery(sqlQuery, limit?, timeout?)` | Run arbitrary read-only OpenSQL; optional row limit and per-request timeout (ms) |
 | `search(query, options?)` | Search objects (`{ types?, includePackages? }`) |
 | `whereUsed(object)` | Find dependencies |
 | `gitDiff(objects)` | Compare with server |
@@ -290,6 +292,18 @@ const [data, error] = await client.previewData({
 });
 ```
 
+#### Freestyle OpenSQL Query
+
+For cases where the structured preview isn't enough, run an arbitrary read-only `SELECT`. This is a power-user surface — the query is not parsed or restricted beyond an optional row `limit` (max 50,000) and per-request `timeout` in milliseconds (max 5 minutes), so callers are responsible for deciding who may issue arbitrary SQL.
+
+```typescript
+const [data, error] = await client.freestyleQuery(
+    "SELECT carrid, connid, fldate FROM sflight WHERE carrid = 'LH'",
+    500,    // optional row limit (default 100)
+    60000   // optional per-request timeout in ms
+);
+```
+
 ## Server Mode API Reference
 
 ### HTTP Endpoints
@@ -317,6 +331,7 @@ const [data, error] = await client.previewData({
 | POST | `/preview/data` | Query table/view data |
 | POST | `/preview/distinct` | Get distinct values |
 | POST | `/preview/count` | Count rows |
+| POST | `/preview/freestyle` | Run arbitrary read-only OpenSQL |
 | POST | `/search/:query` | Search objects |
 | POST | `/where-used` | Find dependencies |
 | POST | `/git-diff` | Compare with server |
@@ -351,6 +366,19 @@ curl -X POST http://localhost:3000/preview/data \
     "objectType": "table",
     "sqlQuery": "SELECT MANDT, MTEXT FROM T000 WHERE MANDT = '\''100'\''",
     "limit": 10
+  }'
+```
+
+#### Freestyle OpenSQL Query
+
+```bash
+curl -X POST http://localhost:3000/preview/freestyle \
+  -H "Content-Type: application/json" \
+  -H "x-session-id: abc123" \
+  -d '{
+    "sqlQuery": "SELECT carrid, connid, fldate FROM sflight WHERE carrid = '\''LH'\''",
+    "limit": 500,
+    "timeout": 60000
   }'
 ```
 
@@ -497,4 +525,4 @@ Egan Bosch
 
 ---
 
-*Last updated: v0.5.13*
+*Last updated: v0.5.14*
