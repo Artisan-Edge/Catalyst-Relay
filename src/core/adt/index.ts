@@ -77,6 +77,7 @@ export { getInactiveObjects } from './discovery/inactiveObjects';
 
 // Data preview operations
 export { previewData } from './data_extraction/dataPreview';
+export { freestyleQuery } from './data_extraction/freestyle';
 export { getDistinctValues } from './data_extraction/distinct';
 export { countRows } from './data_extraction/count';
 

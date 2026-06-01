@@ -101,6 +101,7 @@ export interface ADTClient {
     previewData(query: PreviewSQL): AsyncResult<DataFrame>;
     getDistinctValues(objectName: string, parameters: Parameter[], column: string, objectType?: 'table' | 'view'): AsyncResult<DistinctResult>;
     countRows(objectName: string, objectType: 'table' | 'view', parameters?: Parameter[]): AsyncResult<number>;
+    freestyleQuery(sqlQuery: string, limit?: number, timeout?: number): AsyncResult<DataFrame>;
 
     // Search
     search(query: string, options?: SearchOptions): AsyncResult<SearchResult[]>;
@@ -299,6 +300,10 @@ export class ADTClientImpl implements ADTClient {
 
     async countRows(objectName: string, objectType: 'table' | 'view', parameters: Parameter[] = []): AsyncResult<number> {
         return previewMethods.countRows(this.state, this.requestor, objectName, objectType, parameters);
+    }
+
+    async freestyleQuery(sqlQuery: string, limit?: number, timeout?: number): AsyncResult<DataFrame> {
+        return previewMethods.freestyleQuery(this.state, this.requestor, sqlQuery, limit, timeout);
     }
 
     // --- Search ---

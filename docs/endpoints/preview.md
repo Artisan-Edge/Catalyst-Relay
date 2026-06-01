@@ -10,6 +10,8 @@ Query and preview data from SAP tables and CDS views.
   - [Library Usage](#library-usage-1)
 - [POST /preview/count](#post-previewcount)
   - [Library Usage](#library-usage-2)
+- [POST /preview/freestyle](#post-previewfreestyle)
+  - [Library Usage](#library-usage-3)
 
 ---
 
@@ -636,6 +638,140 @@ if (err) {
 
 // Safe to use count here
 console.log(`Total rows: ${count}`);
+```
+
+---
+
+## POST /preview/freestyle
+
+Execute arbitrary OpenSQL queries including aggregations, JOINs, GROUP BY, and other full SQL constructs not supported by `/preview/data`.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| POST | `/preview/freestyle` | Yes |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sqlQuery` | string | Yes | Full OpenSQL SELECT statement |
+| `limit` | number | No | Max rows to return (default: 100, max: 50000) |
+
+### Response
+
+DataFrame structure (same as `/preview/data`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `columns` | array | Column metadata |
+| `rows` | array[] | Row data (array of arrays) |
+| `totalRows` | number? | Total matching rows (if available) |
+
+### Example
+
+**Request:**
+```json
+{
+    "sqlQuery": "SELECT CompanyCode, SUM( AmountInCompanyCodeCurrency ) AS Total FROM ZSNAP_F01S_C01( P_ControllingArea = 'MED1', P_Signage = 'R' ) GROUP BY CompanyCode",
+    "limit": 50
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "columns": [
+            { "name": "CompanyCode", "dataType": "CHAR" },
+            { "name": "Total", "dataType": "CURR" }
+        ],
+        "rows": [
+            ["1000", "4521893.50"],
+            ["2000", "1238450.00"]
+        ]
+    }
+}
+```
+### Errors
+
+| Code | Status | Cause |
+|------|--------|-------|
+| `VALIDATION_ERROR` | 400 | Missing or empty `sqlQuery` |
+| `UNKNOWN_ERROR` | 500 | SAP rejected the query — check `details` field for raw SAP error XML |
+
+On error, the response includes a `details` field with the raw SAP XML error response:
+
+```json
+{
+    "success": false,
+    "error": "Freestyle query failed: A Boolean expression was expected in \"MA\".",
+    "code": "UNKNOWN_ERROR",
+    "details": "<?xml version=\"1.0\"...><message>...</message>...</exc:exception>"
+}
+```
+
+### Use Cases
+
+- **Aggregate queries** — `SUM`, `COUNT`, `AVG`, `MIN`, `MAX` across large datasets
+- **GROUP BY analysis** — Breakdown by dimension
+- **CDS view with parameters** — Pass parameters inline in the SQL string
+- **Multi-line SQL** — Complex queries exceeding ABAP's 255-character line limit (use `\n` between clauses)
+
+### Library Usage
+
+When using Catalyst-Relay as a TypeScript library, call `client.freestyleQuery()`:
+
+```typescript
+import { createClient, type AsyncResult, type DataFrame } from 'catalyst-relay';
+
+const [client, createErr] = createClient({
+    url: 'https://sap-server.example.com:443',
+    client: '100',
+    auth: { type: 'basic', username: 'developer', password: 'password' }
+});
+if (createErr) throw createErr;
+
+await client.login();
+
+// Simple aggregate query
+const [dataFrame, err] = await client.freestyleQuery(
+    "SELECT CompanyCode, COUNT(*) AS Cnt\nFROM ZSNAP_F01S_C01( P_ControllingArea = 'MED1', P_Signage = 'R' )\nGROUP BY CompanyCode",
+    100  // optional limit
+);
+
+if (err) {
+    console.error('Query failed:', err.message);
+    process.exit(1);
+}
+
+console.log('Columns:', dataFrame.columns);
+console.log('Rows:', dataFrame.rows);
+```
+
+**Method Signature:**
+
+```typescript
+async freestyleQuery(
+    sqlQuery: string,
+    limit?: number   // default: 100, max: 50000
+): AsyncResult<DataFrame>
+```
+
+**Note on multi-line SQL:** ABAP has a historical 255-character line length limit. For queries longer than ~255 characters, split clauses with `\n`:
+
+```typescript
+const sql = [
+    "SELECT CompanyCode, FiscalYear, SUM( AmountInCompanyCodeCurrency ) AS Total",
+    "FROM ZSNAP_F01S_C01( P_ControllingArea = 'MED1', P_Signage = 'R' )",
+    "WHERE FiscalYear = '2025'",
+    "GROUP BY CompanyCode, FiscalYear",
+    "ORDER BY CompanyCode ASC",
+].join("\n");
+
+const [dataFrame, err] = await client.freestyleQuery(sql);
 ```
 
 ---

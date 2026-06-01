@@ -5,3 +5,4 @@
 export { previewData } from './previewData';
 export { getDistinctValues } from './getDistinctValues';
 export { countRows } from './countRows';
+export { freestyleQuery } from './freestyleQuery';

@@ -26,7 +26,8 @@ const DEFAULT_ROW_LIMIT = 100;
 export async function freestyleQuery(
     client: AdtRequestor,
     sqlQuery: string,
-    limit = DEFAULT_ROW_LIMIT
+    limit = DEFAULT_ROW_LIMIT,
+    timeout?: number
 ): AsyncResult<DataFrame, Error> {
     debug(`Freestyle query: ${sqlQuery}`);
 
@@ -39,8 +40,13 @@ export async function freestyleQuery(
         headers: {
             'Accept': 'application/xml, application/vnd.sap.adt.datapreview.table.v1+xml',
             'Content-Type': 'text/plain',
+            // Override stateful base header: each preview request is independent; stateless
+            // lets SAP route to any work process and recycle it after the request, preventing
+            // GENERATE_SUBPOOL_DIR_FULL (36-pool limit per work process).
+            'X-sap-adt-sessiontype': 'stateless',
         },
         body: sqlQuery,
+        ...(timeout !== undefined && { timeout }),
     });
 
     if (requestErr) return err(requestErr);
@@ -49,7 +55,7 @@ export async function freestyleQuery(
         const text = await response.text();
         debug(`Freestyle query error response: ${text.substring(0, 500)}`);
         const errorMsg = extractError(text);
-        return err(new Error(`Freestyle query failed: ${errorMsg}`));
+        return err(new Error(`Freestyle query failed: ${errorMsg}`, { cause: text }));
     }
 
     const text = await response.text();

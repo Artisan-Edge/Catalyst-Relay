@@ -32,7 +32,7 @@ export async function executeRequest(
     selfRequest: (options: RequestOptions) => AsyncResult<Response, Error>
 ): AsyncResult<Response, Error> {
     const { state, ssoCerts, getCookieHeader, storeCookies } = deps;
-    const { method, path, params, headers: customHeaders, body } = options;
+    const { method, path, params, headers: customHeaders, body, timeout: requestTimeout } = options;
     const { config } = state;
 
     // Build headers with auth and CSRF token
@@ -68,8 +68,9 @@ export async function executeRequest(
             cert: ssoCerts?.cert,
             key: ssoCerts?.key,
             rejectUnauthorized: !config.insecure,
-            timeout: config.timeout ?? DEFAULT_TIMEOUT,
+            timeout: requestTimeout ?? config.timeout ?? DEFAULT_TIMEOUT,
         });
+
 
         // Store any cookies from response
         storeCookies(response);
@@ -99,7 +100,7 @@ export async function executeRequest(
                     cert: ssoCerts?.cert,
                     key: ssoCerts?.key,
                     rejectUnauthorized: !config.insecure,
-                    timeout: config.timeout ?? DEFAULT_TIMEOUT,
+                    timeout: requestTimeout ?? config.timeout ?? DEFAULT_TIMEOUT,
                 });
                 storeCookies(retryResponse);
                 return ok(retryResponse);

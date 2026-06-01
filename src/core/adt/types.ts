@@ -10,6 +10,7 @@ export interface AdtRequestor {
         params?: Record<string, string | number>;
         headers?: Record<string, string>;
         body?: string;
+        timeout?: number;
     }): AsyncResult<Response, Error>;
 }
 

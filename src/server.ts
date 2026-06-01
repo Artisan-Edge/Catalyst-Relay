@@ -11,6 +11,7 @@ import { logger } from 'hono/logger';
 import { SessionManager } from './core/session/manager';
 import { startCleanupTask } from './core/session/cleanup';
 import { createSessionMiddleware, errorMiddleware } from './server/middleware';
+import { ApiError } from './server/middleware/error';
 import { createRoutes } from './server/routes';
 import type { ISessionManager } from './server/routes';
 
@@ -23,7 +24,7 @@ const sessionManager = new SessionManager() as unknown as ISessionManager;
 const cleanupHandle = startCleanupTask(
     sessionManager as unknown as SessionManager,
     (sessionManager as unknown as SessionManager).getConfig(),
-    (sessionId, entry) => {
+    (sessionId, _entry) => {
         console.log(`Session ${sessionId} expired after inactivity`);
     }
 );
@@ -53,10 +54,21 @@ app.notFound((c) => {
 // Error handler
 app.onError((error, c) => {
     console.error('Unhandled error:', error);
+    if (error instanceof ApiError) {
+        return c.json(
+            {
+                success: false as const,
+                error: error.message,
+                code: error.code,
+                details: error.details,
+            },
+            error.statusCode as 400 | 401 | 403 | 404 | 500
+        );
+    }
     return c.json(
         {
-            success: false,
-            error: 'Internal server error',
+            success: false as const,
+            error: error instanceof Error ? error.message : 'Internal server error',
             code: 'UNKNOWN_ERROR',
         },
         500
