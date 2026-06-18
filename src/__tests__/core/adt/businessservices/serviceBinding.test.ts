@@ -9,7 +9,8 @@
 import { describe, it, expect } from 'bun:test';
 import { validateServiceBinding } from '../../../../core/adt/businessservices/validate';
 import { createServiceBindingObject } from '../../../../core/adt/businessservices/create';
-import { publishServiceBinding } from '../../../../core/adt/businessservices/publish';
+import { publishServiceBinding, unpublishServiceBinding } from '../../../../core/adt/businessservices/publish';
+import { deleteServiceBinding } from '../../../../core/adt/businessservices/delete';
 import { createServiceBinding } from '../../../../client/methods/businessservices/createServiceBinding';
 import type { AdtRequestor } from '../../../../core/adt';
 import type { ClientState } from '../../../../client/types';
@@ -139,6 +140,58 @@ describe('publishServiceBinding', () => {
         expect(calls[1]!.path).toBe('/sap/bc/adt/businessservices/odatav4/publishjobs');
         expect(calls[1]!.body).toContain('adtcore:type="SCGR"');
         expect(calls[1]!.body).toContain('adtcore:name="ZB_O5"');
+        // Lock must be released after publishing.
+        expect(calls[2]!.params).toMatchObject({ _action: 'UNLOCK', lockHandle: 'HANDLE123' });
+    });
+});
+
+describe('unpublishServiceBinding', () => {
+    it('locks the binding then submits an unpublish job', async () => {
+        const { requestor, calls } = mockRequestor((req) => {
+            if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
+            return new Response(severityXml('OK', 'ZB_O5 un-published locally'), { status: 200 });
+        });
+
+        const [message, error] = await unpublishServiceBinding(requestor, 'ZB_O5');
+
+        expect(error).toBeNull();
+        expect(message).toBe('ZB_O5 un-published locally');
+        expect(calls[0]!.path).toBe('/sap/bc/adt/businessservices/bindings/zb_o5');
+        expect(calls[1]!.path).toBe('/sap/bc/adt/businessservices/odatav4/unpublishjobs');
+        expect(calls[1]!.body).toContain('adtcore:type="SCGR"');
+        // Lock must be released after unpublishing.
+        expect(calls[2]!.params).toMatchObject({ _action: 'UNLOCK', lockHandle: 'HANDLE123' });
+    });
+});
+
+describe('deleteServiceBinding', () => {
+    it('unpublishes then deletes the binding', async () => {
+        const { requestor, calls } = mockRequestor((req) => {
+            if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
+            if (req.path.endsWith('/unpublishjobs')) return new Response(severityXml('OK', 'un-published'), { status: 200 });
+            return new Response('', { status: 200 });
+        });
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_O5', 'SDSK900001');
+
+        expect(error).toBeNull();
+        expect(calls.some(c => c.path.endsWith('/unpublishjobs'))).toBe(true);
+        const del = calls.find(c => c.method === 'DELETE')!;
+        expect(del.path).toBe('/sap/bc/adt/businessservices/bindings/zb_o5');
+        expect(del.params).toMatchObject({ lockHandle: 'HANDLE123', corrNr: 'SDSK900001' });
+    });
+
+    it('still deletes when the binding was not published', async () => {
+        const { requestor, calls } = mockRequestor((req) => {
+            if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
+            if (req.path.endsWith('/unpublishjobs')) return new Response(severityXml('ERROR', 'not published'), { status: 200 });
+            return new Response('', { status: 200 });
+        });
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_O5', undefined);
+
+        expect(error).toBeNull();
+        expect(calls.some(c => c.method === 'DELETE')).toBe(true);
     });
 });
 

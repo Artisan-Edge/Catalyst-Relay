@@ -121,6 +121,7 @@ export interface ADTClient {
 
     // Business Services
     createServiceBinding(options: CreateServiceBindingOptions): AsyncResult<ServiceBindingResult>;
+    deleteServiceBinding(bindingName: string, transport?: string): AsyncResult<void>;
 
     // Configuration
     getObjectConfig(): ObjectConfig[];
@@ -350,6 +351,10 @@ export class ADTClientImpl implements ADTClient {
 
     async createServiceBinding(options: CreateServiceBindingOptions): AsyncResult<ServiceBindingResult> {
         return businessServiceMethods.createServiceBinding(this.state, this.requestor, options);
+    }
+
+    async deleteServiceBinding(bindingName: string, transport?: string): AsyncResult<void> {
+        return businessServiceMethods.deleteServiceBinding(this.state, this.requestor, bindingName, transport);
     }
 
     // --- Configuration ---

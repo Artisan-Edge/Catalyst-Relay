@@ -123,21 +123,34 @@ describe.skipIf(!CAN_RUN)('RAP Service Binding Workflow', () => {
     afterAll(async () => {
         if (!client?.session) return;
 
-        // Intentionally no cleanup: a published binding can't be removed via the
-        // client and it pins the rest of the chain. Log everything for manual cleanup.
-        console.log('--- Created objects (manual cleanup required) ---');
-        console.log(`  Package:   ${TEST_CONFIG.package}`);
-        console.log(`  Transport: ${TEST_CONFIG.transport}`);
-        console.log(`  Table:        ${TABLE}`);
-        console.log(`  Read view:    ${READ_VIEW}`);
-        console.log(`  Root view:    ${ROOT_VIEW}`);
-        console.log(`  Behavior def: ${BDEF}`);
-        console.log(`  Pool class:   ${POOL_CLASS}`);
-        console.log(`  Service def:  ${SRVD}`);
-        console.log(`  Binding:      ${BINDING}`);
+        // Tear down in dependency order: the binding pins the srvd → views → table
+        // chain, so unpublish + delete it first, then multi-delete the rest (which
+        // resolves its own ordering). Best-effort — log failures, never throw.
+        console.log('--- Cleanup ---');
+        const [, bindingErr] = await client.deleteServiceBinding(BINDING, TEST_CONFIG.transport);
+        if (bindingErr) console.warn(`  Binding ${BINDING}: ${bindingErr.message}`);
+        else console.log(`  Deleted binding: ${BINDING}`);
+
+        const chain: ObjectRef[] = [
+            { name: SRVD, extension: 'srvd' },
+            { name: BDEF, extension: 'asbdef' },
+            { name: POOL_CLASS, extension: 'aclass' },
+            { name: ROOT_VIEW, extension: 'asddls' },
+            { name: READ_VIEW, extension: 'asddls' },
+            { name: TABLE, extension: 'astabldt' },
+        ];
+        const [results, deleteErr] = await client.delete(chain, TEST_CONFIG.transport);
+        if (deleteErr) {
+            console.warn(`  Chain delete error: ${deleteErr.message}`);
+        } else {
+            for (const result of results!) {
+                const label = result.status === 'success' ? 'Deleted' : `FAILED (${result.message ?? ''})`;
+                console.log(`  ${label}: ${result.name}`);
+            }
+        }
 
         await safeLogout(client);
-    });
+    }, ACTIVATION_TIMEOUT_MS);
 
     async function upsert(objects: ObjectContent[]): Promise<void> {
         if (!client?.session) throw new Error('No active session');

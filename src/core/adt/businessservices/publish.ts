@@ -1,23 +1,18 @@
 /**
- * Publish — lock and publish a service binding (exposes the OData service)
+ * Publish / Unpublish — expose or retract a service binding's OData service
  */
 
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import { extractLockHandle, extractTagText } from '../../utils/xml';
-import { checkResponse } from '../helpers';
 import { debug } from '../../utils/logging';
-
-const LOCK_ACCEPT_HEADER =
-    'application/*,application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result';
-const SEVERITY_OK = 'OK';
+import { lockServiceBinding, unlockServiceBinding, submitServiceBindingJob } from './helpers';
 
 /**
  * Publish a service binding.
  *
- * Locks the binding, then submits an OData V4 publish job. Publishing exposes the
- * binding's entity sets at the OData service URL.
+ * Locks the binding, submits an OData V4 publish job exposing its entity sets,
+ * then releases the lock.
  *
  * @param client - ADT client
  * @param bindingName - Service binding name
@@ -27,54 +22,42 @@ export async function publishServiceBinding(
     client: AdtRequestor,
     bindingName: string
 ): AsyncResult<string, Error> {
-    const bindingPath = `/sap/bc/adt/businessservices/bindings/${bindingName.toLowerCase()}`;
+    return runBindingJob(client, bindingName, 'publish');
+}
 
-    // Lock the binding before publishing.
-    const [lockResponse, lockRequestErr] = await client.request({
-        method: 'POST',
-        path: bindingPath,
-        params: {
-            '_action': 'LOCK',
-            'accessMode': 'MODIFY',
-        },
-        headers: { 'Accept': LOCK_ACCEPT_HEADER },
-    });
-    const [lockText, lockCheckErr] = await checkResponse(
-        lockResponse,
-        lockRequestErr,
-        `Failed to lock service binding ${bindingName}`
-    );
-    if (lockCheckErr) return err(lockCheckErr);
+/**
+ * Unpublish a service binding.
+ *
+ * Locks the binding, submits an OData V4 unpublish job retracting the exposed
+ * service, then releases the lock. Required before a published binding can be deleted.
+ *
+ * @param client - ADT client
+ * @param bindingName - Service binding name
+ * @returns Unpublish message (SHORT_TEXT) or error
+ */
+export async function unpublishServiceBinding(
+    client: AdtRequestor,
+    bindingName: string
+): AsyncResult<string, Error> {
+    return runBindingJob(client, bindingName, 'unpublish');
+}
 
-    const [lockHandle, extractErr] = extractLockHandle(lockText);
-    if (extractErr) return err(new Error(`Failed to extract lock handle: ${extractErr.message}`));
-    debug(`Service binding lock acquired: handle=${lockHandle}`);
+// Lock → submit (un)publish job → always unlock.
+async function runBindingJob(
+    client: AdtRequestor,
+    bindingName: string,
+    action: 'publish' | 'unpublish'
+): AsyncResult<string, Error> {
+    const [lockHandle, lockErr] = await lockServiceBinding(client, bindingName);
+    if (lockErr) return err(lockErr);
+    debug(`Service binding lock acquired for ${action}: handle=${lockHandle}`);
 
-    // Submit the publish job.
-    const publishBody = `<?xml version="1.0" encoding="UTF-8"?>
-<adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">
-  <adtcore:objectReference adtcore:type="SCGR" adtcore:name="${bindingName.toUpperCase()}"/>
-</adtcore:objectReferences>`;
+    const [message, jobErr] = await submitServiceBindingJob(client, bindingName, action);
 
-    const [publishResponse, publishRequestErr] = await client.request({
-        method: 'POST',
-        path: '/sap/bc/adt/businessservices/odatav4/publishjobs',
-        headers: { 'Content-Type': 'application/xml' },
-        body: publishBody,
-    });
-    const [publishText, publishCheckErr] = await checkResponse(
-        publishResponse,
-        publishRequestErr,
-        `Failed to publish service binding ${bindingName}`
-    );
-    if (publishCheckErr) return err(publishCheckErr);
+    // Always release the lock, even if the job failed.
+    const [, unlockErr] = await unlockServiceBinding(client, bindingName, lockHandle);
 
-    // Surface non-OK severities as errors.
-    const severity = extractTagText(publishText, 'SEVERITY');
-    if (severity && severity !== SEVERITY_OK) {
-        const shortText = extractTagText(publishText, 'SHORT_TEXT') ?? '';
-        return err(new Error(`Service binding publish failed (${severity}): ${shortText}`));
-    }
-
-    return ok(extractTagText(publishText, 'SHORT_TEXT') ?? '');
+    if (jobErr) return err(jobErr);
+    if (unlockErr) return err(unlockErr);
+    return ok(message);
 }

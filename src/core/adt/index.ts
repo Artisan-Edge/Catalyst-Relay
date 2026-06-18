@@ -107,7 +107,8 @@ export type { DiffResult, DiffHunk, SimpleDiffHunk, ModifiedDiffHunk } from './c
 export { validateServiceBinding } from './businessservices/validate';
 export { createServiceBindingObject } from './businessservices/create';
 export { activateServiceBinding } from './businessservices/activate';
-export { publishServiceBinding } from './businessservices/publish';
+export { publishServiceBinding, unpublishServiceBinding } from './businessservices/publish';
+export { deleteServiceBinding } from './businessservices/delete';
 export type {
     CreateServiceBindingOptions,
     ServiceBindingResult,
