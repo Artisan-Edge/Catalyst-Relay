@@ -11,6 +11,16 @@ export interface ObjectRef {
 }
 
 /**
+ * Behavior definition implementation type.
+ *
+ * Only managed RAP is supported today; the enum exists so callers specify the
+ * type explicitly and so it can be widened (unmanaged, abstract, projection) later.
+ */
+export enum BehaviorImplementationType {
+    Managed = 'Managed',
+}
+
+/**
  * Object with content for create/update operations
  */
 export interface ObjectContent extends ObjectRef {
@@ -18,6 +28,8 @@ export interface ObjectContent extends ObjectRef {
     content: string;
     /** Optional description for transport */
     description?: string;
+    /** Implementation type for behavior definitions (.asbdef). Defaults to Managed. */
+    implementationType?: BehaviorImplementationType;
 }
 
 /**
@@ -56,6 +68,7 @@ export const objectRefSchema = z.object({
 export const objectContentSchema = objectRefSchema.extend({
     content: z.string(),
     description: z.string().optional(),
+    implementationType: z.nativeEnum(BehaviorImplementationType).optional(),
 });
 
 export const treeQuerySchema = z.object({

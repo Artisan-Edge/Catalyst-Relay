@@ -48,6 +48,9 @@ import { whereUsedHandler } from './search/whereUsed';
 // Diff routes
 import { gitDiffHandler } from './diff/gitDiff';
 
+// Business services routes
+import { createServiceBindingHandler } from './businessservices/createServiceBinding';
+
 /**
  * Creates and configures all API routes
  *
@@ -114,6 +117,12 @@ export function createRoutes(
     // ─────────────────────────────────────────────────────────────────────────
 
     app.post('/git-diff', sessionMiddleware, gitDiffHandler);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Business Services Routes (session required)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    app.post('/businessservices/bindings', sessionMiddleware, createServiceBindingHandler);
 
     return app;
 }

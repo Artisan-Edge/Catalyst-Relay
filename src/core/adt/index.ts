@@ -27,7 +27,7 @@ export { readObject } from './craud/read';
 export type { ObjectMetadata, ObjectWithContent } from './craud/read';
 
 // Activation
-export type { ActivationResult, ActivationMessage } from './craud/activation';
+export type { ActivationResult, ActivationMessage, ActivationReference } from './craud/activation';
 
 // Multi-delete
 export type { DeleteResult, ExternalReference } from './craud/multiDelete';
@@ -61,7 +61,7 @@ export { updateObject } from './craud/update';
 export { deleteObject } from './craud/delete';
 
 // Activation
-export { activateObjects } from './craud/activation';
+export { activateObjects, activateByReferences } from './craud/activation';
 
 // Syntax Check
 export { checkSyntax } from './craud/syntaxCheck';
@@ -102,3 +102,16 @@ export type { TaskContents } from './transports/parseTransportTasks';
 // Diff operations
 export { gitDiff } from './craud/gitDiff';
 export type { DiffResult, DiffHunk, SimpleDiffHunk, ModifiedDiffHunk } from './craud/gitDiff';
+
+// Business services (service bindings)
+export { validateServiceBinding } from './businessservices/validate';
+export { createServiceBindingObject } from './businessservices/create';
+export { activateServiceBinding } from './businessservices/activate';
+export { publishServiceBinding, unpublishServiceBinding } from './businessservices/publish';
+export { deleteServiceBinding } from './businessservices/delete';
+export type {
+    CreateServiceBindingOptions,
+    ServiceBindingResult,
+    ServiceBindingType,
+    ServiceBindingVersion,
+} from './businessservices/types';

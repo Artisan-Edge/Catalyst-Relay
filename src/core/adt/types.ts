@@ -32,6 +32,10 @@ export interface ObjectConfig {
     dpEndpoint?: string;
     /** Data preview parameter name (if supported) */
     dpParam?: string;
+    /** Extra attributes to add to the root element on create (e.g., srvd:srvdSourceType) */
+    rootAttributes?: Record<string, string>;
+    /** Inject an <adtcore:adtTemplate> block carrying the implementation type (behavior definitions) */
+    requiresImplementationType?: boolean;
 }
 
 /**
@@ -47,7 +51,7 @@ export interface UpsertResult {
 /**
  * Supported object types
  */
-export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog' | 'asinc';
+export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog' | 'asinc' | 'srvd' | 'asbdef';
 
 /**
  * Object type labels
@@ -60,6 +64,8 @@ export enum ObjectTypeLabel {
     CLASS = 'Class',
     PROGRAM = 'ABAP Program',
     INCLUDE = 'ABAP Include',
+    SERVICE_DEFINITION = 'Service Definition',
+    BEHAVIOR_DEFINITION = 'Behavior Definition',
 }
 
 /**
@@ -128,6 +134,24 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'PROG/I',
         label: ObjectTypeLabel.INCLUDE,
         extension: 'asinc',
+    },
+    'srvd': {
+        endpoint: 'ddic/srvd/sources',
+        nameSpace: 'xmlns:srvd="http://www.sap.com/adt/ddic/srvdsources"',
+        rootName: 'srvd:srvdSource',
+        type: 'SRVD/SRV',
+        label: ObjectTypeLabel.SERVICE_DEFINITION,
+        extension: 'srvd',
+        rootAttributes: { 'srvd:srvdSourceType': 'S' },
+    },
+    'asbdef': {
+        endpoint: 'bo/behaviordefinitions',
+        nameSpace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
+        rootName: 'blue:blueSource',
+        type: 'BDEF/BDO',
+        label: ObjectTypeLabel.BEHAVIOR_DEFINITION,
+        extension: 'asbdef',
+        requiresImplementationType: true,
     },
 };
 

@@ -25,6 +25,19 @@ export interface ActivationMessage {
     column?: number;
 }
 
+/**
+ * A pre-resolved object reference for activation.
+ *
+ * Used for objects that aren't source-file-backed (e.g. service bindings) and so
+ * can't be resolved through the extension registry.
+ */
+export interface ActivationReference {
+    uri: string;
+    type: string;
+    name: string;
+    extension: string;
+}
+
 const MAX_POLL_ATTEMPTS = 30;
 const POLL_RETRY_DELAY_MS = 1_000;
 const RUN_ID_REGEX = /\/activation\/runs\/([^?/]+)/;
@@ -38,17 +51,45 @@ export async function activateObjects(
         return ok([]);
     }
 
-    // Validate all object extensions are supported.
+    // Resolve each object to an activation reference via the extension registry.
+    const references: ActivationReference[] = [];
     for (const obj of objects) {
         const config = getConfigByExtension(obj.extension);
         if (!config) return err(new Error(`Unsupported extension: ${obj.extension}`));
+        references.push({
+            uri: `/sap/bc/adt/${config.endpoint}/${obj.name.toLowerCase()}`,
+            type: config.type,
+            name: obj.name,
+            extension: obj.extension,
+        });
+    }
+
+    return activateByReferences(client, references);
+}
+
+/**
+ * Activate a set of pre-resolved object references.
+ *
+ * Lower-level entry point used by activateObjects() and by callers (e.g. service
+ * bindings) that build their own references rather than resolving them via the
+ * extension registry.
+ *
+ * @param client - ADT client
+ * @param references - Pre-resolved object references
+ * @returns Activation results or error
+ */
+export async function activateByReferences(
+    client: AdtRequestor,
+    references: ActivationReference[]
+): AsyncResult<ActivationResult[], Error> {
+    if (references.length === 0) {
+        return ok([]);
     }
 
     // Build XML request body with object references (supports mixed types).
-    const objectRefs = objects.map(obj => {
-        const config = getConfigByExtension(obj.extension)!;
-        return `<adtcore:objectReference adtcore:uri="/sap/bc/adt/${config.endpoint}/${obj.name.toLowerCase()}" adtcore:type="${config.type}" adtcore:name="${obj.name}"/>`;
-    }).join('\n    ');
+    const objectRefs = references.map(ref =>
+        `<adtcore:objectReference adtcore:uri="${ref.uri}" adtcore:type="${ref.type}" adtcore:name="${ref.name}"/>`
+    ).join('\n    ');
 
     const body = `<?xml version="1.0" encoding="UTF-8"?>
 <adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">
@@ -127,14 +168,14 @@ export async function activateObjects(
         return err(new Error(`Failed to fetch activation results: ${extractError(resultsText)}`));
     }
 
-    const [results, parseErr] = extractActivationErrors(objects, resultsText);
+    const [results, parseErr] = extractActivationErrors(references, resultsText);
     if (parseErr) return err(parseErr);
     return ok(results);
 }
 
 // Parse activation response XML for errors
 function extractActivationErrors(
-    objects: ObjectRef[],
+    objects: ActivationReference[],
     xml: string,
 ): Result<ActivationResult[], Error> {
     // Parse XML response.
