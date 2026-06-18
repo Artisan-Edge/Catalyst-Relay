@@ -307,7 +307,7 @@ describe('getAllExtensions', () => {
     it('should return array of extensions', () => {
         const extensions = getAllExtensions();
         expect(Array.isArray(extensions)).toBe(true);
-        expect(extensions.length).toBe(6);
+        expect(extensions.length).toBe(9);
     });
 
     it('should include all configured extensions', () => {
@@ -325,7 +325,7 @@ describe('getAllTypes', () => {
     it('should return array of ADT types', () => {
         const types = getAllTypes();
         expect(Array.isArray(types)).toBe(true);
-        expect(types.length).toBe(6);
+        expect(types.length).toBe(9);
     });
 
     it('should include all configured types', () => {

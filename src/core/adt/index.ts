@@ -58,6 +58,8 @@ export { lockObject, unlockObject } from './craud/lock';
 // Write operations
 export { createObject } from './craud/create';
 export { updateObject } from './craud/update';
+export { updateClassInclude } from './craud/classInclude';
+export type { ClassIncludeType } from './craud/classInclude';
 export { deleteObject } from './craud/delete';
 
 // Activation

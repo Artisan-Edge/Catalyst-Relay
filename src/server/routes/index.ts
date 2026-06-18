@@ -31,6 +31,7 @@ import { inactiveObjectsHandler } from './discovery/inactiveObjects';
 // Objects routes
 import { readHandler } from './objects/read';
 import { upsertHandler } from './objects/upsert';
+import { classIncludeHandler } from './objects/classInclude';
 import { activateHandler } from './objects/activate';
 import { checkHandler } from './objects/check';
 import { deleteHandler } from './objects/delete';
@@ -92,6 +93,7 @@ export function createRoutes(
 
     app.post('/objects/read', sessionMiddleware, readHandler);
     app.post('/objects/upsert/:package/:transport?', sessionMiddleware, upsertHandler);
+    app.post('/objects/class-include', sessionMiddleware, classIncludeHandler);
     app.post('/objects/activate', sessionMiddleware, activateHandler);
     app.post('/objects/check', sessionMiddleware, checkHandler);
     app.delete('/objects/:transport?', sessionMiddleware, deleteHandler);
