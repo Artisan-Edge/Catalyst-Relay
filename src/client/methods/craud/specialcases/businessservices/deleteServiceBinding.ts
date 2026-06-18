@@ -2,11 +2,11 @@
  * Delete service binding method
  */
 
-import type { AsyncResult } from '../../../types/result';
-import type { AdtRequestor } from '../../../core/adt';
-import type { ClientState } from '../../types';
-import { err } from '../../../types/result';
-import * as adt from '../../../core/adt';
+import type { AsyncResult } from '../../../../../types/result';
+import type { AdtRequestor } from '../../../../../core/adt';
+import type { ClientState } from '../../../../types';
+import { err } from '../../../../../types/result';
+import * as adt from '../../../../../core/adt';
 
 export async function deleteServiceBinding(
     state: ClientState,

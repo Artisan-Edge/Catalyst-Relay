@@ -43,6 +43,7 @@ import type {
     AdtRequestor,
     InactiveEntry,
     DeleteResult,
+    ClassIncludeType,
     CreateServiceBindingOptions,
     ServiceBindingResult,
 } from '../core/adt';
@@ -60,7 +61,7 @@ import * as searchMethods from './methods/search';
 import * as transportMethods from './methods/transport';
 import * as diffMethods from './methods/diff';
 import * as configMethods from './methods/config';
-import * as businessServiceMethods from './methods/businessservices';
+import * as businessServiceMethods from './methods/craud/specialcases/businessservices';
 import {
     storeCookies,
     buildCookieHeader,
@@ -87,6 +88,7 @@ export interface ADTClient {
     read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]>;
     create(object: ObjectContent, packageName: string, transport?: string): AsyncResult<void>;
     update(object: ObjectContent, transport?: string): AsyncResult<void>;
+    writeClassInclude(className: string, includeType: ClassIncludeType, source: string, transport?: string): AsyncResult<void>;
     upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]>;
     activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]>;
     checkSyntax(objects: ObjectRef[]): AsyncResult<CheckResult[]>;
@@ -253,6 +255,10 @@ export class ADTClientImpl implements ADTClient {
 
     async update(object: ObjectContent, transport?: string): AsyncResult<void> {
         return craudMethods.update(this.state, this.requestor, object, transport);
+    }
+
+    async writeClassInclude(className: string, includeType: ClassIncludeType, source: string, transport?: string): AsyncResult<void> {
+        return craudMethods.writeClassInclude(this.state, this.requestor, className, includeType, source, transport);
     }
 
     async upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]> {

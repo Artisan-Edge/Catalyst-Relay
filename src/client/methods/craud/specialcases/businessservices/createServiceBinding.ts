@@ -4,11 +4,11 @@
  * Sequences the full lifecycle: validate → create → activate → publish.
  */
 
-import type { AsyncResult } from '../../../types/result';
-import type { AdtRequestor, CreateServiceBindingOptions, ServiceBindingResult } from '../../../core/adt';
-import type { ClientState } from '../../types';
-import { ok, err } from '../../../types/result';
-import * as adt from '../../../core/adt';
+import type { AsyncResult } from '../../../../../types/result';
+import type { AdtRequestor, CreateServiceBindingOptions, ServiceBindingResult } from '../../../../../core/adt';
+import type { ClientState } from '../../../../types';
+import { ok, err } from '../../../../../types/result';
+import * as adt from '../../../../../core/adt';
 
 export async function createServiceBinding(
     state: ClientState,

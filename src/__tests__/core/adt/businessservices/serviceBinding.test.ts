@@ -11,7 +11,7 @@ import { validateServiceBinding } from '../../../../core/adt/businessservices/va
 import { createServiceBindingObject } from '../../../../core/adt/businessservices/create';
 import { publishServiceBinding, unpublishServiceBinding } from '../../../../core/adt/businessservices/publish';
 import { deleteServiceBinding } from '../../../../core/adt/businessservices/delete';
-import { createServiceBinding } from '../../../../client/methods/businessservices/createServiceBinding';
+import { createServiceBinding } from '../../../../client/methods/craud/specialcases/businessservices/createServiceBinding';
 import type { AdtRequestor } from '../../../../core/adt';
 import type { ClientState } from '../../../../client/types';
 

@@ -84,6 +84,7 @@ export type {
     ServiceBindingType,
     ServiceBindingVersion,
     CheckResult,
+    ClassIncludeType,
     DeleteResult,
     ExternalReference,
     Transport,

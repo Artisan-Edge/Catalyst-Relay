@@ -8,12 +8,14 @@ CRAUD (Create, Read, Activate, Update, Delete) operations for SAP development ob
   - [Library Usage](#library-usage)
 - [POST /objects/upsert/:package/:transport?](#post-objectsupsertpackagetransport)
   - [Library Usage](#library-usage-1)
-- [POST /objects/activate](#post-objectsactivate)
+- [POST /objects/class-include](#post-objectsclass-include)
   - [Library Usage](#library-usage-2)
-- [POST /objects/check](#post-objectscheck)
+- [POST /objects/activate](#post-objectsactivate)
   - [Library Usage](#library-usage-3)
-- [DELETE /objects/:transport?](#delete-objectstransport)
+- [POST /objects/check](#post-objectscheck)
   - [Library Usage](#library-usage-4)
+- [DELETE /objects/:transport?](#delete-objectstransport)
+  - [Library Usage](#library-usage-5)
 
 ---
 
@@ -307,6 +309,121 @@ results.forEach(result => {
 - `extension` — File extension
 - `status` — `'created'`, `'updated'`, or `'unchanged'`
 - `transport?` — Transport ID used (optional)
+
+---
+
+## POST /objects/class-include
+
+Write a global class's local-source include — the *Local Types* (CCIMP), *Local Definitions* (CCDEF), *Macros* (CCMAC), or *Test Classes* (CCAU) section. `upsert`/`update` only write a class's **main source**; this endpoint targets the includes, which is where RAP behaviour handlers (`CL_ABAP_BEHAVIOR_HANDLER` subclasses) must live. Locking the class, the include PUT, and unlocking are handled automatically. Activate the class afterwards to compile the change.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| POST | `/objects/class-include` | Yes |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `className` | string | Yes | Global class name (e.g., `ZBEACON_G_BEHAVIORDEFINITION`) |
+| `includeType` | enum | Yes | `definitions`, `implementations`, `macros`, or `testclasses` |
+| `source` | string | Yes | Include source (replaces the entire include) |
+| `transport` | string | No | Transport request (required for non-`$TMP` packages) |
+
+### Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `className` | string | Class written |
+| `includeType` | string | Include section written |
+
+### Example
+
+**Request:**
+```
+POST /objects/class-include
+```
+```json
+{
+    "className": "ZBEACON_G_BEHAVIORDEFINITION",
+    "includeType": "implementations",
+    "source": "CLASS lhc_docs DEFINITION INHERITING FROM cl_abap_behavior_handler.\n  ...\nENDCLASS.\n\nCLASS lhc_docs IMPLEMENTATION.\n  ...\nENDCLASS.",
+    "transport": "SDSK900342"
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "className": "ZBEACON_G_BEHAVIORDEFINITION",
+        "includeType": "implementations"
+    }
+}
+```
+
+### Errors
+
+| Code | Status | Cause |
+|------|--------|-------|
+| `VALIDATION_ERROR` | 400 | Invalid body (bad `includeType`, missing fields) |
+| `OBJECT_LOCKED` | 409 | Class locked by another user |
+| `SESSION_NOT_FOUND` | 401 | Invalid session |
+| `UNKNOWN_ERROR` | 500 | Lock / write / unlock failed |
+
+### Use Cases
+
+- **RAP behaviour handlers** — author the `lhc_*` handler in the *Local Types* include of a behaviour pool class
+- **Local test classes** — push unit tests into the *Test Classes* (CCAU) include
+- **Local helper types** — define local classes/interfaces the global class depends on
+
+### Library Usage
+
+When using the TypeScript client library directly, use the `writeClassInclude()` method:
+
+```typescript
+import { createClient } from 'catalyst-relay';
+import type { ClassIncludeType } from 'catalyst-relay';
+
+const [client, clientErr] = createClient(config);
+if (clientErr) throw clientErr;
+await client.login();
+
+const handlerSource = `CLASS lhc_docs DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+    METHODS recordtotransport FOR MODIFY
+      IMPORTING keys FOR ACTION docs~recordtotransport RESULT result.
+ENDCLASS.
+CLASS lhc_docs IMPLEMENTATION.
+  METHOD recordtotransport.
+    " ...
+  ENDMETHOD.
+ENDCLASS.`;
+
+const [, err] = await client.writeClassInclude(
+    'ZBEACON_G_BEHAVIORDEFINITION',
+    'implementations',
+    handlerSource,
+    'SDSK900342'
+);
+if (err) {
+    console.error('Failed to write class include:', err.message);
+    return;
+}
+
+// Activate the class afterwards to compile the handler.
+await client.activate([{ name: 'ZBEACON_G_BEHAVIORDEFINITION', extension: 'aclass' }]);
+```
+
+**Return type:** `AsyncResult<void>`
+
+`includeType` is a `ClassIncludeType`:
+- `'definitions'` — Class-relevant Local Definitions (CCDEF)
+- `'implementations'` — Local Types (CCIMP) — where RAP behaviour handlers live
+- `'macros'` — Macros (CCMAC)
+- `'testclasses'` — Test Classes (CCAU)
 
 ---
 
