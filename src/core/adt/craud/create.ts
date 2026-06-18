@@ -5,6 +5,7 @@
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { ObjectContent } from '../../../types/requests';
+import { BehaviorImplementationType } from '../../../types/requests';
 import type { AdtRequestor } from '../types';
 import { escapeXml } from '../../utils/xml';
 import { checkResponse, requireConfig } from '../helpers';
@@ -33,6 +34,21 @@ export async function createObject(
     // Default empty description if not provided.
     const description = object.description ?? '';
 
+    // Extra root attributes for types that need them (e.g. srvd:srvdSourceType).
+    const extraAttrs = config.rootAttributes
+        ? Object.entries(config.rootAttributes)
+            .map(([key, value]) => `\n    ${key}="${escapeXml(value)}"`)
+            .join('')
+        : '';
+
+    // Behavior definitions carry their implementation type in an adtTemplate block.
+    const implementationType = object.implementationType ?? BehaviorImplementationType.Managed;
+    const adtTemplate = config.requiresImplementationType
+        ? `    <adtcore:adtTemplate>
+        <adtcore:adtProperty adtcore:key="implementation_type">${implementationType}</adtcore:adtProperty>
+    </adtcore:adtTemplate>`
+        : '';
+
     // Build XML request body with object metadata.
     const body = `<?xml version="1.0" encoding="UTF-8"?>
 <${config.rootName} ${config.nameSpace}
@@ -41,8 +57,8 @@ export async function createObject(
     adtcore:language="EN"
     adtcore:name="${object.name.toUpperCase()}"
     adtcore:type="${config.type}"
-    adtcore:responsible="${username.toUpperCase()}">
-
+    adtcore:responsible="${username.toUpperCase()}"${extraAttrs}>
+${adtTemplate}
     <adtcore:packageRef adtcore:name="${packageName}"/>
 
 </${config.rootName}>`;

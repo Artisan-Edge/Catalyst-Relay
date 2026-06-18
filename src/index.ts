@@ -54,6 +54,9 @@ export type {
     PreviewSQL,
 } from './types/requests';
 
+// Behavior definition implementation type (runtime enum)
+export { BehaviorImplementationType } from './types/requests';
+
 // Response wrappers
 export type {
     ApiResponse,
@@ -75,6 +78,11 @@ export type {
     UpsertResult,
     ActivationResult,
     ActivationMessage,
+    ActivationReference,
+    CreateServiceBindingOptions,
+    ServiceBindingResult,
+    ServiceBindingType,
+    ServiceBindingVersion,
     CheckResult,
     DeleteResult,
     ExternalReference,

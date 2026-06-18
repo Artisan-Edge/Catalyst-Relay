@@ -43,6 +43,8 @@ import type {
     AdtRequestor,
     InactiveEntry,
     DeleteResult,
+    CreateServiceBindingOptions,
+    ServiceBindingResult,
 } from '../core/adt';
 import type { AsyncResult } from '../types/result';
 import { createAuthStrategy } from '../core/auth/factory';
@@ -58,6 +60,7 @@ import * as searchMethods from './methods/search';
 import * as transportMethods from './methods/transport';
 import * as diffMethods from './methods/diff';
 import * as configMethods from './methods/config';
+import * as businessServiceMethods from './methods/businessservices';
 import {
     storeCookies,
     buildCookieHeader,
@@ -115,6 +118,9 @@ export interface ADTClient {
 
     // Diff Operations
     gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]>;
+
+    // Business Services
+    createServiceBinding(options: CreateServiceBindingOptions): AsyncResult<ServiceBindingResult>;
 
     // Configuration
     getObjectConfig(): ObjectConfig[];
@@ -338,6 +344,12 @@ export class ADTClientImpl implements ADTClient {
 
     async gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]> {
         return diffMethods.gitDiff(this.state, this.requestor, objects);
+    }
+
+    // --- Business Services ---
+
+    async createServiceBinding(options: CreateServiceBindingOptions): AsyncResult<ServiceBindingResult> {
+        return businessServiceMethods.createServiceBinding(this.state, this.requestor, options);
     }
 
     // --- Configuration ---

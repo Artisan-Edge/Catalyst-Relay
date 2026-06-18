@@ -133,6 +133,28 @@ export function extractError(xml: string): string {
 }
 
 /**
+ * Extract the text content of the first element with the given tag name.
+ *
+ * @param xml - XML string to search
+ * @param tagName - Tag name to look up (e.g., 'SEVERITY')
+ * @returns Trimmed text content, or null if the tag is absent/empty/unparseable
+ */
+export function extractTagText(xml: string, tagName: string): string | null {
+    if (!xml) return null;
+
+    const [doc, parseErr] = safeParseXml(xml);
+    if (parseErr) return null;
+
+    const elements = doc.getElementsByTagName(tagName);
+    if (elements.length === 0) return null;
+
+    const text = elements[0]?.textContent;
+    if (!text || text.trim().length === 0) return null;
+
+    return text.trim();
+}
+
+/**
  * Escape special XML characters
  *
  * @param str - String to escape
