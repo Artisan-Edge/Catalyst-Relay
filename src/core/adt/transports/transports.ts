@@ -33,7 +33,7 @@ export async function getTransports(
 ): AsyncResult<Transport[], Error> {
     const contentType = 'application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.transport.service.checkData';
 
-    // Build XML request body (same format as original SNAP-Relay-API)
+    // Build XML request body
     const body = `<?xml version="1.0" encoding="UTF-8"?>
 <asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml">
   <asx:values>

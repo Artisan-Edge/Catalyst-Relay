@@ -14,5 +14,5 @@ export async function createTransport(
     transportConfig: TransportConfig
 ): AsyncResult<string> {
     if (!state.session) return err(new Error('Not logged in'));
-    return adt.createTransport(requestor, transportConfig);
+    return adt.createTransport(requestor, transportConfig, state.session.username);
 }

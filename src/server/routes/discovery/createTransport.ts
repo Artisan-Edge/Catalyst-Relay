@@ -6,14 +6,16 @@ import { z } from 'zod';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';
+import type { TransportConfig } from '../../../core/adt';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Schema (colocated)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const createTransportRequestSchema = z.object({
-    package: z.string().min(1, 'Package name is required'),
     description: z.string().min(1, 'Transport description is required'),
+    type: z.enum(['workbench', 'customizing']).optional(),
+    target: z.string().min(1).optional(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -41,13 +43,16 @@ export async function createTransportHandler(c: RouteContext) {
         );
     }
 
-    const { package: packageName, description } = validation.data;
+    const { description, type, target } = validation.data;
     const client = c.get('client');
 
-    const [transportId, error] = await client.createTransport({
-        package: packageName,
+    const config: TransportConfig = {
         description,
-    });
+        ...(type ? { type } : {}),
+        ...(target ? { target } : {}),
+    };
+
+    const [transportId, error] = await client.createTransport(config);
 
     if (error) {
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);

@@ -127,7 +127,6 @@ describe('Transport Lifecycle Workflow', () => {
         if (shouldSkip(client)) return;
 
         const [transportId, err] = await client!.createTransport({
-            package: TEST_CONFIG.package,
             description: 'Transport lifecycle test (throwaway)',
         });
 
@@ -141,7 +140,6 @@ describe('Transport Lifecycle Workflow', () => {
         if (shouldSkip(client)) return;
 
         const [transportId, err] = await client!.createTransport({
-            package: TEST_CONFIG.package,
             description: 'Transport lifecycle test (with objects)',
         });
 

@@ -670,7 +670,12 @@ interface Transport {
 
 ## POST /transports
 
-Create a new transport request for a package.
+Create a new transport request.
+
+The request type (Workbench vs Customizing) is selectable via `type`. The
+transport `target` defaults to the system's only target when there is exactly
+one; if the system exposes more than one target, `target` must be supplied or
+the request fails listing the available options.
 
 ### Request
 
@@ -682,8 +687,9 @@ Create a new transport request for a package.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `package` | string | Yes | Package name (DEVCLASS) |
 | `description` | string | Yes | Transport description/text |
+| `type` | `"workbench"` \| `"customizing"` | No | Request type (default: `workbench`) |
+| `target` | string | No | Transport target. Resolved from the system's target value-help when omitted; required when more than one target exists |
 
 ### Response
 
@@ -699,8 +705,8 @@ curl -X POST http://localhost:3000/transports \
   -H "X-Session-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
   -H "Content-Type: application/json" \
   -d '{
-    "package": "ZDEV",
-    "description": "New feature implementation"
+    "description": "New feature implementation",
+    "type": "workbench"
   }'
 ```
 
@@ -718,9 +724,9 @@ curl -X POST http://localhost:3000/transports \
 
 | Code | Status | Cause |
 |------|--------|-------|
-| `VALIDATION_ERROR` | 400 | Missing package or description |
+| `VALIDATION_ERROR` | 400 | Missing description, or invalid `type` |
 | `SESSION_NOT_FOUND` | 401 | Invalid session |
-| `UNKNOWN_ERROR` | 500 | SAP server error |
+| `UNKNOWN_ERROR` | 500 | SAP server error, or ambiguous target (more than one target and none supplied) |
 
 ### Use Cases
 
@@ -743,10 +749,10 @@ if (createErr) throw createErr;
 
 await client.login();
 
-// Create a new transport
+// Create a new transport (workbench by default; pass type: 'customizing' for a customizing request)
 const config: TransportConfig = {
-  package: 'ZDEV',
-  description: 'New feature implementation'
+  description: 'New feature implementation',
+  type: 'workbench'
 };
 
 const [transportId, err] = await client.createTransport(config);

@@ -93,7 +93,9 @@ export { findWhereUsed } from './discovery/whereUsed';
 
 // Transport management
 export { createTransport } from './transports/createTransport';
-export type { TransportConfig } from './transports/createTransport';
+export type { TransportConfig, TransportType } from './transports/createTransport';
+export { getTransportTargets } from './transports/getTransportTargets';
+export type { TransportTarget } from './transports/getTransportTargets';
 export { deleteTransport } from './transports/deleteTransport';
 export { removeFromTransport } from './transports/removeFromTransport';
 export type { TransportObject } from './transports/removeFromTransport';

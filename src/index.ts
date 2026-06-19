@@ -101,6 +101,7 @@ export type {
     SimpleDiffHunk,
     ModifiedDiffHunk,
     TransportConfig,
+    TransportType,
     TransportObject,
     TaskContents,
     ObjectConfig,
