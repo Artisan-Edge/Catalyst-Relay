@@ -19,6 +19,42 @@ import { debug } from '../../utils/logging';
 export type ClassIncludeType = 'definitions' | 'implementations' | 'macros' | 'testclasses';
 
 /**
+ * Read the source of a class include
+ *
+ * @param client - ADT client
+ * @param className - Global class name (e.g., 'ZCL_FOO')
+ * @param includeType - Which local-source include to read
+ * @returns Include source or error
+ */
+export async function readClassInclude(
+    client: AdtRequestor,
+    className: string,
+    includeType: ClassIncludeType
+): AsyncResult<string, Error> {
+    // Includes only exist on classes; reuse the class endpoint config.
+    const [config, configErr] = requireConfig('aclass');
+    if (configErr) return err(configErr);
+
+    // Execute include read request to ADT server.
+    debug(`Read class include ${className}/${includeType}`);
+    const [response, requestErr] = await client.request({
+        method: 'GET',
+        path: `/sap/bc/adt/${config.endpoint}/${className.toLowerCase()}/includes/${includeType}`,
+        headers: { 'Accept': 'text/plain' },
+    });
+
+    // Validate successful response and extract source.
+    const [content, checkErr] = await checkResponse(
+        response,
+        requestErr,
+        `Failed to read ${includeType} include of class ${className}`
+    );
+    if (checkErr) return err(checkErr);
+
+    return ok(content);
+}
+
+/**
  * Write the source of a class include
  *
  * @param client - ADT client

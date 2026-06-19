@@ -88,6 +88,7 @@ export interface ADTClient {
     read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]>;
     create(object: ObjectContent, packageName: string, transport?: string): AsyncResult<void>;
     update(object: ObjectContent, transport?: string): AsyncResult<void>;
+    readClassInclude(className: string, includeType: ClassIncludeType): AsyncResult<string>;
     writeClassInclude(className: string, includeType: ClassIncludeType, source: string, transport?: string): AsyncResult<void>;
     upsert(objects: ObjectContent[], packageName: string, transport?: string): AsyncResult<UpsertResult[]>;
     activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]>;
@@ -255,6 +256,10 @@ export class ADTClientImpl implements ADTClient {
 
     async update(object: ObjectContent, transport?: string): AsyncResult<void> {
         return craudMethods.update(this.state, this.requestor, object, transport);
+    }
+
+    async readClassInclude(className: string, includeType: ClassIncludeType): AsyncResult<string> {
+        return craudMethods.readClassInclude(this.state, this.requestor, className, includeType);
     }
 
     async writeClassInclude(className: string, includeType: ClassIncludeType, source: string, transport?: string): AsyncResult<void> {

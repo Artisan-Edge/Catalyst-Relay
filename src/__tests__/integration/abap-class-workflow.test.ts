@@ -48,6 +48,18 @@ CLASS ${TEST_NAME} IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.`;
 
+// Local type (local class) source for the implementations include (CCIMP)
+const LOCAL_TYPE_SOURCE = `CLASS lcl_helper DEFINITION.
+  PUBLIC SECTION.
+    METHODS: greet RETURNING VALUE(rv_text) TYPE string.
+ENDCLASS.
+
+CLASS lcl_helper IMPLEMENTATION.
+  METHOD greet.
+    rv_text = 'Hello from local class'.
+  ENDMETHOD.
+ENDCLASS.`;
+
 describe('ABAP Class Workflow', () => {
     let client: ADTClient | null = null;
     let objectCreated = false;
@@ -166,6 +178,37 @@ describe('ABAP Class Workflow', () => {
         expect(objects).toHaveLength(1);
         expect(objects![0]!.content).toContain('Updated test method with changes');
         console.log(`Verified updated class source contains changes`);
+    });
+
+    it('should write a local type to the implementations include', async () => {
+        if (shouldSkip(client) || !objectCreated) {
+            console.log('Skipping - no session or class not created');
+            return;
+        }
+
+        const [, writeErr] = await client!.writeClassInclude(
+            TEST_NAME,
+            'implementations',
+            LOCAL_TYPE_SOURCE,
+            TEST_CONFIG.transport
+        );
+
+        expect(writeErr).toBeNull();
+        console.log(`Wrote local type to implementations include of: ${TEST_NAME}`);
+    });
+
+    it('should read back the local type from the implementations include', async () => {
+        if (shouldSkip(client) || !objectCreated) {
+            console.log('Skipping - no session or class not created');
+            return;
+        }
+
+        const [source, readErr] = await client!.readClassInclude(TEST_NAME, 'implementations');
+
+        expect(readErr).toBeNull();
+        expect(source).toContain('lcl_helper');
+        expect(source).toContain('Hello from local class');
+        console.log(`Read local type from implementations include: ${source!.substring(0, 50)}...`);
     });
 
     it('should delete the ABAP class', async () => {
