@@ -40,6 +40,10 @@ export interface ActivationReference {
 
 const MAX_POLL_ATTEMPTS = 30;
 const POLL_RETRY_DELAY_MS = 1_000;
+// withLongPolling holds the connection open server-side with no socket traffic
+// until the run finishes. Use a socket-idle timeout long enough to outlast even
+// large batch activations rather than the default 30s, which aborts mid-poll.
+const LONG_POLL_TIMEOUT_MS = 3_600_000; // 1 hour
 const RUN_ID_REGEX = /\/activation\/runs\/([^?/]+)/;
 const BACKGROUND_RUN_MEDIA_TYPE = 'application/vnd.sap.adt.backgroundrun.v1+xml';
 
@@ -136,6 +140,7 @@ export async function activateByReferences(
             path: `/sap/bc/adt/activation/runs/${runId}`,
             params: { 'withLongPolling': 'true' },
             headers: { 'Accept': BACKGROUND_RUN_MEDIA_TYPE },
+            timeout: LONG_POLL_TIMEOUT_MS,
         });
         if (pollErr) return err(pollErr);
         debug(`Activation poll attempt ${pollAttempt} status: ${pollRes.status}`);
