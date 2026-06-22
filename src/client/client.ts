@@ -46,6 +46,8 @@ import type {
     ClassIncludeType,
     CreateServiceBindingOptions,
     ServiceBindingResult,
+    ApiReleaseState,
+    ApiReleaseResult,
 } from '../core/adt';
 import type { AsyncResult } from '../types/result';
 import { createAuthStrategy } from '../core/auth/factory';
@@ -62,6 +64,7 @@ import * as transportMethods from './methods/transport';
 import * as diffMethods from './methods/diff';
 import * as configMethods from './methods/config';
 import * as businessServiceMethods from './methods/craud/specialcases/businessservices';
+import * as apiReleaseMethods from './methods/apirelease';
 import {
     storeCookies,
     buildCookieHeader,
@@ -125,6 +128,11 @@ export interface ADTClient {
     // Business Services
     createServiceBinding(options: CreateServiceBindingOptions): AsyncResult<ServiceBindingResult>;
     deleteServiceBinding(bindingName: string, transport?: string): AsyncResult<void>;
+
+    // API Release (CDS / DDLS C1 contract)
+    getApiReleaseState(objectName: string): AsyncResult<ApiReleaseState>;
+    releaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult>;
+    unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult>;
 
     // Configuration
     getObjectConfig(): ObjectConfig[];
@@ -366,6 +374,20 @@ export class ADTClientImpl implements ADTClient {
 
     async deleteServiceBinding(bindingName: string, transport?: string): AsyncResult<void> {
         return businessServiceMethods.deleteServiceBinding(this.state, this.requestor, bindingName, transport);
+    }
+
+    // --- API Release ---
+
+    async getApiReleaseState(objectName: string): AsyncResult<ApiReleaseState> {
+        return apiReleaseMethods.getApiReleaseState(this.state, this.requestor, objectName);
+    }
+
+    async releaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult> {
+        return apiReleaseMethods.releaseApi(this.state, this.requestor, objectName, transport);
+    }
+
+    async unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult> {
+        return apiReleaseMethods.unreleaseApi(this.state, this.requestor, objectName, transport);
     }
 
     // --- Configuration ---

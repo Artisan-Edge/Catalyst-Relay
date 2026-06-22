@@ -52,6 +52,11 @@ import { gitDiffHandler } from './diff/gitDiff';
 // Business services routes
 import { createServiceBindingHandler } from './businessservices/createServiceBinding';
 
+// API release routes
+import { apiReleaseStateHandler } from './apirelease/getState';
+import { releaseApiHandler } from './apirelease/release';
+import { unreleaseApiHandler } from './apirelease/unrelease';
+
 /**
  * Creates and configures all API routes
  *
@@ -125,6 +130,14 @@ export function createRoutes(
     // ─────────────────────────────────────────────────────────────────────────
 
     app.post('/businessservices/bindings', sessionMiddleware, createServiceBindingHandler);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // API Release Routes (session required)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    app.get('/api-release/:name', sessionMiddleware, apiReleaseStateHandler);
+    app.post('/api-release/:name/release', sessionMiddleware, releaseApiHandler);
+    app.post('/api-release/:name/unrelease', sessionMiddleware, unreleaseApiHandler);
 
     return app;
 }

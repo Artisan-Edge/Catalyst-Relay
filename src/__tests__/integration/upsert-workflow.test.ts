@@ -45,6 +45,7 @@ define view entity ${TEST_NAME} as select from t000 {
 describe('Upsert Workflow', () => {
     let client: ADTClient | null = null;
     let objectCreated = false;
+    let apiReleased = false;
 
     beforeAll(async () => {
         const [newClient, error] = await createTestClient();
@@ -55,6 +56,13 @@ describe('Upsert Workflow', () => {
     });
 
     afterAll(async () => {
+        // Unrelease before deleting — a released contract complicates cleanup.
+        if (apiReleased && client?.session) {
+            const [, unreleaseErr] = await client.unreleaseApi(TEST_NAME, TEST_CONFIG.transport);
+            if (unreleaseErr) {
+                console.warn(`Failed to unrelease ${TEST_NAME}: ${unreleaseErr.message}`);
+            }
+        }
         if (objectCreated) {
             await safeDelete(
                 client!,
@@ -63,7 +71,7 @@ describe('Upsert Workflow', () => {
             );
         }
         await safeLogout(client);
-    });
+    }, 180_000);
 
     it('should create object via upsert', async () => {
         if (shouldSkip(client)) return;
@@ -185,4 +193,54 @@ define view entity ${TEST_NAME} as select from t000 {
         expect(results![0]!.status).toBe('success');
         console.log(`Activated CDS view: ${TEST_NAME}`);
     });
+
+    it('should release the C1 API state of the activated view', async () => {
+        if (shouldSkip(client) || !objectCreated) {
+            console.log('Skipping - no session or object not created');
+            return;
+        }
+
+        const [result, err] = await client!.releaseApi(TEST_NAME, TEST_CONFIG.transport);
+
+        expect(err).toBeNull();
+        expect(result).not.toBeNull();
+        expect(result!.name).toBe(TEST_NAME);
+        expect(result!.status).toBe('RELEASED');
+        apiReleased = true;
+        // Validation warnings (e.g. unreleased referenced elements) are non-blocking.
+        console.log(
+            `Released API state: ${TEST_NAME} (${result!.messages.length} validation message(s))`
+        );
+    }, 60_000);
+
+    it('should read back the RELEASED API state', async () => {
+        if (shouldSkip(client) || !apiReleased) {
+            console.log('Skipping - API not released');
+            return;
+        }
+
+        const [state, err] = await client!.getApiReleaseState(TEST_NAME);
+
+        expect(err).toBeNull();
+        expect(state).not.toBeNull();
+        expect(state!.status).toBe('RELEASED');
+        expect(state!.released).toBe(true);
+        expect(state!.allowedTransitions).toContain('NOT_RELEASED');
+        console.log(`Verified API release state: ${state!.statusDescription}`);
+    }, 30_000);
+
+    it('should unrelease the C1 API state', async () => {
+        if (shouldSkip(client) || !apiReleased) {
+            console.log('Skipping - API not released');
+            return;
+        }
+
+        const [result, err] = await client!.unreleaseApi(TEST_NAME, TEST_CONFIG.transport);
+
+        expect(err).toBeNull();
+        expect(result).not.toBeNull();
+        expect(result!.status).toBe('NOT_RELEASED');
+        apiReleased = false;
+        console.log(`Unreleased API state: ${TEST_NAME}`);
+    }, 60_000);
 });
