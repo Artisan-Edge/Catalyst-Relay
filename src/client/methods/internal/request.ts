@@ -118,10 +118,16 @@ export async function executeRequest(
         if (response.status === 500) {
             const text = await response.text();
 
-            // Attempt session reset
-            const [, resetErr] = await sessionOps.sessionReset(state, selfRequest);
-            if (resetErr) {
-                return err(new Error(`Session reset failed: ${resetErr.message}`));
+            // Application errors also surface as 500 — only reset when the body
+            // actually indicates a dead session. SAML sessions are excluded: the
+            // reset's logoff would destroy browser-established cookies that
+            // cannot be re-acquired headlessly.
+            const isSessionError = /session/i.test(text) && /(timed out|expired|no longer exists|not found)/i.test(text);
+            if (isSessionError && config.auth.type !== 'saml') {
+                const [, resetErr] = await sessionOps.sessionReset(state, selfRequest);
+                if (resetErr) {
+                    debugError(`Session reset after 500 failed: ${resetErr.message}`);
+                }
             }
 
             // Return original 500 response
