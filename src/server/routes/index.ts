@@ -21,6 +21,7 @@ import { refreshHandler } from './auth/refresh';
 import { packagesHandler } from './discovery/packages';
 import { treeHandler } from './discovery/tree';
 import { transportsHandler } from './discovery/transports';
+import { userTransportsHandler } from './discovery/userTransports';
 import { createTransportHandler } from './discovery/createTransport';
 import { deleteTransportHandler } from './discovery/deleteTransport';
 import { removeFromTransportHandler } from './discovery/removeFromTransport';
@@ -85,6 +86,7 @@ export function createRoutes(
     app.get('/object-config', objectConfigHandler); // No session required - static config
     app.get('/packages', sessionMiddleware, packagesHandler);
     app.post('/tree', sessionMiddleware, treeHandler);
+    app.get('/usertransports', sessionMiddleware, userTransportsHandler);
     app.get('/transports/:package', sessionMiddleware, transportsHandler);
     app.post('/transports', sessionMiddleware, createTransportHandler);
     app.delete('/transports/:transportId', sessionMiddleware, deleteTransportHandler);

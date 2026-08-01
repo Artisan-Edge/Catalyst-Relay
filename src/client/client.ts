@@ -28,6 +28,8 @@ import type {
     TreeResponse,
     PackageNode,
     Transport,
+    UserTransport,
+    UserTransportFilters,
     Package,
     GetPackagesOptions,
     DataFrame,
@@ -104,6 +106,7 @@ export interface ADTClient {
     getPackageStats(packageName: string): AsyncResult<PackageNode>;
     getPackageStats(packageNames: string[]): AsyncResult<PackageNode[]>;
     getTransports(packageName: string): AsyncResult<Transport[]>;
+    getUserTransports(filters?: UserTransportFilters & { user?: string }): AsyncResult<UserTransport[]>;
     getInactiveObjects(): AsyncResult<InactiveEntry[]>;
 
     // Data Preview
@@ -308,6 +311,10 @@ export class ADTClientImpl implements ADTClient {
 
     async getTransports(packageName: string): AsyncResult<Transport[]> {
         return discoveryMethods.getTransports(this.state, this.requestor, packageName);
+    }
+
+    async getUserTransports(filters?: UserTransportFilters & { user?: string }): AsyncResult<UserTransport[]> {
+        return discoveryMethods.getUserTransports(this.state, this.requestor, filters);
     }
 
     async getInactiveObjects(): AsyncResult<InactiveEntry[]> {

@@ -420,4 +420,29 @@ describe('Discovery Workflow', () => {
             expect(transports!.length).toBeGreaterThan(0);
         }
     });
+
+    it('should get transports for the logged-in user', async () => {
+        if (shouldSkip(client)) return;
+
+        const [transports, err] = await client!.getUserTransports();
+
+        expect(err).toBeNull();
+        expect(Array.isArray(transports)).toBe(true);
+
+        console.log(`Found ${transports!.length} transports for the logged-in user`);
+        for (const transport of transports!) {
+            expect(transport.id).toBeTruthy();
+            expect(['workbench', 'customizing']).toContain(transport.type);
+            expect(['modifiable', 'released']).toContain(transport.status);
+        }
+
+        // Filtered queries must be subsets of the unfiltered one.
+        const [customizing, customizingErr] = await client!.getUserTransports({ type: 'customizing', status: 'modifiable' });
+        expect(customizingErr).toBeNull();
+        for (const transport of customizing!) {
+            expect(transport.type).toBe('customizing');
+            expect(transport.status).toBe('modifiable');
+        }
+        expect(customizing!.length).toBeLessThanOrEqual(transports!.length);
+    });
 });

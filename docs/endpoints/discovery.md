@@ -668,6 +668,123 @@ interface Transport {
 
 ---
 
+## GET /usertransports
+
+List transport requests owned by a user — both workbench and customizing, modifiable and released. Uses the transport-organizer tree query (the same request Eclipse's Transport Organizer view sends), so unlike `GET /transports/:package` it is not limited to modifiable workbench requests.
+
+### Request
+
+| Method | Path | Auth Required |
+|--------|------|---------------|
+| GET | `/usertransports` | Yes |
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `user` | string | No | Owner username (defaults to the logged-in user) |
+| `type` | string | No | `workbench` or `customizing` (omit for both) |
+| `status` | string | No | `modifiable` or `released` (omit for both) |
+
+### Request Body
+
+None required.
+
+### Response
+
+Array of user transport objects:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Transport ID (e.g., `N01K957300`) |
+| `description` | string | Transport description |
+| `owner` | string | Transport owner username |
+| `type` | string | `workbench` or `customizing` |
+| `status` | string | `modifiable` or `released` |
+| `target` | string | Transport target (e.g., `/GADEV/`) |
+| `targetDescription` | string | Target description |
+| `lastChanged` | string | SAP timestamp of last change (`YYYYMMDDHHMMSS`) |
+
+### Example
+
+**Request:**
+```bash
+curl "http://localhost:3000/usertransports?type=customizing&status=modifiable" \
+  -H "X-Session-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": [
+        {
+            "id": "N01K957300",
+            "description": "Beacon: Admin Services",
+            "owner": "EBOSCH1",
+            "type": "customizing",
+            "status": "modifiable",
+            "target": "/GADEV/",
+            "targetDescription": "ZGALLO DEV",
+            "lastChanged": "20260727202723"
+        }
+    ]
+}
+```
+
+### Errors
+
+| Code | Status | Cause |
+|------|--------|-------|
+| `VALIDATION_ERROR` | 400 | Invalid `type` or `status` value |
+| `SESSION_NOT_FOUND` | 401 | Invalid session |
+| `UNKNOWN_ERROR` | 500 | SAP server error |
+
+### Use Cases
+
+- **Customizing transport picker** — Find a modifiable customizing request to record table content onto (e.g., the Beacon docs loader)
+- **Transport overview** — Mirror the SE10/Eclipse "requests involving user" tree
+
+### Library Usage
+
+```typescript
+import { createClient } from 'catalyst-relay';
+import type { UserTransport } from 'catalyst-relay';
+
+// Customizing requests I can still write to
+const [transports, err] = await client.getUserTransports({
+    type: 'customizing',
+    status: 'modifiable',
+});
+
+// Everything for another user
+const [all, err2] = await client.getUserTransports({ user: 'AHUSSAI1' });
+```
+
+**Return Type:**
+```typescript
+type AsyncResult<UserTransport[]> = Promise<[UserTransport[], null] | [null, Error]>;
+
+interface UserTransport {
+  id: string;
+  description: string;
+  owner: string;
+  type: 'workbench' | 'customizing';
+  status: 'modifiable' | 'released';
+  target: string;
+  targetDescription: string;
+  lastChanged: string;
+}
+```
+
+**Notes:**
+- Requires authentication
+- `released` results are limited by the backend to recent history (typically the last two weeks)
+- Filters are applied server-side (`requestType`/`requestStatus` on the ADT query)
+- Returns AsyncResult tuple
+
+---
+
 ## POST /transports
 
 Create a new transport request.
