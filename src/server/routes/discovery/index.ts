@@ -6,6 +6,7 @@ export { packagesHandler, type PackagesResponse } from './packages';
 export { treeHandler } from './tree';
 export type { TreeResponse } from '../../../core/adt';
 export { transportsHandler, type TransportsResponse } from './transports';
+export { userTransportsHandler, type UserTransportsResponse } from './userTransports';
 export { createTransportHandler, type CreateTransportResponse } from './createTransport';
 export { objectConfigHandler, type ObjectConfigResponse } from './objectConfig';
 export { inactiveObjectsHandler, type InactiveObjectsResponse } from './inactiveObjects';

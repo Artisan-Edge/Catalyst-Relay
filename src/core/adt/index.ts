@@ -78,6 +78,8 @@ export { getPackages } from './discovery/packages';
 export { getTree } from './discovery/tree';
 export { getPackageStats } from './discovery/tree/packageStats';
 export { getTransports } from './transports/transports';
+export { getUserTransports } from './transports/getUserTransports';
+export type { UserTransport, UserTransportFilters, TransportStatus } from './transports/getUserTransports';
 
 // Inactive objects
 export { getInactiveObjects } from './discovery/inactiveObjects';

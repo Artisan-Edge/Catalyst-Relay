@@ -31,6 +31,8 @@ import { DEFAULT_PROVIDER_CONFIG } from './types';
 const TIMEOUTS = {
     PAGE_LOAD: 60_000,
     FORM_SELECTOR: 15_000,
+    /** Wait for the password step on two-step IdP pages (e.g. SAP IAS conditional authentication). */
+    PASSWORD_STEP: 15_000,
     NETWORK_IDLE: 30_000,
     /** Quiet period with no in-flight requests that counts as "idle". */
     IDLE_QUIET: 600,
@@ -150,20 +152,39 @@ async function performBrowserLoginViaPlaywright(
         }
 
         // Wait for and fill login form.
+        const { username: usernameSel, password: passwordSel, submit: submitSel } = config.formSelectors;
         try {
-            await page.waitForSelector(config.formSelectors.username, {
+            await page.waitForSelector(usernameSel, {
                 timeout: TIMEOUTS.FORM_SELECTOR,
             });
         } catch {
-            return err(new Error('Login form not found. The page may have changed or loaded incorrectly.'));
+            return err(loginFormError(usernameSel, `${page.url()} ("${await page.title()}")`));
         }
 
-        await page.fill(config.formSelectors.username, credentials.username);
-        await page.fill(config.formSelectors.password, credentials.password);
-        await page.click(config.formSelectors.submit);
+        await page.fill(usernameSel, credentials.username);
+
+        // Two-step IdP pages (e.g. SAP IAS conditional authentication) only
+        // show the password field after the username is submitted.
+        if (!(await page.$(passwordSel))) {
+            await page.click(submitSel);
+            try {
+                await page.waitForSelector(passwordSel, { timeout: TIMEOUTS.PASSWORD_STEP });
+            } catch {
+                return err(passwordStepError(passwordSel, `${page.url()} ("${await page.title()}")`));
+            }
+        }
+
+        await page.fill(passwordSel, credentials.password);
+        await page.click(submitSel);
 
         // Wait for login to complete.
         await page.waitForLoadState('networkidle');
+
+        // If the password field is still present, the IdP re-rendered the
+        // login form instead of posting back to the SAP system.
+        if (await page.$(passwordSel)) {
+            return err(credentialsRejectedError(`${page.url()} ("${await page.title()}")`));
+        }
 
         // Extract cookies.
         const cookies = await context.cookies();
@@ -390,36 +411,37 @@ async function performBrowserLoginViaCdp(
         }
 
         // Wait for the login form to appear.
-        const usernameSel = config.formSelectors.username;
+        const { username: usernameSel, password: passwordSel, submit: submitSel } = config.formSelectors;
         const formFound = await waitForSelector(client, sessionId, usernameSel, TIMEOUTS.FORM_SELECTOR);
         if (!formFound) {
-            return err(new Error('Login form not found. The page may have changed or loaded incorrectly.'));
+            return err(loginFormError(usernameSel, await describePage(client, sessionId)));
         }
 
-        // Fill credentials and submit, dispatching input/change events so any
+        // Fill the username, dispatching input/change events so any
         // client-side validation on the login form is triggered.
-        const fillExpr = `(() => {
-            const u = document.querySelector(${JSON.stringify(config.formSelectors.username)});
-            const p = document.querySelector(${JSON.stringify(config.formSelectors.password)});
-            const s = document.querySelector(${JSON.stringify(config.formSelectors.submit)});
-            if (!u || !p || !s) return false;
-            const set = (el, val) => {
-                el.value = val;
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            };
-            set(u, ${JSON.stringify(credentials.username)});
-            set(p, ${JSON.stringify(credentials.password)});
-            s.click();
-            return true;
-        })()`;
-        const fillResult = (await client.send(
-            'Runtime.evaluate',
-            { expression: fillExpr, returnByValue: true },
-            sessionId
-        )) as { result?: { value?: boolean } };
-        if (fillResult.result?.value !== true) {
-            return err(new Error('Login form not found. The page may have changed or loaded incorrectly.'));
+        const usernameFilled = await evaluateInPage<boolean>(client, sessionId, fillFieldExpr(usernameSel, credentials.username));
+        if (usernameFilled !== true) {
+            return err(loginFormError(usernameSel, await describePage(client, sessionId)));
+        }
+
+        // Two-step IdP pages (e.g. SAP IAS conditional authentication) only
+        // show the password field after the username is submitted.
+        const passwordPresent = await evaluateInPage<boolean>(client, sessionId, existsExpr(passwordSel));
+        if (passwordPresent !== true) {
+            await evaluateInPage<boolean>(client, sessionId, clickExpr(submitSel));
+            const passwordFound = await waitForSelector(client, sessionId, passwordSel, TIMEOUTS.PASSWORD_STEP);
+            if (!passwordFound) {
+                return err(passwordStepError(passwordSel, await describePage(client, sessionId)));
+            }
+        }
+
+        const passwordFilled = await evaluateInPage<boolean>(client, sessionId, fillFieldExpr(passwordSel, credentials.password));
+        if (passwordFilled !== true) {
+            return err(loginFormError(passwordSel, await describePage(client, sessionId)));
+        }
+        const submitted = await evaluateInPage<boolean>(client, sessionId, clickExpr(submitSel));
+        if (submitted !== true) {
+            return err(loginFormError(submitSel, await describePage(client, sessionId)));
         }
 
         // Wait for login to settle (network idle), best-effort up to the cap.
@@ -427,6 +449,13 @@ async function performBrowserLoginViaCdp(
         while (Date.now() - idleStart < TIMEOUTS.NETWORK_IDLE) {
             if (inflight === 0 && Date.now() - lastNetworkChange > TIMEOUTS.IDLE_QUIET) break;
             await sleep(100);
+        }
+
+        // If the password field is still present, the IdP re-rendered the
+        // login form instead of posting back to the SAP system.
+        const stillOnLogin = await evaluateInPage<boolean>(client, sessionId, existsExpr(passwordSel));
+        if (stillOnLogin === true) {
+            return err(credentialsRejectedError(await describePage(client, sessionId)));
         }
 
         // Extract cookies.
@@ -452,17 +481,89 @@ async function waitForSelector(
     timeoutMs: number
 ): Promise<boolean> {
     const start = Date.now();
-    const expression = `!!document.querySelector(${JSON.stringify(selector)})`;
     while (Date.now() - start < timeoutMs) {
+        const found = await evaluateInPage<boolean>(client, sessionId, existsExpr(selector));
+        if (found === true) return true;
+        await sleep(200);
+    }
+    return false;
+}
+
+/**
+ * Evaluate an expression in the page and return its JSON value.
+ *
+ * Returns null on failure (e.g. the execution context was destroyed by a
+ * navigation mid-evaluation) so callers can retry or fail gracefully.
+ */
+async function evaluateInPage<T>(client: CdpClient, sessionId: string, expression: string): Promise<T | null> {
+    try {
         const res = (await client.send(
             'Runtime.evaluate',
             { expression, returnByValue: true },
             sessionId
-        )) as { result?: { value?: boolean } };
-        if (res.result?.value === true) return true;
-        await sleep(200);
+        )) as { result?: { value?: T } };
+        return res.result?.value ?? null;
+    } catch {
+        return null;
     }
-    return false;
+}
+
+/** Expression: whether a selector exists in the page. */
+function existsExpr(selector: string): string {
+    return `!!document.querySelector(${JSON.stringify(selector)})`;
+}
+
+/** Expression: fill a form field and dispatch input/change events. Returns true when the field exists. */
+function fillFieldExpr(selector: string, value: string): string {
+    return `(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return false;
+        el.value = ${JSON.stringify(value)};
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+    })()`;
+}
+
+/** Expression: click an element. Returns true when the element exists. */
+function clickExpr(selector: string): string {
+    return `(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return false;
+        el.click();
+        return true;
+    })()`;
+}
+
+/** Describe the page the browser is currently on, for error messages. */
+async function describePage(client: CdpClient, sessionId: string): Promise<string> {
+    const desc = await evaluateInPage<string>(
+        client,
+        sessionId,
+        `location.href + ' ("' + document.title + '")'`
+    );
+    return desc ?? 'an unknown page';
+}
+
+function loginFormError(selector: string, pageDesc: string): Error {
+    return new Error(
+        `Login form not found: "${selector}" is missing on ${pageDesc}. ` +
+        'The login page may have changed; configure custom form selectors for this system if so.'
+    );
+}
+
+function passwordStepError(selector: string, pageDesc: string): Error {
+    return new Error(
+        `Password field "${selector}" did not appear after submitting the username; landed on ${pageDesc}. ` +
+        'The identity provider may require a different login method (e.g. two-factor or passwordless).'
+    );
+}
+
+function credentialsRejectedError(pageDesc: string): Error {
+    return new Error(
+        `The identity provider did not accept the login and re-displayed the login form (${pageDesc}). ` +
+        'Check the username and password.'
+    );
 }
 
 /** Map a raw CDP cookie to the PlaywrightCookie shape used downstream. */
