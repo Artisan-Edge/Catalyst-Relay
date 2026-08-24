@@ -44,9 +44,13 @@ import { performBrowserLogin } from './browser';
 import { toAuthCookies, formatCookieHeader } from './cookies';
 
 /**
- * Configuration for SAML authentication
+ * Internal configuration for SAML authentication strategy.
+ *
+ * This differs from the public SamlAuthConfig (in types/config.ts) by:
+ * - No `type` discriminator (strategy already knows it's SAML)
+ * - Includes `baseUrl` (injected by factory from ClientConfig.url)
  */
-export interface SamlAuthConfig {
+export interface SamlStrategyConfig {
     /** SAML username (often an email address) - used for browser login */
     username: string;
     /** SAML password */
@@ -65,14 +69,14 @@ export interface SamlAuthConfig {
 export class SamlAuth implements AuthStrategy {
     readonly type = 'saml' as const;
     private cookies: AuthCookie[] = [];
-    private config: SamlAuthConfig;
+    private config: SamlStrategyConfig;
 
     /**
      * Create a SAML Auth strategy
      *
-     * @param config - SAML authentication configuration
+     * @param config - SAML strategy configuration (with baseUrl)
      */
-    constructor(config: SamlAuthConfig) {
+    constructor(config: SamlStrategyConfig) {
         if (!config.username || !config.password) {
             throw new Error('SamlAuth requires both username and password');
         }
