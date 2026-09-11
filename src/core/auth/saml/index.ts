@@ -15,13 +15,16 @@ export type {
     SamlProviderConfig,
     PlaywrightCookie,
     SamlLoginResult,
+    SamlCredentials,
+    SamlBrowserLoginOptions,
 } from './types';
 
 export { DEFAULT_FORM_SELECTORS, DEFAULT_PROVIDER_CONFIG } from './types';
 
 // Browser automation
-export type { SamlCredentials, SamlBrowserLoginOptions } from './browser';
 export { performBrowserLogin } from './browser';
+export { runLoginSequence, LOGIN_TIMEOUTS, MFA_HINT_MESSAGE, manualSignInMessage } from './loginSequence';
+export type { PageDriver, LoginSequenceOptions } from './loginSequence';
 
 // Cookie utilities
 export { toAuthCookies, formatCookieHeader } from './cookies';

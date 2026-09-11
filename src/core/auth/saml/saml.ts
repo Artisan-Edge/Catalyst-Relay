@@ -28,7 +28,8 @@
  *     },
  * });
  *
- * // Perform login
+ * // Perform login; onStatus reports e.g. a pending multi-factor approval
+ * const auth = new SamlAuth({ ..., onStatus: (message) => console.error(message) });
  * const [, error] = await auth.performLogin(fetch);
  * if (error) {
  *     console.error('Login failed:', error.message);
@@ -39,6 +40,7 @@
 import type { AuthStrategy, AuthCookie } from '../types';
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
+import type { SamlLoginStatusCallback } from '../../../types/config';
 import type { SamlProviderConfig } from './types';
 import { performBrowserLogin } from './browser';
 import { toAuthCookies, formatCookieHeader } from './cookies';
@@ -57,6 +59,8 @@ export interface SamlAuthConfig {
     baseUrl: string;
     /** Optional custom provider configuration */
     providerConfig?: SamlProviderConfig;
+    /** Optional progress callback (e.g. a pending multi-factor approval) */
+    onStatus?: SamlLoginStatusCallback;
 }
 
 /**
@@ -127,13 +131,16 @@ export class SamlAuth implements AuthStrategy {
      * @returns Success/error tuple
      */
     async performLogin(_fetchFn: typeof fetch): AsyncResult<void, Error> {
+        const providerConfig = this.config.providerConfig;
         const [playwrightCookies, loginError] = await performBrowserLogin({
             baseUrl: this.config.baseUrl,
             credentials: {
                 username: this.config.username,
                 password: this.config.password,
             },
-            ...(this.config.providerConfig && { providerConfig: this.config.providerConfig }),
+            ...(providerConfig && { providerConfig }),
+            ...(providerConfig?.headless !== undefined && { headless: providerConfig.headless }),
+            ...(this.config.onStatus && { onStatus: this.config.onStatus }),
         });
 
         if (loginError) {

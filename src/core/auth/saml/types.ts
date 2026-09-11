@@ -4,6 +4,8 @@
  * Defines provider configurations and form selectors for SAML browser automation.
  */
 
+import type { SamlLoginStatusCallback } from '../../../types/config';
+
 /**
  * CSS selectors for login form elements
  *
@@ -39,6 +41,8 @@ export interface SamlProviderConfig {
     ignoreHttpsErrors: boolean;
     /** CSS selectors for login form elements */
     formSelectors: FormSelectors;
+    /** Run the browser headless (default true). False opens a visible window the user can complete the sign-in in. */
+    headless?: boolean;
 }
 
 /**
@@ -73,4 +77,28 @@ export interface PlaywrightCookie {
 export interface SamlLoginResult {
     /** Session cookies from successful login */
     cookies: PlaywrightCookie[];
+}
+
+/**
+ * Credentials for SAML login
+ */
+export interface SamlCredentials {
+    username: string;
+    password: string;
+}
+
+/**
+ * Options for SAML browser login
+ */
+export interface SamlBrowserLoginOptions {
+    /** SAP system base URL */
+    baseUrl: string;
+    /** Login credentials */
+    credentials: SamlCredentials;
+    /** Optional custom provider config (overrides auto-detection) */
+    providerConfig?: SamlProviderConfig;
+    /** Whether to run browser in headless mode (default: true). Overrides providerConfig.headless. */
+    headless?: boolean;
+    /** Receives progress messages, e.g. when a multi-factor approval is pending */
+    onStatus?: SamlLoginStatusCallback;
 }

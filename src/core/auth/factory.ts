@@ -66,6 +66,7 @@ export function createAuthStrategy(options: CreateAuthOptions): AuthStrategy {
                 sapUser: config.sapUser,
                 baseUrl,
                 ...(config.providerConfig && { providerConfig: config.providerConfig }),
+                ...(config.onStatus && { onStatus: config.onStatus }),
             });
 
         case 'sso': {
