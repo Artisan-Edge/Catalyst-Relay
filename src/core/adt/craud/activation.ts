@@ -191,9 +191,8 @@ function extractActivationErrors(
     const errorMap: Map<string, ActivationMessage[]> = new Map();
     objects.forEach(obj => errorMap.set(obj.name.toLowerCase(), []));
 
-    // Extract message elements and prepare regex for position parsing.
+    // Extract message elements.
     const msgElements = doc.getElementsByTagName('msg');
-    const startRegex = /#start=(\d+),(\d+)/;
 
     // Process each message element.
     for (let i = 0; i < msgElements.length; i++) {
@@ -204,25 +203,19 @@ function extractActivationErrors(
         const type = msg.getAttribute('type');
         if (type === 'W') continue;
 
-        // Extract object description and href for position info.
+        // 'A' (abort) is as fatal as 'E' — both must mark the object failed.
+        const severity: ActivationMessage['severity'] = type === 'E' || type === 'A' ? 'error' : 'warning';
+
         const objDescr = msg.getAttribute('objDescr');
         const href = msg.getAttribute('href');
-        if (!objDescr || !href) continue;
 
-        // Parse line and column from href.
-        let line: number | undefined;
-        let column: number | undefined;
-        const match = startRegex.exec(href);
-        if (match && match[1] && match[2]) {
-            line = parseInt(match[1], 10);
-            column = parseInt(match[2], 10);
-        }
-        if (!line || !column) continue;
+        // Object-level failures ("... is inactive", "not activated") carry no source
+        // position. Keep them: dropping them reported the object as activated when it
+        // was not. Positionless non-errors stay dropped — they are activation noise.
+        const position = parsePosition(href);
+        if (!position && severity !== 'error') continue;
 
-        // Find matching object by name.
-        const matchingObj = objects.find(obj =>
-            objDescr.toLowerCase().includes(obj.name.toLowerCase())
-        );
+        const matchingObj = findMessageTarget(objects, objDescr, href);
         if (!matchingObj) continue;
 
         // Extract message text elements.
@@ -235,12 +228,9 @@ function extractActivationErrors(
             if (!text) continue;
 
             // Build activation message with severity and position.
-            const message: ActivationMessage = {
-                severity: type === 'E' ? 'error' : 'warning',
-                text,
-                line,
-                column,
-            };
+            const message: ActivationMessage = position
+                ? { severity, text, line: position.line, column: position.column }
+                : { severity, text };
 
             // Add message to object's error list.
             const messages = errorMap.get(matchingObj.name.toLowerCase()) || [];
@@ -263,4 +253,34 @@ function extractActivationErrors(
     });
 
     return ok(results);
+}
+
+const START_REGEX = /#start=(\d+),(\d+)/;
+
+// Source position from a message href, or null when the message is object-level.
+function parsePosition(href: string | null): { line: number; column: number } | null {
+    if (!href) return null;
+
+    const match = START_REGEX.exec(href);
+    if (!match || !match[1] || !match[2]) return null;
+
+    const line = parseInt(match[1], 10);
+    const column = parseInt(match[2], 10);
+    if (!line || !column) return null;
+
+    return { line, column };
+}
+
+// Attribute a message to one of the activated objects, by description or by the URI in
+// its href. Longest name wins so a prefix (ZFOO_C01) cannot claim a message belonging to
+// ZFOO_C011. A run of exactly one object absorbs messages that name nothing.
+function findMessageTarget(objects: ActivationReference[], objDescr: string | null, href: string | null): ActivationReference | null {
+    const haystack = `${objDescr ?? ''} ${href ?? ''}`.toLowerCase();
+
+    const named = objects
+        .filter(obj => haystack.includes(obj.name.toLowerCase()))
+        .sort((a, b) => b.name.length - a.name.length);
+    if (named[0]) return named[0];
+
+    return objects.length === 1 ? objects[0]! : null;
 }
