@@ -44,6 +44,8 @@ const POLL_RETRY_DELAY_MS = 1_000;
 // until the run finishes. Use a socket-idle timeout long enough to outlast even
 // large batch activations rather than the default 30s, which aborts mid-poll.
 const LONG_POLL_TIMEOUT_MS = 3_600_000; // 1 hour
+const MAX_RESULTS_ATTEMPTS = 3;
+const RESULTS_RETRY_DELAY_MS = 1_000;
 const RUN_ID_REGEX = /\/activation\/runs\/([^?/]+)/;
 const BACKGROUND_RUN_MEDIA_TYPE = 'application/vnd.sap.adt.backgroundrun.v1+xml';
 
@@ -160,22 +162,48 @@ export async function activateByReferences(
     }
 
     // Step 3: Fetch the completed run's results.
-    const [resultsRes, resultsErr] = await client.request({
-        method: 'GET',
-        path: `/sap/bc/adt/activation/results/${runId}`,
-        headers: { 'Accept': 'application/xml' },
-    });
+    const [resultsText, resultsErr] = await fetchActivationResults(client, runId);
     if (resultsErr) return err(resultsErr);
-    const resultsText = await resultsRes.text();
-    debug(`Activation results status: ${resultsRes.status}`);
-    debug(`Activation results body: ${resultsText.substring(0, 500)}`);
-    if (!resultsRes.ok) {
-        return err(new Error(`Failed to fetch activation results: ${extractError(resultsText)}`));
-    }
 
     const [results, parseErr] = extractActivationErrors(references, resultsText);
     if (parseErr) return err(parseErr);
     return ok(results);
+}
+
+// Read a finished run's results, retrying the transient exception SAP sometimes answers
+// with. Safe to repeat: the run is already done. The POST that starts one is not retried.
+async function fetchActivationResults(client: AdtRequestor, runId: string): AsyncResult<string, Error> {
+    let lastDetail = 'unknown error';
+
+    for (let attempt = 1; attempt <= MAX_RESULTS_ATTEMPTS; attempt++) {
+        if (attempt > 1) await new Promise(resolve => setTimeout(resolve, RESULTS_RETRY_DELAY_MS));
+
+        const [res, requestErr] = await client.request({
+            method: 'GET',
+            path: `/sap/bc/adt/activation/results/${runId}`,
+            headers: { 'Accept': 'application/xml' },
+        });
+        if (requestErr) {
+            debug(`Activation results attempt ${attempt} failed: ${requestErr.message}`);
+            lastDetail = requestErr.message;
+            continue;
+        }
+
+        const text = await res.text();
+        debug(`Activation results attempt ${attempt} status: ${res.status}`);
+        if (res.ok) {
+            debug(`Activation results body: ${text.substring(0, 500)}`);
+            return ok(text);
+        }
+
+        // 4xx is terminal: an unknown or rejected run will not recover by retrying.
+        lastDetail = extractError(text);
+        if (res.status >= 400 && res.status < 500) {
+            return err(new Error(`Failed to fetch activation results: ${lastDetail}`));
+        }
+    }
+
+    return err(new Error(`Failed to fetch activation results after ${MAX_RESULTS_ATTEMPTS} attempts: ${lastDetail}`));
 }
 
 // Parse activation response XML for errors

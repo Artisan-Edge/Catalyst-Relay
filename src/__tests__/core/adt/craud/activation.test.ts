@@ -15,8 +15,16 @@ import type { AdtRequestor } from '../../../../core/adt';
 
 const RUN_ID = 'run123';
 
-function mockRequestor(resultsXml: string): AdtRequestor {
-    return {
+interface ResultsResponse {
+    status: number;
+    body: string;
+}
+
+// Serves the three-step flow, returning queued results responses in order so a retry can
+// see a different answer than the first attempt.
+function mockRequestorFor(responses: ResultsResponse[]): { requestor: AdtRequestor; resultsCalls: () => number } {
+    let calls = 0;
+    const requestor: AdtRequestor = {
         request: async (options) => {
             if (options.method === 'POST') {
                 const headers = new Headers({ location: `/sap/bc/adt/activation/runs/${RUN_ID}` });
@@ -25,9 +33,17 @@ function mockRequestor(resultsXml: string): AdtRequestor {
             if (options.path.includes('/activation/runs/')) {
                 return [new Response('', { status: 200 }), null];
             }
-            return [new Response(resultsXml, { status: 200 }), null];
+
+            const next = responses[Math.min(calls, responses.length - 1)]!;
+            calls++;
+            return [new Response(next.body, { status: next.status }), null];
         },
     };
+    return { requestor, resultsCalls: () => calls };
+}
+
+function mockRequestor(resultsXml: string): AdtRequestor {
+    return mockRequestorFor([{ status: 200, body: resultsXml }]).requestor;
 }
 
 function resultsXml(messages: string): string {
@@ -120,4 +136,41 @@ describe('activateObjects result parsing', () => {
         expect(results![0]!.status).toBe('success');
         expect(results![0]!.messages).toHaveLength(0);
     });
+});
+
+const EXCEPTION_BODY = '<exc><localizedMessage>An exception was raised</localizedMessage></exc>';
+
+describe('activation results retry', () => {
+    it('retries a transient 500 and uses the second answer', async () => {
+        // "Failed to fetch activation results: An exception was raised" aborted the whole
+        // run; a plain retry succeeded.
+        const { requestor, resultsCalls } = mockRequestorFor([
+            { status: 500, body: EXCEPTION_BODY },
+            { status: 200, body: resultsXml('') },
+        ]);
+
+        const [results, error] = await activateObjects(requestor, [{ name: 'ZVIEW_OK', extension: 'asddls' }]);
+
+        expect(error).toBeNull();
+        expect(results![0]!.status).toBe('success');
+        expect(resultsCalls()).toBe(2);
+    }, 10_000);
+
+    it('does not retry a 4xx', async () => {
+        const { requestor, resultsCalls } = mockRequestorFor([{ status: 404, body: EXCEPTION_BODY }]);
+
+        const [, error] = await activateObjects(requestor, [{ name: 'ZVIEW_OK', extension: 'asddls' }]);
+
+        expect(error).not.toBeNull();
+        expect(resultsCalls()).toBe(1);
+    });
+
+    it('gives up after three attempts', async () => {
+        const { requestor, resultsCalls } = mockRequestorFor([{ status: 500, body: EXCEPTION_BODY }]);
+
+        const [, error] = await activateObjects(requestor, [{ name: 'ZVIEW_OK', extension: 'asddls' }]);
+
+        expect(error?.message).toContain('after 3 attempts');
+        expect(resultsCalls()).toBe(3);
+    }, 15_000);
 });
