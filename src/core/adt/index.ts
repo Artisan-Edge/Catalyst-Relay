@@ -73,6 +73,10 @@ export type { ApiReleaseState, ApiReleaseResult, ApiReleaseStatus, ApiReleaseVal
 // Syntax Check
 export { checkSyntax } from './craud/syntaxCheck';
 
+// Refactoring
+export { changePackage } from './refactoring/changePackage';
+export type { ChangePackageResult, ChangePackageStatus, ChangePackageOptions } from './refactoring/changePackage';
+
 // Discovery operations
 export { getPackages } from './discovery/packages';
 export { getTree } from './discovery/tree';

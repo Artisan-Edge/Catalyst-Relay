@@ -7,3 +7,4 @@ export { upsertHandler, upsertRequestSchema, type UpsertResponse } from './upser
 export { activateHandler, activateRequestSchema, type ActivateResponse } from './activate';
 export { deleteHandler, deleteRequestSchema, type DeleteResponse } from './delete';
 export { checkHandler, checkRequestSchema, type CheckResponse } from './check';
+export { changePackageHandler, changePackageRequestSchema, type ChangePackageResponse } from './changePackage';

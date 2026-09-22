@@ -36,6 +36,7 @@ import { classIncludeHandler } from './objects/classInclude';
 import { activateHandler } from './objects/activate';
 import { checkHandler } from './objects/check';
 import { deleteHandler } from './objects/delete';
+import { changePackageHandler } from './objects/changePackage';
 
 // Preview routes
 import { dataHandler } from './preview/data';
@@ -103,6 +104,7 @@ export function createRoutes(
     app.post('/objects/class-include', sessionMiddleware, classIncludeHandler);
     app.post('/objects/activate', sessionMiddleware, activateHandler);
     app.post('/objects/check', sessionMiddleware, checkHandler);
+    app.post('/objects/change-package', sessionMiddleware, changePackageHandler);
     app.delete('/objects/:transport?', sessionMiddleware, deleteHandler);
 
     // ─────────────────────────────────────────────────────────────────────────

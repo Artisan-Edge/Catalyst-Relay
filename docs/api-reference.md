@@ -15,68 +15,69 @@ HTTP endpoints available in Server Mode.
 
 ## Session Management
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/login` | Authenticate, returns session ID |
-| DELETE | `/logout` | End session |
-| POST | `/session/refresh` | Refresh session via reentrance ticket |
+| Method | Endpoint           | Description                           |
+| ------ | ------------------ | ------------------------------------- |
+| POST   | `/login`           | Authenticate, returns session ID      |
+| DELETE | `/logout`          | End session                           |
+| POST   | `/session/refresh` | Refresh session via reentrance ticket |
 
 ---
 
 ## Metadata Discovery
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/object-config` | List supported object types (no auth) |
-| GET | `/packages?filter=&includeDescriptions=` | List packages with optional descriptions |
-| GET | `/packages/:name/stats` | Package description and recursive object count |
-| POST | `/tree` | Hierarchical package browser |
-| GET | `/transports/:package` | List transports for a package |
-| POST | `/transports` | Create a new transport request |
+| Method | Endpoint                                  | Description                                          |
+| ------ | ----------------------------------------- | ---------------------------------------------------- |
+| GET    | `/object-config`                          | List supported object types (no auth)                |
+| GET    | `/packages?filter=&includeDescriptions=`  | List packages with optional descriptions             |
+| GET    | `/packages/:name/stats`                   | Package description and recursive object count       |
+| POST   | `/tree`                                   | Hierarchical package browser                         |
+| GET    | `/transports/:package`                    | List transports for a package                        |
+| POST   | `/transports`                             | Create a new transport request                       |
 | DELETE | `/transports/:transportId?removeObjects=` | Delete a transport (optionally clear contents first) |
-| GET | `/transports/:transportId/objects` | List tasks and objects on a transport |
-| PUT | `/transports/:transportId/objects` | Remove a single object from a transport |
-| GET | `/inactive-objects` | List objects/transports awaiting activation |
+| GET    | `/transports/:transportId/objects`        | List tasks and objects on a transport                |
+| PUT    | `/transports/:transportId/objects`        | Remove a single object from a transport              |
+| GET    | `/inactive-objects`                       | List objects/transports awaiting activation          |
 
 ---
 
 ## CRAUD Operations
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/objects/read` | Batch read with content |
-| POST | `/objects/upsert/:package/:transport?` | Create/update objects |
-| POST | `/objects/activate` | Activate objects (run-based, mixed extensions allowed) |
-| POST | `/objects/check` | Syntax check objects (single extension per batch) |
-| DELETE | `/objects/:transport?` | Multi-delete with dependency ordering; returns per-object results |
+| Method | Endpoint                               | Description                                                                          |
+| ------ | -------------------------------------- | ------------------------------------------------------------------------------------ |
+| POST   | `/objects/read`                        | Batch read with content                                                              |
+| POST   | `/objects/upsert/:package/:transport?` | Create/update objects                                                                |
+| POST   | `/objects/activate`                    | Activate objects (run-based, mixed extensions allowed)                               |
+| POST   | `/objects/check`                       | Syntax check objects (single extension per batch)                                    |
+| DELETE | `/objects/:transport?`                 | Multi-delete with dependency ordering; returns per-object results                    |
+| POST   | `/objects/change-package`              | Reassign objects to another package (preview or execute); returns per-object results |
 
 ---
 
 ## Data Preview
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/preview/data` | Query table/view data |
-| POST | `/preview/distinct` | Distinct column values |
-| POST | `/preview/count` | Row count |
+| Method | Endpoint            | Description            |
+| ------ | ------------------- | ---------------------- |
+| POST   | `/preview/data`     | Query table/view data  |
+| POST   | `/preview/distinct` | Distinct column values |
+| POST   | `/preview/count`    | Row count              |
 
 ---
 
 ## Search
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/search/:query` | Search objects by query |
-| POST | `/where-used` | Find dependencies |
+| Method | Endpoint         | Description             |
+| ------ | ---------------- | ----------------------- |
+| POST   | `/search/:query` | Search objects by query |
+| POST   | `/where-used`    | Find dependencies       |
 
 ---
 
 ## Diff
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/git-diff` | Compare local content with server |
+| Method | Endpoint    | Description                       |
+| ------ | ----------- | --------------------------------- |
+| POST   | `/git-diff` | Compare local content with server |
 
 ---
 
-*Last updated: v0.5.13*
+_Last updated: v0.5.13_

@@ -50,6 +50,8 @@ import type {
     ServiceBindingResult,
     ApiReleaseState,
     ApiReleaseResult,
+    ChangePackageResult,
+    ChangePackageOptions,
 } from '../core/adt';
 import type { AsyncResult } from '../types/result';
 import { createAuthStrategy } from '../core/auth/factory';
@@ -67,6 +69,7 @@ import * as diffMethods from './methods/diff';
 import * as configMethods from './methods/config';
 import * as businessServiceMethods from './methods/craud/specialcases/businessservices';
 import * as apiReleaseMethods from './methods/apirelease';
+import * as refactoringMethods from './methods/refactoring';
 import {
     storeCookies,
     buildCookieHeader,
@@ -99,6 +102,9 @@ export interface ADTClient {
     activate(objects: ObjectRef[]): AsyncResult<ActivationResult[]>;
     checkSyntax(objects: ObjectRef[]): AsyncResult<CheckResult[]>;
     delete(objects: ObjectRef[], transport?: string): AsyncResult<DeleteResult[]>;
+
+    // Refactoring
+    changePackage(objects: ObjectRef[], targetPackage: string, options?: ChangePackageOptions): AsyncResult<ChangePackageResult[]>;
 
     // Discovery
     getPackages(options?: GetPackagesOptions): AsyncResult<Package[]>;
@@ -395,6 +401,12 @@ export class ADTClientImpl implements ADTClient {
 
     async unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult> {
         return apiReleaseMethods.unreleaseApi(this.state, this.requestor, objectName, transport);
+    }
+
+    // --- Refactoring ---
+
+    async changePackage(objects: ObjectRef[], targetPackage: string, options?: ChangePackageOptions): AsyncResult<ChangePackageResult[]> {
+        return refactoringMethods.changePackage(this.state, this.requestor, objects, targetPackage, options);
     }
 
     // --- Configuration ---
