@@ -72,4 +72,4 @@ SAP occasionally answers the fetch of a finished run's results with a 500 ("An e
 
 - 8c4437c - [UPDATE] Activation parser keeps positionless errors instead of reporting them as success
 - c055707 - [UPDATE] Retry transient failures when fetching activation results
-- (uncommitted) - Change package assignment
+- d56a5c5 - [UPDATE] Change package assignment via ADT refactoring (v0.6.9)
