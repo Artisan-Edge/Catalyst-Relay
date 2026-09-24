@@ -879,6 +879,8 @@ A transport is needed when the move leaves or enters a transportable package. Mo
 
 On ABAP Cloud systems (S/4HANA Cloud, BTP ABAP) SAP refuses moves from a transportable package into a local one (e.g. `ZCUSTOM_DEVELOPMENT` into `ZLOCAL`) with `No authorization for changing the package`; moving from local to transportable is allowed. When a move is rejected and the source records changes but the target does not, the relay appends a hint saying so to the error message.
 
+Accepts every configured extension, plus move-only ones that no other operation supports: `dtel` (data element), `doma` (domain), `fugr` (function group) and `srvb` (service binding). The library exports these as `MOVE_ONLY_EXTENSIONS`. Find such objects under `unsupportedObjects` in [`POST /tree`](./discovery.md#post-tree).
+
 ### Request
 
 | Method | Path                      | Auth Required |
@@ -887,12 +889,12 @@ On ABAP Cloud systems (S/4HANA Cloud, BTP ABAP) SAP refuses moves from a transpo
 
 ### Request Body
 
-| Field       | Type    | Required | Description                                             |
-| ----------- | ------- | -------- | ------------------------------------------------------- |
-| `objects`   | array   | Yes      | Object references (`name`, `extension`)                 |
-| `package`   | string  | Yes      | Target package (case-insensitive)                       |
-| `transport` | string  | No       | Transport request (required for transportable packages) |
-| `preview`   | boolean | No       | Run the preview step only, without changing anything    |
+| Field       | Type    | Required | Description                                                      |
+| ----------- | ------- | -------- | ---------------------------------------------------------------- |
+| `objects`   | array   | Yes      | Object references (`name`, `extension`; configured or move-only) |
+| `package`   | string  | Yes      | Target package (case-insensitive)                                |
+| `transport` | string  | No       | Transport request (required for transportable packages)          |
+| `preview`   | boolean | No       | Run the preview step only, without changing anything             |
 
 ### Response
 

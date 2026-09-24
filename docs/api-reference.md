@@ -7,6 +7,7 @@ HTTP endpoints available in Server Mode.
 - [Session Management](#session-management)
 - [Metadata Discovery](#metadata-discovery)
 - [CRAUD Operations](#craud-operations)
+- [API Release](#api-release)
 - [Data Preview](#data-preview)
 - [Search](#search)
 - [Diff](#diff)
@@ -53,6 +54,17 @@ HTTP endpoints available in Server Mode.
 
 ---
 
+## API Release
+
+| Method | Endpoint                        | Description                                                                         |
+| ------ | ------------------------------- | ----------------------------------------------------------------------------------- |
+| GET    | `/api-release/:name`            | C1 release state and visibility flags of a CDS view                                 |
+| POST   | `/api-release/:name/release`    | Release the C1 contract (default Cloud Development only; no-op if already released) |
+| POST   | `/api-release/:name/unrelease`  | Revert to not released (visibility kept)                                            |
+| POST   | `/api-release/:name/visibility` | Change visibility of a released view (optional preview)                             |
+
+---
+
 ## Data Preview
 
 | Method | Endpoint            | Description            |
@@ -80,4 +92,4 @@ HTTP endpoints available in Server Mode.
 
 ---
 
-_Last updated: v0.5.13_
+_Last updated: v0.6.9_
