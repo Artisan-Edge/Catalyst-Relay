@@ -17,6 +17,7 @@ export type {
     PackageNode,
     FolderNode,
     ObjectNode,
+    UnsupportedObjectNode,
 } from './types';
 
 /**
@@ -49,6 +50,7 @@ export async function getTree(
             packages,
             folders: [],
             objects: [],
+            unsupportedObjects: [],
         });
     }
 

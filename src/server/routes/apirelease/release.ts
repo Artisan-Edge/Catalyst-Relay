@@ -14,6 +14,9 @@ import type { RouteContext } from '../types';
 
 export const releaseApiRequestSchema = z.object({
     transport: z.string().optional(),
+    // Visibility flags; each defaults to true when omitted
+    useInCloudDevelopment: z.boolean().optional(),
+    useInKeyUserApps: z.boolean().optional(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,7 +49,8 @@ export async function releaseApiHandler(c: RouteContext) {
 
     const client = c.get('client');
 
-    const [result, error] = await client.releaseApi(name, validation.data.transport);
+    const { transport, useInCloudDevelopment = true, useInKeyUserApps = true } = validation.data;
+    const [result, error] = await client.releaseApi(name, transport, { useInCloudDevelopment, useInKeyUserApps });
 
     if (error) {
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);

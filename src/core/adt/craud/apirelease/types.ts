@@ -34,6 +34,16 @@ export interface ApiReleaseValidationMessage {
 }
 
 /**
+ * Visibility flags of the C1 contract (the two checkboxes in ADT's API State tab).
+ */
+export interface ApiReleaseVisibility {
+    /** "Use in Cloud Development" (ars:useInSAPCloudPlatform). */
+    useInCloudDevelopment: boolean;
+    /** "Use in Key User Apps" (ars:useInKeyUserApps). */
+    useInKeyUserApps: boolean;
+}
+
+/**
  * Current C1 release state of a CDS DDL source.
  */
 export interface ApiReleaseState {
@@ -49,6 +59,8 @@ export interface ApiReleaseState {
     released: boolean;
     /** States the C1 contract can transition to from the current status. */
     allowedTransitions: ApiReleaseStatus[];
+    /** Current visibility flags (both false while not released). */
+    visibility: ApiReleaseVisibility;
     /** User who last changed the C1 contract, if any. */
     changedBy?: string;
     /** Timestamp the C1 contract was last changed, if any. */
@@ -63,6 +75,8 @@ export interface ApiReleaseResult {
     name: string;
     /** Resulting C1 contract status after the operation. */
     status: ApiReleaseStatus;
+    /** Resulting visibility flags after the operation. */
+    visibility: ApiReleaseVisibility;
     /** Non-blocking validation messages surfaced during the operation. */
     messages: ApiReleaseValidationMessage[];
 }

@@ -37,7 +37,7 @@ export { ExternalReferencesError, multiDeleteObjects } from './craud/multiDelete
 export type { CheckResult } from './craud/syntaxCheck';
 
 // Discovery types
-export type { TreeResponse, PackageNode, FolderNode, ObjectNode } from './discovery/tree';
+export type { TreeResponse, PackageNode, FolderNode, ObjectNode, UnsupportedObjectNode } from './discovery/tree';
 export type { Package, GetPackagesOptions } from './discovery/packages';
 export type { Transport } from './transports/transports';
 
@@ -68,13 +68,14 @@ export { activateObjects, activateByReferences } from './craud/activation';
 // API release (CDS / DDLS C1 contract)
 export { getApiReleaseState } from './craud/apirelease/getState';
 export { releaseApi, unreleaseApi } from './craud/apirelease/release';
-export type { ApiReleaseState, ApiReleaseResult, ApiReleaseStatus, ApiReleaseValidationMessage } from './craud/apirelease/types';
+export type { ApiReleaseState, ApiReleaseResult, ApiReleaseStatus, ApiReleaseValidationMessage, ApiReleaseVisibility } from './craud/apirelease/types';
 
 // Syntax Check
 export { checkSyntax } from './craud/syntaxCheck';
 
 // Refactoring
 export { changePackage } from './refactoring/changePackage';
+export { MOVE_ONLY_EXTENSIONS } from './refactoring/moveTargets';
 export type { ChangePackageResult, ChangePackageStatus, ChangePackageOptions } from './refactoring/changePackage';
 
 // Discovery operations

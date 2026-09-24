@@ -68,6 +68,18 @@ describe('buildC1ReleaseBody', () => {
             '<ars:status ars:state="NOT_RELEASED"/>'
         );
     });
+
+    it('defaults both visibility flags to true', () => {
+        const body = buildC1ReleaseBody('RELEASED');
+        expect(body).toContain('ars:useInKeyUserApps="true"');
+        expect(body).toContain('ars:useInSAPCloudPlatform="true"');
+    });
+
+    it('sends the requested visibility flags', () => {
+        const body = buildC1ReleaseBody('RELEASED', { useInCloudDevelopment: true, useInKeyUserApps: false });
+        expect(body).toContain('ars:useInKeyUserApps="false"');
+        expect(body).toContain('ars:useInSAPCloudPlatform="true"');
+    });
 });
 
 // =============================================================================
@@ -79,7 +91,7 @@ const RELEASED_XML = `<?xml version="1.0" encoding="UTF-8"?><ars:apiRelease xmln
   <ars:behaviour ars:create="true" ars:commentEnabled="false">
     <ars:c1Release ars:create="false" ars:read="true" ars:update="true" ars:delete="true"/>
   </ars:behaviour>
-  <ars:c1Release xmlns:adtcore="http://www.sap.com/adt/core" ars:contract="C1" adtcore:name="sap_..._C1" adtcore:changedAt="2026-06-22T00:00:00Z" adtcore:changedBy="EBOSCH">
+  <ars:c1Release xmlns:adtcore="http://www.sap.com/adt/core" ars:contract="C1" ars:useInKeyUserApps="false" ars:useInSAPCloudPlatform="true" adtcore:name="sap_..._C1" adtcore:changedAt="2026-06-22T00:00:00Z" adtcore:changedBy="EBOSCH">
     <ars:status ars:state="RELEASED" ars:stateDescription="Released"/>
     <ars:stateTransitions>
       <ars:status ars:state="RELEASED" ars:stateDescription="Released"/>
@@ -115,6 +127,8 @@ describe('parseReleaseState', () => {
         expect(state.changedAt).toBe('2026-06-22T00:00:00Z');
         // Current status is excluded from transitions only if SAP omits it; here it lists all three.
         expect(state.allowedTransitions).toEqual(['RELEASED', 'DEPRECATED', 'NOT_RELEASED']);
+        // Read from the contract element, not the behaviour block
+        expect(state.visibility).toEqual({ useInCloudDevelopment: true, useInKeyUserApps: false });
     });
 
     it('parses a not-released contract without changed-by metadata', () => {
@@ -126,6 +140,7 @@ describe('parseReleaseState', () => {
         expect(state.released).toBe(false);
         expect(state.changedBy).toBeUndefined();
         expect(state.allowedTransitions).toEqual(['NOT_RELEASED', 'RELEASED']);
+        expect(state.visibility).toEqual({ useInCloudDevelopment: false, useInKeyUserApps: false });
     });
 
     it('falls back to the supplied name when the response omits it', () => {

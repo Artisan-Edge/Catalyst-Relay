@@ -13,8 +13,9 @@
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { ObjectRef } from '../../../types/requests';
-import type { AdtRequestor, ObjectConfig } from '../types';
-import { checkResponse, requireConfig } from '../helpers';
+import type { AdtRequestor } from '../types';
+import { checkResponse } from '../helpers';
+import { resolveMoveTarget, type MoveTarget } from './moveTargets';
 import { getObjectPackage } from '../discovery/objectPackage';
 import { getPackageTransportInfo } from '../discovery/packageTransportInfo';
 import {
@@ -79,9 +80,9 @@ export async function changePackage(
     if (!newPackage) return err(new Error('Target package is required'));
 
     // Validate every extension before touching the system.
-    const configs: ObjectConfig[] = [];
+    const configs: MoveTarget[] = [];
     for (const obj of objects) {
-        const [config, configErr] = requireConfig(obj.extension);
+        const [config, configErr] = resolveMoveTarget(obj.extension);
         if (configErr) return err(configErr);
         configs.push(config);
     }
@@ -97,7 +98,7 @@ export async function changePackage(
 async function changeOne(
     client: AdtRequestor,
     obj: ObjectRef,
-    config: ObjectConfig,
+    config: MoveTarget,
     newPackage: string,
     options: ChangePackageOptions
 ): Promise<ChangePackageResult> {

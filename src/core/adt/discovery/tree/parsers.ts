@@ -15,6 +15,7 @@ import type {
     ParseResult,
     ParsedFolder,
     ParsedObject,
+    UnsupportedObjectNode,
 } from './types';
 
 /**
@@ -117,6 +118,7 @@ export function parseTreeXml(xml: string): Result<ParseResult, Error> {
 
     const folders: ParsedFolder[] = [];
     const objects: ParsedObject[] = [];
+    const unsupportedObjects: UnsupportedObjectNode[] = [];
 
     // Process virtual folder elements
     const virtualFolders = doc.getElementsByTagName('vfs:virtualFolder');
@@ -159,10 +161,19 @@ export function parseTreeXml(xml: string): Result<ParseResult, Error> {
         const type = obj.getAttribute('type');
         if (!name || !type) continue;
 
-        const config = getConfigByType(type);
-        if (!config) continue;
-
         const text = obj.getAttribute('text');
+        const config = getConfigByType(type);
+
+        // Unconfigured types are kept apart so callers never treat them as actionable
+        if (!config) {
+            const node: UnsupportedObjectNode = { name, adtType: type };
+            const uri = obj.getAttribute('uri');
+            if (uri) node.uri = uri;
+            if (text) node.description = text;
+            unsupportedObjects.push(node);
+            continue;
+        }
+
         const parsedObj: ParsedObject = {
             name,
             objectType: config.label,
@@ -172,7 +183,7 @@ export function parseTreeXml(xml: string): Result<ParseResult, Error> {
         objects.push(parsedObj);
     }
 
-    return ok({ folders, objects });
+    return ok({ folders, objects, unsupportedObjects });
 }
 
 /**
@@ -211,5 +222,5 @@ export function transformToTreeResponse(parsed: ParseResult, queryPackage: strin
         return node;
     });
 
-    return { packages, folders, objects };
+    return { packages, folders, objects, unsupportedObjects: parsed.unsupportedObjects };
 }

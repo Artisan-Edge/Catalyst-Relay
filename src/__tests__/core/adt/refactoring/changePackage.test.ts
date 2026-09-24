@@ -198,6 +198,23 @@ describe('changePackage', () => {
         expect(results!.map(r => r.status)).toEqual(['error', 'preview']);
     });
 
+    it.each([
+        ['dtel', '/sap/bc/adt/ddic/dataelements/zsnap_signage', 'DTEL/DE'],
+        ['doma', '/sap/bc/adt/ddic/domains/zsnap_signage', 'DOMA/DD'],
+        ['fugr', '/sap/bc/adt/functions/groups/zsnap_signage', 'FUGR/F'],
+        ['srvb', '/sap/bc/adt/businessservices/bindings/zsnap_signage', 'SRVB/SVB'],
+    ])('addresses move-only type %s by its own endpoint', async (extension, uri, type) => {
+        const { requestor, calls } = mockRequestor(responder(['ZSNAP_TEMP']));
+
+        const [results, error] = await changePackage(requestor, [{ name: 'ZSNAP_SIGNAGE', extension }], 'ZSNAP', { preview: true });
+
+        expect(error).toBeNull();
+        expect(results![0]!.status).toBe('preview');
+        expect(calls[0]!.path).toContain(`uri=${encodeURIComponent(uri)}`);
+        expect(calls[1]!.body).toContain(`<generic:adtObjectUri>${uri}</generic:adtObjectUri>`);
+        expect(calls[1]!.body).toContain(`adtcore:type="${type}"`);
+    });
+
     it('rejects unsupported extensions before any request', async () => {
         const { requestor, calls } = mockRequestor(responder(['ZSNAP_TEMP']));
 

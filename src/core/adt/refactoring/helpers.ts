@@ -9,7 +9,7 @@ import { XMLSerializer } from '@xmldom/xmldom';
 import type { Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import { escapeXml, safeParseXml } from '../../utils/xml';
-import type { ObjectConfig } from '../types';
+import type { MoveTarget } from './moveTargets';
 
 // Refactoring endpoint and the relation selecting the change-package refactoring.
 export const REFACTORINGS_PATH = '/sap/bc/adt/refactorings';
@@ -24,11 +24,11 @@ const ELEMENT_NODE = 1;
 /**
  * Build the object (root) ADT URI.
  *
- * @param config - Object type configuration
+ * @param config - Move target (endpoint of the object type)
  * @param name - Object name (lowercased in the URI)
  * @returns ADT URI, e.g. /sap/bc/adt/ddic/ddl/sources/zview
  */
-export function buildObjectUri(config: ObjectConfig, name: string): string {
+export function buildObjectUri(config: MoveTarget, name: string): string {
     return `/sap/bc/adt/${config.endpoint}/${name.toLowerCase()}`;
 }
 
@@ -42,7 +42,7 @@ export function buildObjectUri(config: ObjectConfig, name: string): string {
  * @param transport - Transport request (empty for local packages)
  * @returns XML body for the preview step
  */
-export function buildPreviewBody(config: ObjectConfig, name: string, oldPackage: string, newPackage: string, transport: string): string {
+export function buildPreviewBody(config: MoveTarget, name: string, oldPackage: string, newPackage: string, transport: string): string {
     const uri = buildObjectUri(config, name);
     return `<?xml version="1.0" encoding="UTF-8"?>
 <changepackage:changePackageRefactoring xmlns:adtcore="http://www.sap.com/adt/core" xmlns:generic="${GENERIC_NS}" xmlns:changepackage="http://www.sap.com/adt/refactoring/changepackagerefactoring">

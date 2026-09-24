@@ -10,11 +10,13 @@ import type { AsyncResult } from '../../../../types/result';
 import { ok, err } from '../../../../types/result';
 import type { AdtRequestor } from '../../types';
 import { checkResponse } from '../../helpers';
-import type { ApiReleaseResult, ApiReleaseStatus } from './types';
+import type { ApiReleaseResult, ApiReleaseStatus, ApiReleaseVisibility } from './types';
+import { getApiReleaseState } from './getState';
 import {
     APIRELEASE_MEDIA_TYPE,
     APIRELEASE_VALIDATION_CONTENT_TYPE,
     APIRELEASE_VALIDATION_ACCEPT,
+    DEFAULT_C1_VISIBILITY,
     buildC1ReleaseBody,
     buildContractPath,
     buildValidationRunPath,
@@ -29,18 +31,26 @@ import {
  * @param client - ADT client
  * @param objectName - DDLS object name (e.g. ZSNAP_F04S_Q01)
  * @param transport - Transport request (required for transportable packages)
+ * @param visibility - Cloud Development / Key User Apps flags (defaults to both on)
  * @returns Resulting state and any non-blocking validation messages, or error
  */
 export async function releaseApi(
     client: AdtRequestor,
     objectName: string,
-    transport?: string
+    transport?: string,
+    visibility: ApiReleaseVisibility = DEFAULT_C1_VISIBILITY
 ): AsyncResult<ApiReleaseResult, Error> {
-    return setApiReleaseState(client, objectName, 'RELEASED', transport);
+    if (!visibility.useInCloudDevelopment && !visibility.useInKeyUserApps) {
+        return err(new Error('A C1 release needs at least one of Cloud Development or Key User Apps visibility'));
+    }
+    return setApiReleaseState(client, objectName, 'RELEASED', transport, visibility);
 }
 
 /**
  * Unrelease (revert to NOT_RELEASED) the C1 API contract of a CDS query.
+ *
+ * The object's current visibility flags are read first and sent back unchanged,
+ * so an unrelease never alters visibility as a side effect.
  *
  * @param client - ADT client
  * @param objectName - DDLS object name (e.g. ZSNAP_F04S_Q01)
@@ -52,7 +62,10 @@ export async function unreleaseApi(
     objectName: string,
     transport?: string
 ): AsyncResult<ApiReleaseResult, Error> {
-    return setApiReleaseState(client, objectName, 'NOT_RELEASED', transport);
+    const [current, stateErr] = await getApiReleaseState(client, objectName);
+    if (stateErr) return err(stateErr);
+
+    return setApiReleaseState(client, objectName, 'NOT_RELEASED', transport, current.visibility);
 }
 
 // Validation run → (abort on error) → PUT the new state → parse the result.
@@ -60,9 +73,10 @@ async function setApiReleaseState(
     client: AdtRequestor,
     objectName: string,
     status: ApiReleaseStatus,
-    transport: string | undefined
+    transport: string | undefined,
+    visibility: ApiReleaseVisibility
 ): AsyncResult<ApiReleaseResult, Error> {
-    const body = buildC1ReleaseBody(status);
+    const body = buildC1ReleaseBody(status, visibility);
 
     // Step 1: validation run (pre-flight check). The validation endpoint returns
     // its own contract-validation media type; the body remains the apiRelease type.
@@ -118,6 +132,7 @@ async function setApiReleaseState(
     return ok({
         name: state.name,
         status: state.status,
+        visibility: state.visibility,
         messages,
     });
 }

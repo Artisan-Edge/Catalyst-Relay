@@ -8,7 +8,7 @@
 import type { Result } from '../../../../types/result';
 import { ok, err } from '../../../../types/result';
 import { safeParseXml } from '../../../utils/xml';
-import type { ApiReleaseStatus, ApiReleaseState, ApiReleaseValidationMessage } from './types';
+import type { ApiReleaseStatus, ApiReleaseState, ApiReleaseValidationMessage, ApiReleaseVisibility } from './types';
 
 // CDS DDL sources are the only releasable type this module targets.
 const DDLS_ENDPOINT = 'ddic/ddl/sources';
@@ -65,17 +65,21 @@ export function buildValidationRunPath(name: string): string {
     return `${buildContractPath(name)}/validationrun`;
 }
 
+// Visibility used when the caller does not choose: both flags on, as before the flags existed.
+export const DEFAULT_C1_VISIBILITY: ApiReleaseVisibility = { useInCloudDevelopment: true, useInKeyUserApps: true };
+
 /**
  * Build the C1 release request body for a target status.
  *
  * Used for both the validation run (POST) and the state change (PUT).
  *
  * @param status - Target contract status (e.g. RELEASED, NOT_RELEASED)
+ * @param visibility - Visibility flags to send (defaults to both on)
  * @returns apiRelease XML body
  */
-export function buildC1ReleaseBody(status: ApiReleaseStatus): string {
+export function buildC1ReleaseBody(status: ApiReleaseStatus, visibility: ApiReleaseVisibility = DEFAULT_C1_VISIBILITY): string {
     return `<?xml version="1.0" encoding="UTF-8"?><ars:apiRelease xmlns:ars="http://www.sap.com/adt/ars">
-  <ars:c1Release ars:comment="" ars:contract="C1" ars:createAuthValues="false" ars:featureToggle="" ars:useInKeyUserApps="true" ars:useInSAPCloudPlatform="true">
+  <ars:c1Release ars:comment="" ars:contract="C1" ars:createAuthValues="false" ars:featureToggle="" ars:useInKeyUserApps="${visibility.useInKeyUserApps}" ars:useInSAPCloudPlatform="${visibility.useInCloudDevelopment}">
     <ars:status ars:state="${status}"/>
     <ars:useConceptAsSuccessor>false</ars:useConceptAsSuccessor>
     <ars:successors/>
@@ -155,6 +159,10 @@ export function parseReleaseState(xml: string, fallbackName: string): Result<Api
         statusDescription,
         released: state === 'RELEASED',
         allowedTransitions,
+        visibility: {
+            useInCloudDevelopment: contract.getAttribute('ars:useInSAPCloudPlatform') === 'true',
+            useInKeyUserApps: contract.getAttribute('ars:useInKeyUserApps') === 'true',
+        },
     };
 
     const changedBy = contract.getAttribute('adtcore:changedBy');

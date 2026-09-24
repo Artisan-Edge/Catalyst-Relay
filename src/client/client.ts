@@ -50,6 +50,7 @@ import type {
     ServiceBindingResult,
     ApiReleaseState,
     ApiReleaseResult,
+    ApiReleaseVisibility,
     ChangePackageResult,
     ChangePackageOptions,
 } from '../core/adt';
@@ -140,7 +141,7 @@ export interface ADTClient {
 
     // API Release (CDS / DDLS C1 contract)
     getApiReleaseState(objectName: string): AsyncResult<ApiReleaseState>;
-    releaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult>;
+    releaseApi(objectName: string, transport?: string, visibility?: ApiReleaseVisibility): AsyncResult<ApiReleaseResult>;
     unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult>;
 
     // Configuration
@@ -395,8 +396,8 @@ export class ADTClientImpl implements ADTClient {
         return apiReleaseMethods.getApiReleaseState(this.state, this.requestor, objectName);
     }
 
-    async releaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult> {
-        return apiReleaseMethods.releaseApi(this.state, this.requestor, objectName, transport);
+    async releaseApi(objectName: string, transport?: string, visibility?: ApiReleaseVisibility): AsyncResult<ApiReleaseResult> {
+        return apiReleaseMethods.releaseApi(this.state, this.requestor, objectName, transport, visibility);
     }
 
     async unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult> {
