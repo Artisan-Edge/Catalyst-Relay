@@ -68,7 +68,9 @@ export { activateObjects, activateByReferences } from './craud/activation';
 // API release (CDS / DDLS C1 contract)
 export { getApiReleaseState } from './craud/apirelease/getState';
 export { releaseApi, unreleaseApi } from './craud/apirelease/release';
-export type { ApiReleaseState, ApiReleaseResult, ApiReleaseStatus, ApiReleaseValidationMessage, ApiReleaseVisibility } from './craud/apirelease/types';
+export { updateApiReleaseVisibility } from './craud/apirelease/visibility';
+export type { ApiReleaseVisibilityOptions } from './craud/apirelease/visibility';
+export type { ApiReleaseState, ApiReleaseResult, ApiReleaseStatus, ApiReleaseValidationMessage, ApiReleaseVisibility, ApiReleaseVisibilityResult } from './craud/apirelease/types';
 
 // Syntax Check
 export { checkSyntax } from './craud/syntaxCheck';

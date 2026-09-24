@@ -5,3 +5,4 @@
 export { getApiReleaseState } from './getApiReleaseState';
 export { releaseApi } from './releaseApi';
 export { unreleaseApi } from './unreleaseApi';
+export { updateApiReleaseVisibility } from './updateApiReleaseVisibility';

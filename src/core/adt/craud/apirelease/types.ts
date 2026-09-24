@@ -77,6 +77,28 @@ export interface ApiReleaseResult {
     status: ApiReleaseStatus;
     /** Resulting visibility flags after the operation. */
     visibility: ApiReleaseVisibility;
+    /** False when the object was already in the target state and nothing was sent. */
+    changed: boolean;
     /** Non-blocking validation messages surfaced during the operation. */
+    messages: ApiReleaseValidationMessage[];
+}
+
+/**
+ * Result of a visibility update on a released C1 contract.
+ */
+export interface ApiReleaseVisibilityResult {
+    /** Object name (e.g. ZSNAP_F04S_Q01). */
+    name: string;
+    /** Visibility before the update. */
+    previous: ApiReleaseVisibility;
+    /** Visibility asked for (current flags with the requested changes applied). */
+    requested: ApiReleaseVisibility;
+    /** Visibility after the update (equals `previous` unless applied). */
+    visibility: ApiReleaseVisibility;
+    /** True when the change was applied. */
+    changed: boolean;
+    /** True when only SAP's validation ran (nothing applied). */
+    preview: boolean;
+    /** Validation messages (warnings/info), or a note when nothing needed changing. */
     messages: ApiReleaseValidationMessage[];
 }

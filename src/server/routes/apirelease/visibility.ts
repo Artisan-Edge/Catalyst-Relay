@@ -1,9 +1,9 @@
 /**
- * POST /api-release/:name/release — Release the C1 API contract of a CDS query
+ * POST /api-release/:name/visibility — Change the visibility flags of a released C1 contract
  */
 
 import { z } from 'zod';
-import type { ApiReleaseResult } from '../../../core/adt';
+import type { ApiReleaseVisibility, ApiReleaseVisibilityOptions, ApiReleaseVisibilityResult } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';
@@ -12,33 +12,34 @@ import type { RouteContext } from '../types';
 // Request Schema (colocated)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const releaseApiRequestSchema = z.object({
+export const apiReleaseVisibilityRequestSchema = z.object({
     transport: z.string().optional(),
-    // Visibility flags; omitted means Cloud Development on, Key User Apps off
+    // Omitted flags keep their current value
     useInCloudDevelopment: z.boolean().optional(),
     useInKeyUserApps: z.boolean().optional(),
+    // Run SAP's validation only
+    preview: z.boolean().optional(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Response Type (colocated)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type ReleaseApiResponse = ApiReleaseResult;
+export type ApiReleaseVisibilityResponse = ApiReleaseVisibilityResult;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handler
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function releaseApiHandler(c: RouteContext) {
+export async function apiReleaseVisibilityHandler(c: RouteContext) {
     const name = c.req.param('name');
 
     if (!name) {
         throw new ApiError('VALIDATION_ERROR', 'Object name is required', 400);
     }
 
-    // Body is optional (transport may be omitted for local objects).
     const body = await c.req.json().catch(() => ({}));
-    const validation = releaseApiRequestSchema.safeParse(body);
+    const validation = apiReleaseVisibilityRequestSchema.safeParse(body);
     if (!validation.success) {
         throw new ApiError(
             'VALIDATION_ERROR',
@@ -47,10 +48,16 @@ export async function releaseApiHandler(c: RouteContext) {
         );
     }
 
-    const client = c.get('client');
+    const { transport, preview, useInCloudDevelopment, useInKeyUserApps } = validation.data;
+    const change: Partial<ApiReleaseVisibility> = {};
+    if (useInCloudDevelopment !== undefined) change.useInCloudDevelopment = useInCloudDevelopment;
+    if (useInKeyUserApps !== undefined) change.useInKeyUserApps = useInKeyUserApps;
+    const options: ApiReleaseVisibilityOptions = {};
+    if (transport) options.transport = transport;
+    if (preview !== undefined) options.preview = preview;
 
-    const { transport, useInCloudDevelopment = true, useInKeyUserApps = false } = validation.data;
-    const [result, error] = await client.releaseApi(name, transport, { useInCloudDevelopment, useInKeyUserApps });
+    const client = c.get('client');
+    const [result, error] = await client.updateApiReleaseVisibility(name, change, options);
 
     if (error) {
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);
@@ -58,6 +65,6 @@ export async function releaseApiHandler(c: RouteContext) {
 
     return c.json({
         success: true,
-        data: result satisfies ReleaseApiResponse,
+        data: result satisfies ApiReleaseVisibilityResponse,
     });
 }

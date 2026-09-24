@@ -58,6 +58,7 @@ import { createServiceBindingHandler } from './businessservices/createServiceBin
 import { apiReleaseStateHandler } from './apirelease/getState';
 import { releaseApiHandler } from './apirelease/release';
 import { unreleaseApiHandler } from './apirelease/unrelease';
+import { apiReleaseVisibilityHandler } from './apirelease/visibility';
 
 /**
  * Creates and configures all API routes
@@ -142,6 +143,7 @@ export function createRoutes(
     app.get('/api-release/:name', sessionMiddleware, apiReleaseStateHandler);
     app.post('/api-release/:name/release', sessionMiddleware, releaseApiHandler);
     app.post('/api-release/:name/unrelease', sessionMiddleware, unreleaseApiHandler);
+    app.post('/api-release/:name/visibility', sessionMiddleware, apiReleaseVisibilityHandler);
 
     return app;
 }

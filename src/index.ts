@@ -88,6 +88,8 @@ export type {
     ApiReleaseStatus,
     ApiReleaseValidationMessage,
     ApiReleaseVisibility,
+    ApiReleaseVisibilityOptions,
+    ApiReleaseVisibilityResult,
     ChangePackageResult,
     ChangePackageStatus,
     ChangePackageOptions,

@@ -69,9 +69,9 @@ describe('buildC1ReleaseBody', () => {
         );
     });
 
-    it('defaults both visibility flags to true', () => {
+    it('defaults to Cloud Development only', () => {
         const body = buildC1ReleaseBody('RELEASED');
-        expect(body).toContain('ars:useInKeyUserApps="true"');
+        expect(body).toContain('ars:useInKeyUserApps="false"');
         expect(body).toContain('ars:useInSAPCloudPlatform="true"');
     });
 

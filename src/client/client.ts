@@ -51,6 +51,8 @@ import type {
     ApiReleaseState,
     ApiReleaseResult,
     ApiReleaseVisibility,
+    ApiReleaseVisibilityOptions,
+    ApiReleaseVisibilityResult,
     ChangePackageResult,
     ChangePackageOptions,
 } from '../core/adt';
@@ -143,6 +145,7 @@ export interface ADTClient {
     getApiReleaseState(objectName: string): AsyncResult<ApiReleaseState>;
     releaseApi(objectName: string, transport?: string, visibility?: ApiReleaseVisibility): AsyncResult<ApiReleaseResult>;
     unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult>;
+    updateApiReleaseVisibility(objectName: string, change: Partial<ApiReleaseVisibility>, options?: ApiReleaseVisibilityOptions): AsyncResult<ApiReleaseVisibilityResult>;
 
     // Configuration
     getObjectConfig(): ObjectConfig[];
@@ -402,6 +405,10 @@ export class ADTClientImpl implements ADTClient {
 
     async unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult> {
         return apiReleaseMethods.unreleaseApi(this.state, this.requestor, objectName, transport);
+    }
+
+    async updateApiReleaseVisibility(objectName: string, change: Partial<ApiReleaseVisibility>, options?: ApiReleaseVisibilityOptions): AsyncResult<ApiReleaseVisibilityResult> {
+        return apiReleaseMethods.updateApiReleaseVisibility(this.state, this.requestor, objectName, change, options);
     }
 
     // --- Refactoring ---

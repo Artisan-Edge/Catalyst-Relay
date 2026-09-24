@@ -65,8 +65,20 @@ export function buildValidationRunPath(name: string): string {
     return `${buildContractPath(name)}/validationrun`;
 }
 
-// Visibility used when the caller does not choose: both flags on, as before the flags existed.
-export const DEFAULT_C1_VISIBILITY: ApiReleaseVisibility = { useInCloudDevelopment: true, useInKeyUserApps: true };
+// Visibility used when the caller does not choose: Cloud Development only.
+export const DEFAULT_C1_VISIBILITY: ApiReleaseVisibility = { useInCloudDevelopment: true, useInKeyUserApps: false };
+
+export function isSameVisibility(a: ApiReleaseVisibility, b: ApiReleaseVisibility): boolean {
+    return a.useInCloudDevelopment === b.useInCloudDevelopment && a.useInKeyUserApps === b.useInKeyUserApps;
+}
+
+// Human-readable visibility, e.g. "Cloud Development + Key User Apps".
+export function describeVisibility(visibility: ApiReleaseVisibility): string {
+    const on: string[] = [];
+    if (visibility.useInCloudDevelopment) on.push('Cloud Development');
+    if (visibility.useInKeyUserApps) on.push('Key User Apps');
+    return on.length > 0 ? on.join(' + ') : 'no visibility';
+}
 
 /**
  * Build the C1 release request body for a target status.
@@ -74,7 +86,7 @@ export const DEFAULT_C1_VISIBILITY: ApiReleaseVisibility = { useInCloudDevelopme
  * Used for both the validation run (POST) and the state change (PUT).
  *
  * @param status - Target contract status (e.g. RELEASED, NOT_RELEASED)
- * @param visibility - Visibility flags to send (defaults to both on)
+ * @param visibility - Visibility flags to send (defaults to Cloud Development only)
  * @returns apiRelease XML body
  */
 export function buildC1ReleaseBody(status: ApiReleaseStatus, visibility: ApiReleaseVisibility = DEFAULT_C1_VISIBILITY): string {
