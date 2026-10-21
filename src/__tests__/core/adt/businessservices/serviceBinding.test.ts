@@ -237,3 +237,119 @@ describe('createServiceBinding (orchestration)', () => {
         expect(calls.map(c => c.path)).not.toContain('/sap/bc/adt/businessservices/odatav4/publishjobs');
     });
 });
+
+describe('OData V2 bindings', () => {
+    const V2_OPTIONS = { ...BASE_OPTIONS, bindingName: 'ZB_API_V2', bindingVersion: 'V2' as const };
+    const V2_PUBLISH_PATH = '/sap/bc/adt/businessservices/odatav2/publishjobs';
+    const V2_UNPUBLISH_PATH = '/sap/bc/adt/businessservices/odatav2/unpublishjobs';
+
+    function v2Responder(unpublishOk: (path: string) => boolean): Responder {
+        return (req) => {
+            if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
+            if (req.path.endsWith('/unpublishjobs')) {
+                return new Response(unpublishOk(req.path) ? severityXml('OK', 'un-published') : severityXml('ERROR', 'not published'), { status: 200 });
+            }
+            return new Response('', { status: 200 });
+        };
+    }
+
+    it('validates with the V2 binding version', async () => {
+        const { requestor, calls } = mockRequestor(() => new Response(severityXml('OK'), { status: 200 }));
+
+        const [, error] = await validateServiceBinding(requestor, V2_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(calls[0]!.params).toMatchObject({ serviceBindingVersion: 'ODATA\\V2' });
+    });
+
+    it('creates a V2 Web API binding', async () => {
+        const { requestor, calls } = mockRequestor(() => new Response('', { status: 201 }));
+
+        const [, error] = await createServiceBindingObject(requestor, V2_OPTIONS, 'ebosch');
+
+        expect(error).toBeNull();
+        expect(calls[0]!.body).toContain('srvb:binding srvb:category="1" srvb:type="ODATA" srvb:version="V2"');
+        expect(calls[0]!.body).toContain('adtcore:name="ZB_API_V2"');
+    });
+
+    it('publishes through the odatav2 job with the service name and version', async () => {
+        const { requestor, calls } = mockRequestor((req) => {
+            if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
+            return new Response(severityXml('OK', 'ZB_API_V2 published locally'), { status: 200 });
+        });
+
+        const [message, error] = await publishServiceBinding(requestor, 'zb_api_v2', 'V2');
+
+        expect(error).toBeNull();
+        expect(message).toBe('ZB_API_V2 published locally');
+        expect(calls[1]!.path).toBe(V2_PUBLISH_PATH);
+        expect(calls[1]!.params).toEqual({ servicename: 'ZB_API_V2', serviceversion: '0001' });
+        expect(calls[1]!.body).toContain('adtcore:name="ZB_API_V2"');
+        expect(calls[2]!.params).toMatchObject({ _action: 'UNLOCK', lockHandle: 'HANDLE123' });
+    });
+
+    it('keeps the V4 publish job free of query parameters', async () => {
+        const { requestor, calls } = mockRequestor((req) => {
+            if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
+            return new Response(severityXml('OK'), { status: 200 });
+        });
+
+        const [, error] = await publishServiceBinding(requestor, 'ZB_O5');
+
+        expect(error).toBeNull();
+        expect(calls[1]!.path).toBe('/sap/bc/adt/businessservices/odatav4/publishjobs');
+        expect(calls[1]!.params).toEqual({});
+    });
+
+    it('unpublishes through the odatav2 job', async () => {
+        const { requestor, calls } = mockRequestor(v2Responder(() => true));
+
+        const [, error] = await unpublishServiceBinding(requestor, 'ZB_API_V2', 'V2');
+
+        expect(error).toBeNull();
+        expect(calls[1]!.path).toBe(V2_UNPUBLISH_PATH);
+        expect(calls[1]!.params).toEqual({ servicename: 'ZB_API_V2', serviceversion: '0001' });
+    });
+
+    it('deletes a V2 binding with only the V2 unpublish when the version is given', async () => {
+        const { requestor, calls } = mockRequestor(v2Responder(() => true));
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_API_V2', undefined, 'V2');
+
+        expect(error).toBeNull();
+        expect(calls.filter(c => c.path.endsWith('/unpublishjobs')).map(c => c.path)).toEqual([V2_UNPUBLISH_PATH]);
+        expect(calls.some(c => c.method === 'DELETE')).toBe(true);
+    });
+
+    it('falls back to the V2 unpublish when the version is unknown and V4 fails', async () => {
+        const { requestor, calls } = mockRequestor(v2Responder(path => path === V2_UNPUBLISH_PATH));
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_API_V2', undefined);
+
+        expect(error).toBeNull();
+        expect(calls.filter(c => c.path.endsWith('/unpublishjobs')).map(c => c.path))
+            .toEqual(['/sap/bc/adt/businessservices/odatav4/unpublishjobs', V2_UNPUBLISH_PATH]);
+        expect(calls.some(c => c.method === 'DELETE')).toBe(true);
+    });
+
+    it('stops after the V4 unpublish when it succeeds', async () => {
+        const { requestor, calls } = mockRequestor(v2Responder(() => true));
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_O5', undefined);
+
+        expect(error).toBeNull();
+        expect(calls.filter(c => c.path.endsWith('/unpublishjobs'))).toHaveLength(1);
+    });
+
+    it('publishes a V2 binding through the odatav2 job in the orchestration', async () => {
+        const { requestor, calls } = mockRequestor(lifecycleResponder());
+
+        const [result, error] = await createServiceBinding(STATE, requestor, V2_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(result?.published).toBe(true);
+        const publish = calls.find(c => c.path.endsWith('/publishjobs'))!;
+        expect(publish.path).toBe(V2_PUBLISH_PATH);
+        expect(publish.params).toEqual({ servicename: 'ZB_API_V2', serviceversion: '0001' });
+    });
+});

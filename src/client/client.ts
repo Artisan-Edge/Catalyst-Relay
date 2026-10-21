@@ -48,6 +48,7 @@ import type {
     ClassIncludeType,
     CreateServiceBindingOptions,
     ServiceBindingResult,
+    ServiceBindingVersion,
     ApiReleaseState,
     ApiReleaseResult,
     ApiReleaseVisibility,
@@ -139,7 +140,7 @@ export interface ADTClient {
 
     // Business Services
     createServiceBinding(options: CreateServiceBindingOptions): AsyncResult<ServiceBindingResult>;
-    deleteServiceBinding(bindingName: string, transport?: string): AsyncResult<void>;
+    deleteServiceBinding(bindingName: string, transport?: string, version?: ServiceBindingVersion): AsyncResult<void>;
 
     // API Release (CDS / DDLS C1 contract)
     getApiReleaseState(objectName: string): AsyncResult<ApiReleaseState>;
@@ -389,8 +390,8 @@ export class ADTClientImpl implements ADTClient {
         return businessServiceMethods.createServiceBinding(this.state, this.requestor, options);
     }
 
-    async deleteServiceBinding(bindingName: string, transport?: string): AsyncResult<void> {
-        return businessServiceMethods.deleteServiceBinding(this.state, this.requestor, bindingName, transport);
+    async deleteServiceBinding(bindingName: string, transport?: string, version?: ServiceBindingVersion): AsyncResult<void> {
+        return businessServiceMethods.deleteServiceBinding(this.state, this.requestor, bindingName, transport, version);
     }
 
     // --- API Release ---

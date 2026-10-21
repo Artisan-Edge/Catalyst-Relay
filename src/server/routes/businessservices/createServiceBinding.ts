@@ -18,7 +18,7 @@ export const createServiceBindingRequestSchema = z.object({
     package: z.string().min(1, 'Package name is required'),
     description: z.string().optional(),
     bindingType: z.literal('ODATA').optional(),
-    bindingVersion: z.literal('V4').optional(),
+    bindingVersion: z.enum(['V4', 'V2']).optional(),
     transport: z.string().optional(),
     publish: z.boolean().optional(),
 });
