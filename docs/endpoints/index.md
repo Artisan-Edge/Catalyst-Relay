@@ -14,14 +14,15 @@ Comprehensive documentation for all Catalyst-Relay HTTP endpoints.
 
 ## Categories
 
-| Category | Description |
-|----------|-------------|
-| [Authentication](./auth.md) | Session management (`/login`, `/logout`, `/session/refresh`) |
-| [Discovery](./discovery.md) | Browse SAP metadata (`/object-config`, `/packages`, `/tree`, `/transports`) |
-| [Objects](./objects.md) | CRAUD operations (`/objects/*`) |
-| [Preview](./preview.md) | Data preview (`/preview/*`) |
-| [Search](./search.md) | Object search (`/search`, `/where-used`) |
-| [Diff](./diff.md) | Content comparison (`/git-diff`) |
+| Category                        | Description                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| [Authentication](./auth.md)     | Session management (`/login`, `/logout`, `/session/refresh`)                |
+| [Discovery](./discovery.md)     | Browse SAP metadata (`/object-config`, `/packages`, `/tree`, `/transports`) |
+| [Objects](./objects.md)         | CRAUD operations (`/objects/*`)                                             |
+| [API Release](./api-release.md) | C1 API release contract of CDS views (`/api-release/*`)                     |
+| [Preview](./preview.md)         | Data preview (`/preview/*`)                                                 |
+| [Search](./search.md)           | Object search (`/search`, `/where-used`)                                    |
+| [Diff](./diff.md)               | Content comparison (`/git-diff`)                                            |
 
 ---
 
@@ -32,32 +33,32 @@ Catalyst-Relay can be used directly as a TypeScript library without running the 
 ### Quick Start
 
 ```typescript
-import { createClient } from 'catalyst-relay';
-import type { ClientConfig } from 'catalyst-relay';
+import { createClient } from "catalyst-relay";
+import type { ClientConfig } from "catalyst-relay";
 
 // Configure the client
 const config: ClientConfig = {
-    url: 'https://sap-dev.example.com:443',
-    client: '100',
-    auth: {
-        type: 'basic',
-        username: 'DEVELOPER',
-        password: 'secret123'
-    }
+  url: "https://sap-dev.example.com:443",
+  client: "100",
+  auth: {
+    type: "basic",
+    username: "DEVELOPER",
+    password: "secret123",
+  },
 };
 
 // Create client (synchronous)
 const [client, createErr] = createClient(config);
 if (createErr) {
-    console.error('Failed to create client:', createErr.message);
-    process.exit(1);
+  console.error("Failed to create client:", createErr.message);
+  process.exit(1);
 }
 
 // Login (async)
 const [session, loginErr] = await client.login();
 if (loginErr) {
-    console.error('Login failed:', loginErr.message);
-    process.exit(1);
+  console.error("Login failed:", loginErr.message);
+  process.exit(1);
 }
 console.log(`Logged in as ${session.username}`);
 
@@ -82,48 +83,53 @@ Always check for errors before using the result:
 ```typescript
 const [data, err] = await client.someMethod();
 if (err) {
-    console.error('Operation failed:', err.message);
-    return;
+  console.error("Operation failed:", err.message);
+  return;
 }
 // data is guaranteed non-null here
 ```
 
 ### ADTClient Methods
 
-| HTTP Endpoint | Library Method |
-|--------------|----------------|
-| `POST /login` | `client.login()` |
-| `DELETE /logout` | `client.logout()` |
-| `POST /session/refresh` | `client.refreshSession()` |
-| — | `client.exportSessionState()` |
-| — | `client.importSessionState(state)` |
-| `GET /object-config` | `client.getObjectConfig()` |
-| `GET /packages` | `client.getPackages(options?)` |
-| `GET /packages/:name/stats` | `client.getPackageStats(name)` |
-| `POST /tree` | `client.getTree(query)` |
-| `GET /transports/:pkg` | `client.getTransports(packageName)` |
-| `POST /transports` | `client.createTransport(config)` |
-| `DELETE /transports/:transportId` | `client.deleteTransport(id, removeObjects?)` |
-| `PUT /transports/:transportId/objects` | `client.removeFromTransport(id, objectName)` |
-| `GET /transports/:transportId/objects` | `client.viewTransportObjects(id)` |
-| `GET /inactive-objects` | `client.getInactiveObjects()` |
-| `POST /objects/read` | `client.read(objects)` |
-| `POST /objects/upsert/...` | `client.upsert(objects, pkg, transport?)` |
-| `POST /objects/activate` | `client.activate(objects)` |
-| `POST /objects/check` | `client.checkSyntax(objects)` |
-| `DELETE /objects/...` | `client.delete(objects, transport?)` |
-| `POST /preview/data` | `client.previewData(query)` |
-| `POST /preview/distinct` | `client.getDistinctValues(...)` |
-| `POST /preview/count` | `client.countRows(name, type)` |
-| `POST /search/:query` | `client.search(query, types?)` |
-| `POST /where-used` | `client.whereUsed(object)` |
-| `POST /git-diff` | `client.gitDiff(objects)` |
+| HTTP Endpoint                          | Library Method                                              |
+| -------------------------------------- | ----------------------------------------------------------- |
+| `POST /login`                          | `client.login()`                                            |
+| `DELETE /logout`                       | `client.logout()`                                           |
+| `POST /session/refresh`                | `client.refreshSession()`                                   |
+| —                                      | `client.exportSessionState()`                               |
+| —                                      | `client.importSessionState(state)`                          |
+| `GET /object-config`                   | `client.getObjectConfig()`                                  |
+| `GET /packages`                        | `client.getPackages(options?)`                              |
+| `GET /packages/:name/stats`            | `client.getPackageStats(name)`                              |
+| `POST /tree`                           | `client.getTree(query)`                                     |
+| `GET /transports/:pkg`                 | `client.getTransports(packageName)`                         |
+| `POST /transports`                     | `client.createTransport(config)`                            |
+| `DELETE /transports/:transportId`      | `client.deleteTransport(id, removeObjects?)`                |
+| `PUT /transports/:transportId/objects` | `client.removeFromTransport(id, objectName)`                |
+| `GET /transports/:transportId/objects` | `client.viewTransportObjects(id)`                           |
+| `GET /inactive-objects`                | `client.getInactiveObjects()`                               |
+| `POST /objects/read`                   | `client.read(objects)`                                      |
+| `POST /objects/upsert/...`             | `client.upsert(objects, pkg, transport?)`                   |
+| `POST /objects/activate`               | `client.activate(objects)`                                  |
+| `POST /objects/check`                  | `client.checkSyntax(objects)`                               |
+| `DELETE /objects/...`                  | `client.delete(objects, transport?)`                        |
+| `POST /objects/change-package`         | `client.changePackage(objects, pkg, options?)`              |
+| `GET /api-release/:name`               | `client.getApiReleaseState(name)`                           |
+| `POST /api-release/:name/release`      | `client.releaseApi(name, transport?, visibility?)`          |
+| `POST /api-release/:name/unrelease`    | `client.unreleaseApi(name, transport?)`                     |
+| `POST /api-release/:name/visibility`   | `client.updateApiReleaseVisibility(name, change, options?)` |
+| `POST /preview/data`                   | `client.previewData(query)`                                 |
+| `POST /preview/distinct`               | `client.getDistinctValues(...)`                             |
+| `POST /preview/count`                  | `client.countRows(name, type)`                              |
+| `POST /search/:query`                  | `client.search(query, types?)`                              |
+| `POST /where-used`                     | `client.whereUsed(object)`                                  |
+| `POST /git-diff`                       | `client.gitDiff(objects)`                                   |
 
 See individual endpoint documentation for detailed type signatures and examples.
 
 ---
 
-*Last updated: v0.5.13*
+_Last updated: v0.6.9_
 
 ---
 
@@ -131,10 +137,10 @@ See individual endpoint documentation for detailed type signatures and examples.
 
 All authenticated endpoints require the `X-Session-ID` header:
 
-| Header | Required | Description |
-|--------|----------|-------------|
-| `X-Session-ID` | Yes* | Session ID from `/login` response |
-| `Content-Type` | Yes | `application/json` for POST/DELETE with body |
+| Header         | Required | Description                                  |
+| -------------- | -------- | -------------------------------------------- |
+| `X-Session-ID` | Yes*     | Session ID from `/login` response            |
+| `Content-Type` | Yes      | `application/json` for POST/DELETE with body |
 
 *Not required for `POST /login`
 
@@ -144,33 +150,33 @@ All authenticated endpoints require the `X-Session-ID` header:
 
 All endpoints return a consistent envelope:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `success` | boolean | `true` for success, `false` for error |
-| `data` | varies | Response payload (on success) |
-| `error` | string | Error message (on failure) |
-| `code` | string | Machine-readable error code (on failure) |
+| Field     | Type    | Description                              |
+| --------- | ------- | ---------------------------------------- |
+| `success` | boolean | `true` for success, `false` for error    |
+| `data`    | varies  | Response payload (on success)            |
+| `error`   | string  | Error message (on failure)               |
+| `code`    | string  | Machine-readable error code (on failure) |
 
 ---
 
 ## Error Codes
 
-| Code | Status | Description |
-|------|--------|-------------|
-| `AUTH_FAILED` | 401 | Invalid credentials or session |
-| `SESSION_EXPIRED` | 401 | Session has timed out |
-| `SESSION_NOT_FOUND` | 401 | Invalid session ID |
-| `CSRF_INVALID` | 403 | CSRF token validation failed |
-| `OBJECT_LOCKED` | 409 | Object locked by another user |
-| `EXTERNAL_REFERENCES` | 409 | Multi-delete blocked: objects outside the set still reference the targets |
-| `OBJECT_NOT_FOUND` | 404 | Object does not exist |
-| `TRANSPORT_REQUIRED` | 400 | Transport needed for non-$TMP package |
-| `ACTIVATION_FAILED` | 500 | Object activation error |
-| `CHECK_FAILED` | 500 | Syntax check error |
-| `VALIDATION_ERROR` | 400 | Invalid request format |
-| `NETWORK_ERROR` | 502 | SAP server unreachable |
-| `UNKNOWN_ERROR` | 500 | Unexpected server error |
+| Code                  | Status | Description                                                               |
+| --------------------- | ------ | ------------------------------------------------------------------------- |
+| `AUTH_FAILED`         | 401    | Invalid credentials or session                                            |
+| `SESSION_EXPIRED`     | 401    | Session has timed out                                                     |
+| `SESSION_NOT_FOUND`   | 401    | Invalid session ID                                                        |
+| `CSRF_INVALID`        | 403    | CSRF token validation failed                                              |
+| `OBJECT_LOCKED`       | 409    | Object locked by another user                                             |
+| `EXTERNAL_REFERENCES` | 409    | Multi-delete blocked: objects outside the set still reference the targets |
+| `OBJECT_NOT_FOUND`    | 404    | Object does not exist                                                     |
+| `TRANSPORT_REQUIRED`  | 400    | Transport needed for non-$TMP package                                     |
+| `ACTIVATION_FAILED`   | 500    | Object activation error                                                   |
+| `CHECK_FAILED`        | 500    | Syntax check error                                                        |
+| `VALIDATION_ERROR`    | 400    | Invalid request format                                                    |
+| `NETWORK_ERROR`       | 502    | SAP server unreachable                                                    |
+| `UNKNOWN_ERROR`       | 500    | Unexpected server error                                                   |
 
 ---
 
-*Last updated: v0.5.13*
+_Last updated: v0.6.9_

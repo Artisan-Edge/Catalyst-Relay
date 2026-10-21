@@ -5,6 +5,7 @@
 import type { Result, AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
+import { getObjectPackage } from './objectPackage';
 
 /**
  * Search result
@@ -89,25 +90,9 @@ async function enrichWithPackages(client: AdtRequestor, results: SearchResult[])
     const needsPackage = results.filter(r => !r.package);
     if (needsPackage.length === 0) return;
 
-    // Fetch object properties in parallel.
+    // Fetch object properties in parallel; lookups that fail leave the package empty.
     const promises = needsPackage.map(async (result) => {
-        const encodedUri = encodeURIComponent(result.uri);
-        const [response, reqErr] = await client.request({
-            method: 'GET',
-            path: `/sap/bc/adt/repository/informationsystem/objectproperties/values?uri=${encodedUri}&facet=package`,
-        });
-        if (reqErr || !response.ok) return;
-
-        const text = await response.text();
-        const [doc, parseErr] = safeParseXml(text);
-        if (parseErr) return;
-
-        // Package is an attribute on the opr:object element.
-        const oprNs = 'http://www.sap.com/adt/ris/objectProperties';
-        const objEl = doc.getElementsByTagNameNS(oprNs, 'object')[0];
-        if (!objEl) return;
-
-        const pkg = objEl.getAttribute('package');
+        const [pkg] = await getObjectPackage(client, result.uri);
         if (pkg) result.package = pkg;
     });
 

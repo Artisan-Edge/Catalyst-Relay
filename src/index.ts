@@ -87,6 +87,12 @@ export type {
     ApiReleaseResult,
     ApiReleaseStatus,
     ApiReleaseValidationMessage,
+    ApiReleaseVisibility,
+    ApiReleaseVisibilityOptions,
+    ApiReleaseVisibilityResult,
+    ChangePackageResult,
+    ChangePackageStatus,
+    ChangePackageOptions,
     CheckResult,
     ClassIncludeType,
     DeleteResult,
@@ -121,6 +127,7 @@ export type {
     PackageNode,
     FolderNode,
     ObjectNode,
+    UnsupportedObjectNode,
 } from './core/adt';
 
 // Error classes (for instanceof checks on AsyncResult errors)
@@ -129,6 +136,9 @@ export { ExternalReferencesError } from './core/adt';
 // Query builder (optional helper for data preview)
 export { buildSQLQuery } from './core/adt';
 export type { DataPreviewQuery, QueryFilter, BasicFilter, BetweenFilter, ListFilter, Sorting, Aggregation, Parameter } from './core/adt';
+
+// Extensions only `changePackage` accepts (not readable/writable/deletable)
+export { MOVE_ONLY_EXTENSIONS } from './core/adt';
 
 // Result utilities
 export { ok, err } from './types/result';

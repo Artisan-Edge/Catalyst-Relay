@@ -7,7 +7,10 @@
 export interface TreeResponse {
     packages: PackageNode[];
     folders: FolderNode[];
+    /** Objects of a configured type; the only ones other operations can act on */
     objects: ObjectNode[];
+    /** Objects of a type this library has no configuration for (listed, never actionable) */
+    unsupportedObjects: UnsupportedObjectNode[];
 }
 
 export interface PackageNode {
@@ -26,6 +29,14 @@ export interface ObjectNode {
     name: string;
     objectType: string;
     extension: string;
+    description?: string;
+}
+
+export interface UnsupportedObjectNode {
+    name: string;
+    /** SAP ADT type identifier (e.g., 'DTEL/DE') */
+    adtType: string;
+    uri?: string;
     description?: string;
 }
 
@@ -61,4 +72,5 @@ export interface ParsedObject {
 export interface ParseResult {
     folders: ParsedFolder[];
     objects: ParsedObject[];
+    unsupportedObjects: UnsupportedObjectNode[];
 }

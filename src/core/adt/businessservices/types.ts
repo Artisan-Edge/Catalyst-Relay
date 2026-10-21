@@ -5,8 +5,8 @@ import type { ActivationResult } from '../craud/activation';
 /** Binding protocol. Only OData is supported today. */
 export type ServiceBindingType = 'ODATA';
 
-/** Binding version. Only OData V4 (category 1) is supported today. */
-export type ServiceBindingVersion = 'V4';
+/** Binding version: OData V4 or OData V2, both as Web API bindings (category 1). */
+export type ServiceBindingVersion = 'V4' | 'V2';
 
 /**
  * Options for creating a service binding

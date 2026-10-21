@@ -58,6 +58,12 @@ const VIRTUALFOLDERS_WITH_DOTDOT_PREFIX = `<?xml version="1.0" encoding="UTF-8"?
   </vfs:virtualFolder>
 </vfs:virtualFoldersResult>`;
 
+const VIRTUALFOLDERS_MIXED_OBJECTS = `<?xml version="1.0" encoding="UTF-8"?>
+<vfs:virtualFoldersResult xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectCount="2">
+  <vfs:object uri="/sap/bc/adt/ddic/ddl/sources/zv_test" text="Test View" name="ZV_TEST" package="ZPKG" type="DDLS/DF" expandable="false"/>
+  <vfs:object uri="/sap/bc/adt/ddic/dataelements/zsnap_signage" text="Signage" name="ZSNAP_SIGNAGE" package="ZPKG" type="DTEL/DE" expandable="false"/>
+</vfs:virtualFoldersResult>`;
+
 // parseTreeXml Tests
 
 describe('parseTreeXml', () => {
@@ -109,6 +115,27 @@ describe('parseTreeXml', () => {
             expect(firstFolder.displayName).toBe('Package Interfaces');
             expect(firstFolder.count).toBe(15);
             expect(firstFolder.facet).toBe('GROUP');
+        });
+    });
+
+    describe('parsing objects', () => {
+        it('keeps configured types in objects', () => {
+            const [result, error] = parseTreeXml(VIRTUALFOLDERS_MIXED_OBJECTS);
+
+            expect(error).toBeNull();
+            expect(result!.objects).toEqual([{ name: 'ZV_TEST', objectType: 'View', extension: 'asddls', description: 'Test View' }]);
+        });
+
+        it('lists unconfigured types separately instead of dropping them', () => {
+            const [result, error] = parseTreeXml(VIRTUALFOLDERS_MIXED_OBJECTS);
+
+            expect(error).toBeNull();
+            expect(result!.unsupportedObjects).toEqual([{
+                name: 'ZSNAP_SIGNAGE',
+                adtType: 'DTEL/DE',
+                uri: '/sap/bc/adt/ddic/dataelements/zsnap_signage',
+                description: 'Signage',
+            }]);
         });
     });
 
@@ -173,6 +200,7 @@ describe('transformToTreeResponse', () => {
                 { facet: 'PACKAGE', name: 'CHILD_PKG', displayName: 'CHILD_PKG', count: 100, description: 'Child' },
             ],
             objects: [],
+            unsupportedObjects: [],
         };
 
         const result = transformToTreeResponse(parsed, 'PARENT');
@@ -192,6 +220,7 @@ describe('transformToTreeResponse', () => {
                 { facet: 'GROUP', name: 'CLASSES', displayName: 'Classes', count: 30 },
             ],
             objects: [],
+            unsupportedObjects: [],
         };
 
         const result = transformToTreeResponse(parsed, 'TEST_PKG');
@@ -211,6 +240,7 @@ describe('transformToTreeResponse', () => {
                 { facet: 'PACKAGE', name: 'CHILD', displayName: 'CHILD', count: 50 },
             ],
             objects: [],
+            unsupportedObjects: [],
         };
 
         const result = transformToTreeResponse(parsed, 'PARENT');
@@ -225,6 +255,7 @@ describe('transformToTreeResponse', () => {
                 { facet: 'PACKAGE', name: 'NO_DESC', displayName: 'NO_DESC', count: 10 },
             ],
             objects: [],
+            unsupportedObjects: [],
         };
 
         const result = transformToTreeResponse(parsed, 'OTHER');

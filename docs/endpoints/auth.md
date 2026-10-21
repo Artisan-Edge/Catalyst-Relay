@@ -491,8 +491,11 @@ SAML-based SSO using browser automation. Requires Playwright to be installed.
 | `password` | string | Yes | SAML password |
 | `sapUser` | string | Yes | SAP system username for object attribution |
 | `providerConfig` | object | No | Custom login form configuration |
+| `onStatus` | `(message: string) => void` | No | Progress callback for the browser login, e.g. when a multi-factor approval is pending. Library use only; not serialisable over the HTTP server |
 
 **Note:** The `sapUser` field is required because SAML identity providers typically use email addresses as usernames, but SAP systems require the actual SAP username for object attribution (`adtcore:responsible`).
+
+**Multi-factor authentication:** after the password is submitted, the browser is given up to 120 seconds to return to the SAP host. That leaves time to approve a push prompt (PingID, Microsoft Authenticator, etc.) on a device; `onStatus` is called once the login has been pending for a few seconds so the caller can tell the user to approve it. Login succeeds only when the browser lands back on the SAP host. If the identity provider re-renders the sign-on form instead, the error includes the message the page displayed.
 
 **providerConfig fields:**
 
@@ -503,6 +506,7 @@ SAML-based SSO using browser automation. Requires Playwright to be installed.
 | `formSelectors.username` | string | Yes | Selector for username field |
 | `formSelectors.password` | string | Yes | Selector for password field |
 | `formSelectors.submit` | string | Yes | Selector for submit button |
+| `headless` | boolean | No | Default `true`. `false` opens a visible browser window; the form is still pre-filled, but if automation fails the user finishes the sign-in (including multi-factor steps) in that window and login continues once the browser returns to SAP |
 
 **Example (Standard SAP IDP):**
 ```json

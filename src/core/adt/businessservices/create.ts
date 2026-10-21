@@ -35,12 +35,14 @@ export async function createServiceBindingObject(
     const bindingName = options.bindingName.toUpperCase();
     const serviceDefinition = options.serviceDefinition.toUpperCase();
     const packageName = options.packageName.toUpperCase();
+    // V4 names the service after its definition; V2 names it after the binding, which the V2 publish job registers
+    const serviceName = bindingVersion === 'V2' ? bindingName : serviceDefinition;
 
     // Build the service binding XML body.
     const body = `<?xml version="1.0" encoding="UTF-8"?>
 <srvb:serviceBinding xmlns:srvb="http://www.sap.com/adt/ddic/ServiceBindings" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:description="${escapeXml(description)}" adtcore:language="EN" adtcore:name="${bindingName}" adtcore:type="${SERVICE_BINDING_TYPE_CODE}" adtcore:masterLanguage="EN" adtcore:responsible="${username.toUpperCase()}">
   <adtcore:packageRef adtcore:name="${packageName}"/>
-  <srvb:services srvb:name="${serviceDefinition}">
+  <srvb:services srvb:name="${serviceName}">
     <srvb:content srvb:version="${CONTENT_VERSION}">
       <srvb:serviceDefinition adtcore:name="${serviceDefinition}"/>
     </srvb:content>

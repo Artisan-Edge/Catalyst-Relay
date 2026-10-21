@@ -47,7 +47,7 @@ export async function createServiceBinding(
         return ok(result);
     }
 
-    const [publishMessage, publishErr] = await adt.publishServiceBinding(requestor, options.bindingName);
+    const [publishMessage, publishErr] = await adt.publishServiceBinding(requestor, options.bindingName, options.bindingVersion ?? 'V4');
     if (publishErr) return err(publishErr);
 
     result.published = true;

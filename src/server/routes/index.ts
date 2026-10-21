@@ -36,6 +36,7 @@ import { classIncludeHandler } from './objects/classInclude';
 import { activateHandler } from './objects/activate';
 import { checkHandler } from './objects/check';
 import { deleteHandler } from './objects/delete';
+import { changePackageHandler } from './objects/changePackage';
 
 // Preview routes
 import { dataHandler } from './preview/data';
@@ -57,6 +58,7 @@ import { createServiceBindingHandler } from './businessservices/createServiceBin
 import { apiReleaseStateHandler } from './apirelease/getState';
 import { releaseApiHandler } from './apirelease/release';
 import { unreleaseApiHandler } from './apirelease/unrelease';
+import { apiReleaseVisibilityHandler } from './apirelease/visibility';
 
 /**
  * Creates and configures all API routes
@@ -103,6 +105,7 @@ export function createRoutes(
     app.post('/objects/class-include', sessionMiddleware, classIncludeHandler);
     app.post('/objects/activate', sessionMiddleware, activateHandler);
     app.post('/objects/check', sessionMiddleware, checkHandler);
+    app.post('/objects/change-package', sessionMiddleware, changePackageHandler);
     app.delete('/objects/:transport?', sessionMiddleware, deleteHandler);
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -140,6 +143,7 @@ export function createRoutes(
     app.get('/api-release/:name', sessionMiddleware, apiReleaseStateHandler);
     app.post('/api-release/:name/release', sessionMiddleware, releaseApiHandler);
     app.post('/api-release/:name/unrelease', sessionMiddleware, unreleaseApiHandler);
+    app.post('/api-release/:name/visibility', sessionMiddleware, apiReleaseVisibilityHandler);
 
     return app;
 }

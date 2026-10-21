@@ -8,7 +8,7 @@
 import type { Result } from '../../../../types/result';
 import { ok, err } from '../../../../types/result';
 import { safeParseXml } from '../../../utils/xml';
-import type { ApiReleaseStatus, ApiReleaseState, ApiReleaseValidationMessage } from './types';
+import type { ApiReleaseStatus, ApiReleaseState, ApiReleaseValidationMessage, ApiReleaseVisibility } from './types';
 
 // CDS DDL sources are the only releasable type this module targets.
 const DDLS_ENDPOINT = 'ddic/ddl/sources';
@@ -65,17 +65,33 @@ export function buildValidationRunPath(name: string): string {
     return `${buildContractPath(name)}/validationrun`;
 }
 
+// Visibility used when the caller does not choose: Cloud Development only.
+export const DEFAULT_C1_VISIBILITY: ApiReleaseVisibility = { useInCloudDevelopment: true, useInKeyUserApps: false };
+
+export function isSameVisibility(a: ApiReleaseVisibility, b: ApiReleaseVisibility): boolean {
+    return a.useInCloudDevelopment === b.useInCloudDevelopment && a.useInKeyUserApps === b.useInKeyUserApps;
+}
+
+// Human-readable visibility, e.g. "Cloud Development + Key User Apps".
+export function describeVisibility(visibility: ApiReleaseVisibility): string {
+    const on: string[] = [];
+    if (visibility.useInCloudDevelopment) on.push('Cloud Development');
+    if (visibility.useInKeyUserApps) on.push('Key User Apps');
+    return on.length > 0 ? on.join(' + ') : 'no visibility';
+}
+
 /**
  * Build the C1 release request body for a target status.
  *
  * Used for both the validation run (POST) and the state change (PUT).
  *
  * @param status - Target contract status (e.g. RELEASED, NOT_RELEASED)
+ * @param visibility - Visibility flags to send (defaults to Cloud Development only)
  * @returns apiRelease XML body
  */
-export function buildC1ReleaseBody(status: ApiReleaseStatus): string {
+export function buildC1ReleaseBody(status: ApiReleaseStatus, visibility: ApiReleaseVisibility = DEFAULT_C1_VISIBILITY): string {
     return `<?xml version="1.0" encoding="UTF-8"?><ars:apiRelease xmlns:ars="http://www.sap.com/adt/ars">
-  <ars:c1Release ars:comment="" ars:contract="C1" ars:createAuthValues="false" ars:featureToggle="" ars:useInKeyUserApps="true" ars:useInSAPCloudPlatform="true">
+  <ars:c1Release ars:comment="" ars:contract="C1" ars:createAuthValues="false" ars:featureToggle="" ars:useInKeyUserApps="${visibility.useInKeyUserApps}" ars:useInSAPCloudPlatform="${visibility.useInCloudDevelopment}">
     <ars:status ars:state="${status}"/>
     <ars:useConceptAsSuccessor>false</ars:useConceptAsSuccessor>
     <ars:successors/>
@@ -155,6 +171,10 @@ export function parseReleaseState(xml: string, fallbackName: string): Result<Api
         statusDescription,
         released: state === 'RELEASED',
         allowedTransitions,
+        visibility: {
+            useInCloudDevelopment: contract.getAttribute('ars:useInSAPCloudPlatform') === 'true',
+            useInKeyUserApps: contract.getAttribute('ars:useInKeyUserApps') === 'true',
+        },
     };
 
     const changedBy = contract.getAttribute('adtcore:changedBy');

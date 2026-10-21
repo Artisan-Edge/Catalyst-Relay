@@ -34,7 +34,15 @@ export interface SamlProviderConfig {
     ignoreHttpsErrors: boolean;
     /** CSS selectors for login form elements */
     formSelectors: SamlFormSelectors;
+    /** Run the browser headless (default true). False opens a visible window the user can complete the sign-in in. */
+    headless?: boolean;
 }
+
+/**
+ * Receives human-readable progress messages during SAML browser login,
+ * e.g. that a multi-factor approval is pending on the user's device.
+ */
+export type SamlLoginStatusCallback = (message: string) => void;
 
 /**
  * SAML authentication configuration
@@ -49,6 +57,8 @@ export interface SamlAuthConfig {
     sapUser: string;
     /** Optional custom provider configuration for non-standard login forms */
     providerConfig?: SamlProviderConfig;
+    /** Optional progress callback for the browser login (library use only; not serialisable) */
+    onStatus?: SamlLoginStatusCallback;
 }
 
 /**
@@ -116,6 +126,7 @@ const samlFormSelectorsSchema = z.object({
 const samlProviderConfigSchema = z.object({
     ignoreHttpsErrors: z.boolean(),
     formSelectors: samlFormSelectorsSchema,
+    headless: z.boolean().optional(),
 });
 
 /**
@@ -136,6 +147,7 @@ export const clientConfigSchema = z.object({
             password: z.string().min(1),
             sapUser: z.string().min(1),
             providerConfig: samlProviderConfigSchema.optional(),
+            onStatus: z.custom<SamlLoginStatusCallback>((value) => typeof value === 'function').optional(),
         }),
         z.object({
             type: z.literal('sso'),

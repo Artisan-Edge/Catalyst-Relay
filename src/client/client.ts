@@ -48,8 +48,14 @@ import type {
     ClassIncludeType,
     CreateServiceBindingOptions,
     ServiceBindingResult,
+    ServiceBindingVersion,
     ApiReleaseState,
     ApiReleaseResult,
+    ApiReleaseVisibility,
+    ApiReleaseVisibilityOptions,
+    ApiReleaseVisibilityResult,
+    ChangePackageResult,
+    ChangePackageOptions,
 } from '../core/adt';
 import type { AsyncResult } from '../types/result';
 import { createAuthStrategy } from '../core/auth/factory';
@@ -67,6 +73,7 @@ import * as diffMethods from './methods/diff';
 import * as configMethods from './methods/config';
 import * as businessServiceMethods from './methods/craud/specialcases/businessservices';
 import * as apiReleaseMethods from './methods/apirelease';
+import * as refactoringMethods from './methods/refactoring';
 import {
     storeCookies,
     buildCookieHeader,
@@ -100,6 +107,9 @@ export interface ADTClient {
     checkSyntax(objects: ObjectRef[]): AsyncResult<CheckResult[]>;
     delete(objects: ObjectRef[], transport?: string): AsyncResult<DeleteResult[]>;
 
+    // Refactoring
+    changePackage(objects: ObjectRef[], targetPackage: string, options?: ChangePackageOptions): AsyncResult<ChangePackageResult[]>;
+
     // Discovery
     getPackages(options?: GetPackagesOptions): AsyncResult<Package[]>;
     getTree(query: TreeQuery): AsyncResult<TreeResponse>;
@@ -130,12 +140,13 @@ export interface ADTClient {
 
     // Business Services
     createServiceBinding(options: CreateServiceBindingOptions): AsyncResult<ServiceBindingResult>;
-    deleteServiceBinding(bindingName: string, transport?: string): AsyncResult<void>;
+    deleteServiceBinding(bindingName: string, transport?: string, version?: ServiceBindingVersion): AsyncResult<void>;
 
     // API Release (CDS / DDLS C1 contract)
     getApiReleaseState(objectName: string): AsyncResult<ApiReleaseState>;
-    releaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult>;
+    releaseApi(objectName: string, transport?: string, visibility?: ApiReleaseVisibility): AsyncResult<ApiReleaseResult>;
     unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult>;
+    updateApiReleaseVisibility(objectName: string, change: Partial<ApiReleaseVisibility>, options?: ApiReleaseVisibilityOptions): AsyncResult<ApiReleaseVisibilityResult>;
 
     // Configuration
     getObjectConfig(): ObjectConfig[];
@@ -379,8 +390,8 @@ export class ADTClientImpl implements ADTClient {
         return businessServiceMethods.createServiceBinding(this.state, this.requestor, options);
     }
 
-    async deleteServiceBinding(bindingName: string, transport?: string): AsyncResult<void> {
-        return businessServiceMethods.deleteServiceBinding(this.state, this.requestor, bindingName, transport);
+    async deleteServiceBinding(bindingName: string, transport?: string, version?: ServiceBindingVersion): AsyncResult<void> {
+        return businessServiceMethods.deleteServiceBinding(this.state, this.requestor, bindingName, transport, version);
     }
 
     // --- API Release ---
@@ -389,12 +400,22 @@ export class ADTClientImpl implements ADTClient {
         return apiReleaseMethods.getApiReleaseState(this.state, this.requestor, objectName);
     }
 
-    async releaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult> {
-        return apiReleaseMethods.releaseApi(this.state, this.requestor, objectName, transport);
+    async releaseApi(objectName: string, transport?: string, visibility?: ApiReleaseVisibility): AsyncResult<ApiReleaseResult> {
+        return apiReleaseMethods.releaseApi(this.state, this.requestor, objectName, transport, visibility);
     }
 
     async unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult> {
         return apiReleaseMethods.unreleaseApi(this.state, this.requestor, objectName, transport);
+    }
+
+    async updateApiReleaseVisibility(objectName: string, change: Partial<ApiReleaseVisibility>, options?: ApiReleaseVisibilityOptions): AsyncResult<ApiReleaseVisibilityResult> {
+        return apiReleaseMethods.updateApiReleaseVisibility(this.state, this.requestor, objectName, change, options);
+    }
+
+    // --- Refactoring ---
+
+    async changePackage(objects: ObjectRef[], targetPackage: string, options?: ChangePackageOptions): AsyncResult<ChangePackageResult[]> {
+        return refactoringMethods.changePackage(this.state, this.requestor, objects, targetPackage, options);
     }
 
     // --- Configuration ---
