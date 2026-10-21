@@ -7,7 +7,9 @@ import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import type { ServiceBindingVersion } from './types';
 import { debug } from '../../utils/logging';
-import { lockServiceBinding, unlockServiceBinding, submitServiceBindingJob } from './helpers';
+import { lockServiceBinding, unlockServiceBinding, submitServiceBindingJob, readServiceBindingPublished } from './helpers';
+
+type BindingJobAction = 'publish' | 'unpublish';
 
 /**
  * Publish a service binding.
@@ -51,7 +53,7 @@ export async function unpublishServiceBinding(
 async function runBindingJob(
     client: AdtRequestor,
     bindingName: string,
-    action: 'publish' | 'unpublish',
+    action: BindingJobAction,
     version: ServiceBindingVersion
 ): AsyncResult<string, Error> {
     const [lockHandle, lockErr] = await lockServiceBinding(client, bindingName);
@@ -64,6 +66,33 @@ async function runBindingJob(
     const [, unlockErr] = await unlockServiceBinding(client, bindingName, lockHandle);
 
     if (jobErr) return err(jobErr);
-    if (unlockErr) return err(unlockErr);
+    if (!unlockErr) return ok(message);
+
+    const [, recoverErr] = await recoverFailedUnlock(client, bindingName, lockHandle, action, unlockErr);
+    if (recoverErr) return err(recoverErr);
     return ok(message);
+}
+
+// A first V2 publish can dump in the unlock (OBJECTS_OBJREF_NOT_ASSIGNED); the dump ends the stateful session and its lock.
+async function recoverFailedUnlock(
+    client: AdtRequestor,
+    bindingName: string,
+    lockHandle: string,
+    action: BindingJobAction,
+    unlockErr: Error
+): AsyncResult<void, Error> {
+    debug(`Service binding unlock after ${action} failed: ${unlockErr.message}`);
+
+    // Retry once so a lock still held by a surviving session context is released.
+    const [, retryErr] = await unlockServiceBinding(client, bindingName, lockHandle);
+    if (!retryErr) return ok(undefined);
+    debug(`Service binding unlock retry failed: ${retryErr.message}`);
+
+    // The job reported success; accept it only when the binding shows the state the job was meant to reach.
+    const [isPublished, readErr] = await readServiceBindingPublished(client, bindingName);
+    if (readErr) return err(unlockErr);
+    if (isPublished !== (action === 'publish')) return err(unlockErr);
+
+    debug(`Service binding ${bindingName} ${action} confirmed by its publish state despite the unlock failure`);
+    return ok(undefined);
 }

@@ -9,13 +9,15 @@ import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import type { ServiceBindingVersion } from './types';
-import { extractLockHandle, extractTagText } from '../../utils/xml';
+import { extractLockHandle, extractTagText, safeParseXml } from '../../utils/xml';
 import { checkResponse } from '../helpers';
 
 export const BINDINGS_BASE_PATH = '/sap/bc/adt/businessservices/bindings';
 
 const LOCK_ACCEPT_HEADER =
     'application/*,application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result';
+const BINDING_ACCEPT_HEADER = 'application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/*';
+const PUBLISHED_ATTRIBUTE = 'srvb:published';
 const JOBS_BASE_PATH = '/sap/bc/adt/businessservices';
 // V2 (un)publish jobs name the service and its version as query parameters; bindings start at version 0001.
 const V2_SERVICE_VERSION = '0001';
@@ -90,6 +92,40 @@ export async function unlockServiceBinding(
     if (checkErr) return err(checkErr);
 
     return ok(undefined);
+}
+
+/**
+ * Read whether a service binding's service is currently published.
+ *
+ * @param client - ADT client
+ * @param bindingName - Service binding name
+ * @returns The binding's srvb:published flag or error
+ */
+export async function readServiceBindingPublished(
+    client: AdtRequestor,
+    bindingName: string
+): AsyncResult<boolean, Error> {
+    const [response, requestErr] = await client.request({
+        method: 'GET',
+        path: bindingPath(bindingName),
+        headers: { 'Accept': BINDING_ACCEPT_HEADER },
+    });
+
+    const [text, checkErr] = await checkResponse(
+        response,
+        requestErr,
+        `Failed to read service binding ${bindingName}`
+    );
+    if (checkErr) return err(checkErr);
+
+    const [doc, parseErr] = safeParseXml(text);
+    if (parseErr) return err(parseErr);
+
+    const published = doc.documentElement?.getAttribute(PUBLISHED_ATTRIBUTE);
+    if (published !== 'true' && published !== 'false') {
+        return err(new Error(`Service binding ${bindingName} response carries no publish state`));
+    }
+    return ok(published === 'true');
 }
 
 /**
