@@ -18,6 +18,7 @@ import { getConfigByExtension } from '../types';
 export type MoveTarget = Pick<ObjectConfig, 'endpoint' | 'type' | 'label'>;
 
 // Endpoints and ADT types as reported by the virtual-folder tree.
+// dtel/doma are deprecated aliases of the configured asdtel/asdoma, kept for existing callers.
 const MOVE_ONLY_TARGETS: Record<string, MoveTarget> = {
     dtel: { endpoint: 'ddic/dataelements', type: 'DTEL/DE', label: 'Data Element' },
     doma: { endpoint: 'ddic/domains', type: 'DOMA/DD', label: 'Domain' },
@@ -39,5 +40,9 @@ export const MOVE_ONLY_EXTENSIONS = Object.keys(MOVE_ONLY_TARGETS);
 export function resolveMoveTarget(extension: string): Result<MoveTarget, Error> {
     const config = getConfigByExtension(extension) ?? MOVE_ONLY_TARGETS[extension];
     if (!config) return err(new Error(`Unsupported extension: ${extension}`));
+
+    // Nested objects move with their container (function modules with their .fugr).
+    const container = getConfigByExtension(extension)?.container;
+    if (container) return err(new Error(`${config.label}s move with their ${container.label}; move the .fugr instead`));
     return ok(config);
 }

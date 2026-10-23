@@ -11,9 +11,10 @@
  */
 
 // Types and configuration (shared across module)
-export type { AdtRequestor, ObjectConfig, ConfiguredExtension, UpsertResult } from './types';
+export type { AdtRequestor, ObjectConfig, ConfiguredExtension, UpsertResult, ObjectKind, ContainerConfig } from './types';
 export {
     OBJECT_CONFIG_MAP,
+    FUNCTION_GROUP_CONFIG,
     ObjectTypeLabel,
     getConfigByExtension,
     getConfigByType,
@@ -54,6 +55,10 @@ export type { Dependency } from './discovery/whereUsed';
 
 // Lock management
 export { lockObject, unlockObject } from './craud/lock';
+
+// Function groups and containers (function modules)
+export { ensureFunctionGroup } from './craud/functionGroup';
+export { resolveContainers } from './craud/resolveContainers';
 
 // Write operations
 export { createObject } from './craud/create';

@@ -1,0 +1,6 @@
+@EndUserText.label: 'Fiscal Year Period'
+define domain zsnap_fins_jahrper {
+	data type : abap.numc (7);
+	output length : 8;
+	conversion routine : ZFYP7;
+}

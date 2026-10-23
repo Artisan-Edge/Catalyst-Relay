@@ -8,6 +8,7 @@ import type { ObjectWithContent } from '../../../core/adt/craud/read';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';
+import type { ObjectRef } from '../../../types/requests';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Schema (colocated)
@@ -38,7 +39,7 @@ export async function readHandler(c: RouteContext) {
         );
     }
 
-    const objectRefs = validation.data;
+    const objectRefs = validation.data as ObjectRef[];
     const client = c.get('client');
 
     const [results, error] = await client.read(objectRefs);

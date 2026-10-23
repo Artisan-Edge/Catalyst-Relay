@@ -1,0 +1,11 @@
+@EndUserText.label: 'Actual Plan Source'
+define domain zsnap_act_plan_source {
+	data type : abap.char (2);
+	output length : 2;
+	fixed values {
+		'A' : 'Actual';
+		'P' : 'Plan';
+		'AS' : 'Actual Summarized';
+		'PS' : 'Plan Summarized';
+	}
+}

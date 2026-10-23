@@ -1,0 +1,10 @@
+@EndUserText.label: 'Hierarchy ID'
+define data element zsnap_hryid {
+	data type : abap.char (42);
+	labels {
+		short   : 'ID';
+		medium  : 'Hierarchy ID';
+		long    : 'Hierarchy ID';
+		heading : 'Hierarchy ID';
+	}
+}

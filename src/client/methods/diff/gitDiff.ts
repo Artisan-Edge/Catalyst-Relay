@@ -17,8 +17,11 @@ export async function gitDiff(
     if (!state.session) return err(new Error('Not logged in'));
     if (objects.length === 0) return ok([]);
 
+    const [resolved, resolveErr] = await adt.resolveContainers(requestor, objects);
+    if (resolveErr) return err(resolveErr);
+
     const results: DiffResult[] = [];
-    for (const obj of objects) {
+    for (const obj of resolved) {
         const [result, diffErr] = await adt.gitDiff(requestor, obj);
         if (diffErr) return err(diffErr);
         results.push(result);

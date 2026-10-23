@@ -15,5 +15,7 @@ export async function activate(
     objects: ObjectRef[]
 ): AsyncResult<ActivationResult[]> {
     if (!state.session) return err(new Error('Not logged in'));
-    return adt.activateObjects(requestor, objects);
+    const [resolved, resolveErr] = await adt.resolveContainers(requestor, objects);
+    if (resolveErr) return err(resolveErr);
+    return adt.activateObjects(requestor, resolved);
 }

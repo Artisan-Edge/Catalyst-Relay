@@ -15,5 +15,7 @@ export async function whereUsed(
     object: ObjectRef
 ): AsyncResult<Dependency[]> {
     if (!state.session) return err(new Error('Not logged in'));
-    return adt.findWhereUsed(requestor, object);
+    const [resolved, resolveErr] = await adt.resolveContainers(requestor, [object]);
+    if (resolveErr) return err(resolveErr);
+    return adt.findWhereUsed(requestor, resolved[0]!);
 }

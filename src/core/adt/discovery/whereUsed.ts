@@ -18,6 +18,7 @@ export interface Dependency {
 }
 
 import { getConfigByType, getConfigByExtension } from '../types';
+import { objectUri } from '../helpers';
 import { extractError, safeParseXml } from '../../utils/xml';
 
 /**
@@ -38,7 +39,8 @@ export async function findWhereUsed(
     }
 
     // Build object URI and request body.
-    const uri = `/sap/bc/adt/${config.endpoint}/${object.name}`;
+    const [uri, uriErr] = objectUri(config, object);
+    if (uriErr) return err(uriErr);
     const body = `<?xml version="1.0" encoding="UTF-8"?>
     <usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences">
       <usagereferences:affectedObjects/>

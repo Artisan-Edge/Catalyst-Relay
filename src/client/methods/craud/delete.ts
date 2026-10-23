@@ -14,5 +14,7 @@ export async function deleteObjects(
     transport?: string
 ): AsyncResult<DeleteResult[]> {
     if (!state.session) return err(new Error('Not logged in'));
-    return adt.multiDeleteObjects(requestor, objects, transport);
+    const [resolved, resolveErr] = await adt.resolveContainers(requestor, objects);
+    if (resolveErr) return err(resolveErr);
+    return adt.multiDeleteObjects(requestor, resolved, transport);
 }

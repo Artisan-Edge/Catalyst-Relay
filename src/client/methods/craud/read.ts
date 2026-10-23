@@ -16,8 +16,11 @@ export async function read(
 ): AsyncResult<ObjectWithContent[]> {
     if (!state.session) return err(new Error('Not logged in'));
 
+    const [resolved, resolveErr] = await adt.resolveContainers(requestor, objects);
+    if (resolveErr) return err(resolveErr);
+
     const results: ObjectWithContent[] = [];
-    for (const obj of objects) {
+    for (const obj of resolved) {
         const [result, readErr] = await adt.readObject(requestor, obj);
         if (readErr) return err(readErr);
         results.push(result);

@@ -5,6 +5,7 @@ import { ok, err } from '../../../types/result';
 import type { ObjectRef } from '../../../types/requests';
 import type { AdtRequestor } from '../types';
 import { getConfigByExtension } from '../types';
+import { objectUri } from '../helpers';
 import type { ActivationMessage } from './activation';
 import { readObject } from './read';
 import { extractError, safeParseXml } from '../../utils/xml';
@@ -39,6 +40,19 @@ export async function checkSyntax(
         }
     }
 
+    // Form objects: check the saved document, one object per run (DDIC runs cross-post messages).
+    if (config.kind === 'form') {
+        const results: CheckResult[] = [];
+        for (const obj of objects) {
+            const [uri, uriErr] = objectUri(config, obj);
+            if (uriErr) return err(uriErr);
+            const [result, checkErr] = await runCheck(client, [obj], `<chkrun:checkObject adtcore:uri="${uri}" chkrun:version="inactive"/>`);
+            if (checkErr) return err(checkErr);
+            results.push(...result);
+        }
+        return ok(results);
+    }
+
     // Read source code for each object.
     const sources: Map<string, string> = new Map();
     for (const obj of objects) {
@@ -47,22 +61,33 @@ export async function checkSyntax(
         sources.set(obj.name.toLowerCase(), result.content);
     }
 
-    // Build XML request body with inline source code.
-    const objectRefs = objects.map(obj => {
-        const uri = `/sap/bc/adt/${config.endpoint}/${obj.name.toLowerCase()}`;
+    // Build check objects with inline source code.
+    const checkObjects: string[] = [];
+    for (const obj of objects) {
+        const [uri, uriErr] = objectUri(config, obj);
+        if (uriErr) return err(uriErr);
         const sourceUri = `${uri}/source/main`;
         const content = sources.get(obj.name.toLowerCase()) ?? '';
         const encoded = Buffer.from(content).toString('base64');
 
-        return `<chkrun:checkObject adtcore:uri="${uri}" chkrun:version="active">
+        checkObjects.push(`<chkrun:checkObject adtcore:uri="${uri}" chkrun:version="active">
         <chkrun:artifacts>
             <chkrun:artifact chkrun:contentType="text/plain; charset=utf-8" chkrun:uri="${sourceUri}">
                 <chkrun:content>${encoded}</chkrun:content>
             </chkrun:artifact>
         </chkrun:artifacts>
-    </chkrun:checkObject>`;
-    }).join('\n    ');
+    </chkrun:checkObject>`);
+    }
 
+    return runCheck(client, objects, checkObjects.join('\n    '));
+}
+
+// Post a check run and map its messages onto the objects
+async function runCheck(
+    client: AdtRequestor,
+    objects: ObjectRef[],
+    objectRefs: string
+): AsyncResult<CheckResult[], Error> {
     const body = `<?xml version="1.0" encoding="UTF-8"?>
 <chkrun:checkObjectList xmlns:chkrun="http://www.sap.com/adt/checkrun"
                         xmlns:adtcore="http://www.sap.com/adt/core">

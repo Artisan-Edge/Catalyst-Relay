@@ -1,0 +1,9 @@
+@EndUserText.label: 'Signage'
+define domain zsnap_signage {
+	data type : abap.char (1);
+	output length : 1;
+	fixed values {
+		'A' : 'Accounting Sign';
+		'R' : 'Reporting Sign';
+	}
+}

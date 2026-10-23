@@ -8,6 +8,8 @@ export interface ObjectRef {
     name: string;
     /** File extension indicating object type (e.g., 'asddls') */
     extension: string;
+    /** Parent object for nested types: the function group of a function module (.asfunc) */
+    container?: string;
 }
 
 /**
@@ -63,6 +65,7 @@ export interface PreviewSQL {
 export const objectRefSchema = z.object({
     name: z.string().min(1),
     extension: z.string().min(1),
+    container: z.string().min(1).optional(),
 });
 
 export const objectContentSchema = objectRefSchema.extend({

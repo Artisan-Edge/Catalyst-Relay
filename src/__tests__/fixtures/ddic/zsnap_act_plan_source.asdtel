@@ -1,0 +1,10 @@
+@EndUserText.label: 'Actual Plan Source'
+define data element zsnap_act_plan_source {
+	domain : zsnap_act_plan_source;
+	labels {
+		short   : 'Source';
+		medium  : 'Source';
+		long    : 'Source';
+		heading : 'Source';
+	}
+}

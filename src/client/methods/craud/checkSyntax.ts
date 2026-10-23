@@ -13,5 +13,7 @@ export async function checkSyntax(
     objects: ObjectRef[]
 ): AsyncResult<CheckResult[]> {
     if (!state.session) return err(new Error('Not logged in'));
-    return adt.checkSyntax(requestor, objects);
+    const [resolved, resolveErr] = await adt.resolveContainers(requestor, objects);
+    if (resolveErr) return err(resolveErr);
+    return adt.checkSyntax(requestor, resolved);
 }

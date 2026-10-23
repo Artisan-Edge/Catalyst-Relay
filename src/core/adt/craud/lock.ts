@@ -7,7 +7,7 @@ import { ok, err } from '../../../types/result';
 import type { ObjectRef } from '../../../types/requests';
 import type { AdtRequestor } from '../types';
 import { extractLockHandle } from '../../utils/xml';
-import { checkResponse, requireConfig } from '../helpers';
+import { checkResponse, lockUri, requireConfig } from '../helpers';
 import { debug } from '../../utils/logging';
 
 /**
@@ -24,11 +24,13 @@ export async function lockObject(
     // Validate object extension is supported.
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
+    const [path, pathErr] = lockUri(config, object);
+    if (pathErr) return err(pathErr);
 
     // Execute lock request.
     const [response, requestErr] = await client.request({
         method: 'POST',
-        path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
+        path,
         params: {
             '_action': 'LOCK',
             'accessMode': 'MODIFY',
@@ -72,11 +74,13 @@ export async function unlockObject(
     // Validate object extension is supported.
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
+    const [path, pathErr] = lockUri(config, object);
+    if (pathErr) return err(pathErr);
 
     // Execute unlock request.
     const [response, requestErr] = await client.request({
         method: 'POST',
-        path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
+        path,
         params: {
             '_action': 'UNLOCK',
             'lockHandle': lockHandle,

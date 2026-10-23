@@ -18,6 +18,7 @@ export async function update(
     if (!state.session) return err(new Error('Not logged in'));
 
     const objRef: ObjectRef = { name: object.name, extension: object.extension };
+    if (object.container) objRef.container = object.container;
 
     // Lock object before update
     const [lockHandle, lockErr] = await adt.lockObject(requestor, objRef);

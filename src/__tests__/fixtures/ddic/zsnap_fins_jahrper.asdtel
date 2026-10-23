@@ -1,0 +1,10 @@
+@EndUserText.label: 'Fiscal Year Period'
+define data element zsnap_fins_jahrper {
+	domain : zsnap_fins_jahrper;
+	labels {
+		short   : 'Year/Per';
+		medium  : 'Fiscal Year Period';
+		long    : 'Fiscal Year Period';
+		heading : 'Fiscal Year Period';
+	}
+}

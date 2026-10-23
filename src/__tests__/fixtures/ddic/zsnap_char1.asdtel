@@ -1,0 +1,10 @@
+@EndUserText.label: 'Char 1'
+define data element zsnap_char1 {
+	data type : abap.char(1);
+	labels {
+		short   : 'Char 1';
+		medium  : 'Char 1';
+		long    : 'Char 1';
+		heading : 'Char 1';
+	}
+}

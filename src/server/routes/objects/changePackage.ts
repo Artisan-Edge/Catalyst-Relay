@@ -6,6 +6,7 @@ import type { ChangePackageOptions, ChangePackageResult } from '../../../core/ad
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';
+import type { ObjectRef } from '../../../types/requests';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Schema (colocated)
@@ -47,7 +48,7 @@ export async function changePackageHandler(c: RouteContext) {
 
     const client = c.get('client');
 
-    const [results, error] = await client.changePackage(objects, targetPackage, options);
+    const [results, error] = await client.changePackage(objects as ObjectRef[], targetPackage, options);
 
     if (error) {
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);

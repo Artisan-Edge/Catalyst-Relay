@@ -14,9 +14,27 @@ export interface AdtRequestor {
     }): AsyncResult<Response, Error>;
 }
 
+/**
+ * How an object type stores its definition:
+ * - source: plain text at {objectUri}/source/main
+ * - form: a vendor XML document at {objectUri} (data elements, domains)
+ */
+export type ObjectKind = 'source' | 'form';
+
+/**
+ * Parent object type for nested objects (function modules → function group)
+ */
+export interface ContainerConfig {
+    endpoint: string;
+    nameSpace: string;
+    rootName: string;
+    type: string;
+    label: string;
+}
+
 // Configuration for a specific SAP object type
 export interface ObjectConfig {
-    /** ADT endpoint path (e.g., 'ddic/ddl/sources') */
+    /** ADT endpoint path (e.g., 'ddic/ddl/sources'); may contain {container} */
     endpoint: string;
     /** XML namespace for creation requests */
     nameSpace: string;
@@ -36,6 +54,14 @@ export interface ObjectConfig {
     rootAttributes?: Record<string, string>;
     /** Inject an <adtcore:adtTemplate> block carrying the implementation type (behavior definitions) */
     requiresImplementationType?: boolean;
+    /** Source text or XML document; defaults to 'source' */
+    kind?: ObjectKind;
+    /** Vendor media type of a form object's document */
+    contentType?: string;
+    /** Lock and delete on the object URI instead of {objectUri}/source/main */
+    lockOnObject?: boolean;
+    /** Parent object the endpoint is nested under */
+    container?: ContainerConfig;
 }
 
 /**
@@ -51,7 +77,7 @@ export interface UpsertResult {
 /**
  * Supported object types
  */
-export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog' | 'asinc' | 'srvd' | 'asbdef';
+export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog' | 'asinc' | 'srvd' | 'asbdef' | 'asdtel' | 'asdoma' | 'asfunc';
 
 /**
  * Object type labels
@@ -66,7 +92,21 @@ export enum ObjectTypeLabel {
     INCLUDE = 'ABAP Include',
     SERVICE_DEFINITION = 'Service Definition',
     BEHAVIOR_DEFINITION = 'Behavior Definition',
+    DATA_ELEMENT = 'Data Element',
+    DOMAIN = 'Domain',
+    FUNCTION_MODULE = 'Function Module',
 }
+
+/**
+ * Function group: the container of function modules
+ */
+export const FUNCTION_GROUP_CONFIG: ContainerConfig = {
+    endpoint: 'functions/groups',
+    nameSpace: 'xmlns:group="http://www.sap.com/adt/functions/groups"',
+    rootName: 'group:abapFunctionGroup',
+    type: 'FUGR/F',
+    label: 'Function Group',
+};
 
 /**
  * Configuration map for all supported object types
@@ -152,6 +192,38 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         label: ObjectTypeLabel.BEHAVIOR_DEFINITION,
         extension: 'asbdef',
         requiresImplementationType: true,
+    },
+    'asdtel': {
+        endpoint: 'ddic/dataelements',
+        nameSpace: 'xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel"',
+        rootName: 'blue:wbobj',
+        type: 'DTEL/DE',
+        label: ObjectTypeLabel.DATA_ELEMENT,
+        extension: 'asdtel',
+        kind: 'form',
+        contentType: 'application/vnd.sap.adt.dataelements.v2+xml',
+        lockOnObject: true,
+    },
+    'asdoma': {
+        endpoint: 'ddic/domains',
+        nameSpace: 'xmlns:doma="http://www.sap.com/dictionary/domain"',
+        rootName: 'doma:domain',
+        type: 'DOMA/DD',
+        label: ObjectTypeLabel.DOMAIN,
+        extension: 'asdoma',
+        kind: 'form',
+        contentType: 'application/vnd.sap.adt.domains.v2+xml',
+        lockOnObject: true,
+    },
+    'asfunc': {
+        endpoint: 'functions/groups/{container}/fmodules',
+        nameSpace: 'xmlns:fmodule="http://www.sap.com/adt/functions/fmodules"',
+        rootName: 'fmodule:abapFunctionModule',
+        type: 'FUGR/FF',
+        label: ObjectTypeLabel.FUNCTION_MODULE,
+        extension: 'asfunc',
+        lockOnObject: true,
+        container: FUNCTION_GROUP_CONFIG,
     },
 };
 

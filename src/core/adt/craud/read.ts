@@ -5,8 +5,10 @@
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { ObjectRef } from '../../../types/requests';
-import type { AdtRequestor } from '../types';
-import { checkResponse, requireConfig } from '../helpers';
+import type { AdtRequestor, ObjectConfig } from '../types';
+import { checkResponse, contentUri, requireConfig } from '../helpers';
+import { getFormHandler } from '../../ddic';
+import { readFormDocument } from './formDocument';
 
 /**
  * Object metadata
@@ -14,6 +16,8 @@ import { checkResponse, requireConfig } from '../helpers';
 export interface ObjectMetadata {
     name: string;
     extension: string;
+    /** Function group of a function module */
+    container?: string;
     package: string;
     description?: string;
     createdBy?: string;
@@ -44,20 +48,11 @@ export async function readObject(
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
 
-    // Execute GET request for object source content.
-    const [response, requestErr] = await client.request({
-        method: 'GET',
-        path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
-        headers: { 'Accept': 'text/plain' },
-    });
-
-    // Validate successful response and extract content.
-    const [content, checkErr] = await checkResponse(
-        response,
-        requestErr,
-        `Failed to read ${config.label} ${object.name}`
-    );
-    if (checkErr) return err(checkErr);
+    // Form objects: fetch the XML document and render it as canonical DSL.
+    const [content, contentErr] = config.kind === 'form'
+        ? await readFormSource(client, config, object)
+        : await readSource(client, config, object);
+    if (contentErr) return err(contentErr);
 
     // Build result object with content.
     const result: ObjectWithContent = {
@@ -66,6 +61,28 @@ export async function readObject(
         package: '',
         content,
     };
+    if (object.container) result.container = object.container;
 
     return ok(result);
+}
+
+async function readSource(client: AdtRequestor, config: ObjectConfig, object: ObjectRef): AsyncResult<string, Error> {
+    const [uri, uriErr] = contentUri(config, object);
+    if (uriErr) return err(uriErr);
+
+    const [response, requestErr] = await client.request({
+        method: 'GET',
+        path: uri,
+        headers: { 'Accept': 'text/plain' },
+    });
+    return checkResponse(response, requestErr, `Failed to read ${config.label} ${object.name}`);
+}
+
+async function readFormSource(client: AdtRequestor, config: ObjectConfig, object: ObjectRef): AsyncResult<string, Error> {
+    const handler = getFormHandler(object.extension);
+    if (!handler) return err(new Error(`No form handler for extension: ${object.extension}`));
+
+    const [xml, readErr] = await readFormDocument(client, config, object);
+    if (readErr) return err(readErr);
+    return handler.toSource(xml);
 }

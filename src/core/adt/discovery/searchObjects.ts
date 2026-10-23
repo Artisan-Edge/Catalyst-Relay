@@ -17,9 +17,12 @@ export interface SearchResult {
     package: string;
     description?: string;
     objectType: string;
+    /** Function group of a function module */
+    container?: string;
 }
 
 import { getConfigByType, getAllTypes } from '../types';
+import { containerFromUri } from '../helpers';
 import { extractError, safeParseXml } from '../../utils/xml';
 
 /**
@@ -141,6 +144,10 @@ function parseSearchResults(xml: string): Result<SearchResult[], Error> {
         };
         if (description) {
             result.description = description;
+        }
+        if (config.container) {
+            const container = containerFromUri(uri);
+            if (container) result.container = container;
         }
         results.push(result);
     }

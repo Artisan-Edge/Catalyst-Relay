@@ -8,6 +8,8 @@ import { diffArrays, type ChangeObject } from 'diff';
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
+import { toRef } from '../helpers';
+import { getFormHandler } from '../../ddic';
 import type { ObjectContent } from '../../../types/requests';
 import { readObject } from './read';
 import { getConfigByExtension } from '../types';
@@ -146,10 +148,7 @@ export async function gitDiff(
     object: ObjectContent
 ): AsyncResult<DiffResult, Error> {
     // Read current server content.
-    const [serverObj, readErr] = await readObject(client, {
-        name: object.name,
-        extension: object.extension,
-    });
+    const [serverObj, readErr] = await readObject(client, toRef(object));
 
     if (readErr) {
         return err(new Error(`${object.name} does not exist on server`));
@@ -159,9 +158,18 @@ export async function gitDiff(
     const config = getConfigByExtension(object.extension);
     const label = config?.label ?? object.extension;
 
+    // Form objects are read back as canonical DSL; canonicalize the local side too.
+    let localContent = object.content;
+    const handler = getFormHandler(object.extension);
+    if (handler) {
+        const [canonical, canonicalErr] = handler.canonical(object.content);
+        if (canonicalErr) return err(new Error(`${object.name}: ${canonicalErr.message}`));
+        localContent = canonical;
+    }
+
     // Split content into lines for comparison.
     const serverLines = serverObj.content.split('\n');
-    const localLines = object.content.split('\n');
+    const localLines = localContent.split('\n');
 
     // Compute diff.
     const diffs = computeDiff(serverLines, localLines);

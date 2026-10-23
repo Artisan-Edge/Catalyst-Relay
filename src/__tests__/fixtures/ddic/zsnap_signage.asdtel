@@ -1,0 +1,10 @@
+@EndUserText.label: 'Signage'
+define data element zsnap_signage {
+	domain : zsnap_signage;
+	labels {
+		short   : 'Signage';
+		medium  : 'Signage';
+		long    : 'Signage';
+		heading : 'Signage';
+	}
+}

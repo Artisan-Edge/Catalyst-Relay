@@ -35,10 +35,13 @@ Batch read objects with their source content.
 
 Array of object references:
 
-| Field       | Type   | Required | Description                                  |
-| ----------- | ------ | -------- | -------------------------------------------- |
-| `name`      | string | Yes      | Object name (e.g., `ZTEST_VIEW`)             |
-| `extension` | string | Yes      | File extension (e.g., `asddls`, `clas.abap`) |
+| Field       | Type   | Required | Description                                                                    |
+| ----------- | ------ | -------- | ------------------------------------------------------------------------------ |
+| `name`      | string | Yes      | Object name (e.g., `ZTEST_VIEW`)                                               |
+| `extension` | string | Yes      | File extension (e.g., `asddls`, `clas.abap`)                                   |
+| `container` | string | No       | Function group of a function module (`asfunc`); looked up by name when omitted |
+
+Data elements (`asdtel`) and domains (`asdoma`) are read as canonical DSL, translated from SAP's XML definition. See [SAP ADT: form-based objects](../sap-adt.md#form-based-objects-and-function-modules).
 
 ### Response
 

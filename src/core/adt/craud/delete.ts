@@ -6,7 +6,7 @@ import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { ObjectRef } from '../../../types/requests';
 import type { AdtRequestor } from '../types';
-import { checkResponse, requireConfig } from '../helpers';
+import { checkResponse, lockUri, requireConfig } from '../helpers';
 
 /**
  * Delete an object from SAP
@@ -26,6 +26,8 @@ export async function deleteObject(
     // Validate object extension is supported.
     const [config, configErr] = requireConfig(object.extension);
     if (configErr) return err(configErr);
+    const [path, pathErr] = lockUri(config, object);
+    if (pathErr) return err(pathErr);
 
     // Build request parameters with lock handle.
     const params: Record<string, string> = {
@@ -38,7 +40,7 @@ export async function deleteObject(
     // Execute delete request.
     const [response, requestErr] = await client.request({
         method: 'DELETE',
-        path: `/sap/bc/adt/${config.endpoint}/${object.name}/source/main`,
+        path,
         params,
         headers: { 'Accept': 'text/plain' },
     });

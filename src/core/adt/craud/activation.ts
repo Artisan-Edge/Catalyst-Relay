@@ -5,6 +5,7 @@ import { ok, err } from '../../../types/result';
 import type { ObjectRef } from '../../../types/requests';
 import type { AdtRequestor } from '../types';
 import { getConfigByExtension } from '../types';
+import { objectUri } from '../helpers';
 import { extractError, safeParseXml } from '../../utils/xml';
 import { debug } from '../../utils/logging';
 
@@ -62,8 +63,10 @@ export async function activateObjects(
     for (const obj of objects) {
         const config = getConfigByExtension(obj.extension);
         if (!config) return err(new Error(`Unsupported extension: ${obj.extension}`));
+        const [uri, uriErr] = objectUri(config, obj);
+        if (uriErr) return err(uriErr);
         references.push({
-            uri: `/sap/bc/adt/${config.endpoint}/${obj.name.toLowerCase()}`,
+            uri,
             type: config.type,
             name: obj.name,
             extension: obj.extension,

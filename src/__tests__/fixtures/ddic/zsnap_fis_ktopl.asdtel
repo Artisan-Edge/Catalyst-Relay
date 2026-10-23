@@ -1,0 +1,10 @@
+@EndUserText.label: 'Chart of Accounts'
+define data element zsnap_fis_ktopl {
+	data type : abap.char (4);
+	labels {
+		short   : 'COA';
+		medium  : 'Chart of Accounts';
+		long    : 'Chart of Accounts';
+		heading : 'Chart of Accounts';
+	}
+}

@@ -1,0 +1,10 @@
+@EndUserText.label: 'Hierarchy Node'
+define data element zsnap_hrynode {
+	data type : abap.char (50);
+	labels {
+		short   : 'Node';
+		medium  : 'Hierarchy Node';
+		long    : 'Hierarchy Node';
+		heading : 'Hierarchy Node';
+	}
+}

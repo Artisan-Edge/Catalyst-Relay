@@ -61,7 +61,7 @@ const VIRTUALFOLDERS_WITH_DOTDOT_PREFIX = `<?xml version="1.0" encoding="UTF-8"?
 const VIRTUALFOLDERS_MIXED_OBJECTS = `<?xml version="1.0" encoding="UTF-8"?>
 <vfs:virtualFoldersResult xmlns:vfs="http://www.sap.com/adt/ris/virtualFolders" objectCount="2">
   <vfs:object uri="/sap/bc/adt/ddic/ddl/sources/zv_test" text="Test View" name="ZV_TEST" package="ZPKG" type="DDLS/DF" expandable="false"/>
-  <vfs:object uri="/sap/bc/adt/ddic/dataelements/zsnap_signage" text="Signage" name="ZSNAP_SIGNAGE" package="ZPKG" type="DTEL/DE" expandable="false"/>
+  <vfs:object uri="/sap/bc/adt/ddic/tabletypes/zsnap_tt" text="Table Type" name="ZSNAP_TT" package="ZPKG" type="TTYP/DA" expandable="false"/>
 </vfs:virtualFoldersResult>`;
 
 // parseTreeXml Tests
@@ -131,10 +131,10 @@ describe('parseTreeXml', () => {
 
             expect(error).toBeNull();
             expect(result!.unsupportedObjects).toEqual([{
-                name: 'ZSNAP_SIGNAGE',
-                adtType: 'DTEL/DE',
-                uri: '/sap/bc/adt/ddic/dataelements/zsnap_signage',
-                description: 'Signage',
+                name: 'ZSNAP_TT',
+                adtType: 'TTYP/DA',
+                uri: '/sap/bc/adt/ddic/tabletypes/zsnap_tt',
+                description: 'Table Type',
             }]);
         });
     });

@@ -8,6 +8,7 @@ import type { Dependency } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';
+import type { ObjectRef } from '../../../types/requests';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Schema (colocated)
@@ -38,7 +39,7 @@ export async function whereUsedHandler(c: RouteContext) {
         );
     }
 
-    const objectRefs = validation.data;
+    const objectRefs = validation.data as ObjectRef[];
     const client = c.get('client');
 
     // Process all where-used queries in parallel
