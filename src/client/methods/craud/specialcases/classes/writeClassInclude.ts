@@ -1,5 +1,5 @@
 /**
- * Write class include method (lock → write include → unlock)
+ * Write class include method (lock → create include if missing → write include → unlock)
  */
 
 import type { AsyncResult } from '../../../../../types/result';
@@ -26,8 +26,8 @@ export async function writeClassInclude(
     const [lockHandle, lockErr] = await adt.lockObject(requestor, objRef);
     if (lockErr) return err(lockErr);
 
-    // Write the include source.
-    const [, updateErr] = await adt.updateClassInclude(requestor, className, includeType, source, lockHandle, transport);
+    // Create the include if missing, then write its source.
+    const [, updateErr] = await createIfMissingAndUpdate(requestor, className, includeType, source, lockHandle, transport);
 
     // Always unlock after the write attempt.
     const [, unlockErr] = await adt.unlockObject(requestor, objRef, lockHandle);
@@ -37,4 +37,24 @@ export async function writeClassInclude(
     if (unlockErr) return err(unlockErr);
 
     return ok(undefined);
+}
+
+// New classes have no testclasses include; ADT rejects a PUT until it is created.
+async function createIfMissingAndUpdate(
+    requestor: AdtRequestor,
+    className: string,
+    includeType: ClassIncludeType,
+    source: string,
+    lockHandle: string,
+    transport?: string
+): AsyncResult<void> {
+    const [exists, existsErr] = await adt.classIncludeExists(requestor, className, includeType);
+    if (existsErr) return err(existsErr);
+
+    if (!exists) {
+        const [, createErr] = await adt.createClassInclude(requestor, className, includeType, lockHandle, transport);
+        if (createErr) return err(createErr);
+    }
+
+    return adt.updateClassInclude(requestor, className, includeType, source, lockHandle, transport);
 }

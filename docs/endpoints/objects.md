@@ -329,7 +329,7 @@ results.forEach((result) => {
 
 ## POST /objects/class-include
 
-Write a global class's local-source include — the _Local Types_ (CCIMP), _Local Definitions_ (CCDEF), _Macros_ (CCMAC), or _Test Classes_ (CCAU) section. `upsert`/`update` only write a class's **main source**; this endpoint targets the includes, which is where RAP behaviour handlers (`CL_ABAP_BEHAVIOR_HANDLER` subclasses) must live. Locking the class, the include PUT, and unlocking are handled automatically. Activate the class afterwards to compile the change.
+Write a global class's local-source include — the _Local Types_ (CCIMP), _Local Definitions_ (CCDEF), _Macros_ (CCMAC), or _Test Classes_ (CCAU) section. `upsert`/`update` only write a class's **main source**; this endpoint targets the includes, which is where RAP behaviour handlers (`CL_ABAP_BEHAVIOR_HANDLER` subclasses) must live. Locking the class, creating the include if it does not exist yet (new classes have no CCAU), the include PUT, and unlocking are handled automatically. Activate the class afterwards to compile the change.
 
 ### Request
 

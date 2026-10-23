@@ -63,7 +63,7 @@ export { resolveContainers } from './craud/resolveContainers';
 // Write operations
 export { createObject } from './craud/create';
 export { updateObject } from './craud/update';
-export { readClassInclude, updateClassInclude } from './craud/classInclude';
+export { readClassInclude, updateClassInclude, classIncludeExists, createClassInclude } from './craud/classInclude';
 export type { ClassIncludeType } from './craud/classInclude';
 export { deleteObject } from './craud/delete';
 
