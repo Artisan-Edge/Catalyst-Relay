@@ -8,6 +8,7 @@ import { getConfigByExtension } from '../types';
 import { findWhereUsed, type Dependency } from '../discovery/whereUsed';
 import { lockObject, unlockObject } from './lock';
 import { deleteObject } from './delete';
+import { mapLimited } from '../../utils/concurrency';
 
 export interface DeleteResult {
     name: string;
@@ -57,14 +58,12 @@ export async function multiDeleteObjects(
     }
 
     // Run where-used in parallel
-    const whereUsedResults = await Promise.all(
-        unique.map(obj => findWhereUsed(client, obj))
-    );
-
-    for (let i = 0; i < whereUsedResults.length; i++) {
-        const [, e] = whereUsedResults[i]!;
-        if (e) return err(new Error(`where-used failed for ${unique[i]!.name}: ${e.message}`));
-    }
+    const [whereUsedLists, whereUsedErr] = await mapLimited(unique, async (obj): AsyncResult<Dependency[], Error> => {
+        const [usages, e] = await findWhereUsed(client, obj);
+        if (e) return err(new Error(`where-used failed for ${obj.name}: ${e.message}`));
+        return ok(usages);
+    });
+    if (whereUsedErr) return err(whereUsedErr);
 
     // Build referencer/dependent maps and detect external references.
     // findWhereUsed(O) returns objects R that USE O. Edge R → O ("R must be deleted before O").
@@ -80,8 +79,7 @@ export async function multiDeleteObjects(
     for (let i = 0; i < unique.length; i++) {
         const obj = unique[i]!;
         const oKey = objKey(obj);
-        const [deps] = whereUsedResults[i]!;
-        for (const dep of deps!) {
+        for (const dep of whereUsedLists[i]!) {
             const dKey = objKey(dep);
             if (dKey === oKey) continue;
             if (!setKeys.has(dKey)) {
@@ -136,7 +134,8 @@ export async function multiDeleteObjects(
         const waveKeys = ready.length > 0 ? ready : [...remaining];
 
         const waveObjects = waveKeys.map(k => objByKey.get(k)!);
-        const waveResults = await Promise.all(waveObjects.map(deleteOne));
+        const [waveResults, waveErr] = await mapLimited(waveObjects, async obj => ok(await deleteOne(obj)));
+        if (waveErr) return err(waveErr);
 
         for (let i = 0; i < waveResults.length; i++) {
             const result = waveResults[i]!;

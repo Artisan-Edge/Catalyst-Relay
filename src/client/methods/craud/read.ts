@@ -8,6 +8,7 @@ import type { ObjectWithContent, AdtRequestor } from '../../../core/adt';
 import type { ClientState } from '../../types';
 import { ok, err } from '../../../types/result';
 import * as adt from '../../../core/adt';
+import { mapLimited } from '../../../core/utils';
 
 export async function read(
     state: ClientState,
@@ -19,11 +20,6 @@ export async function read(
     const [resolved, resolveErr] = await adt.resolveContainers(requestor, objects);
     if (resolveErr) return err(resolveErr);
 
-    const results: ObjectWithContent[] = [];
-    for (const obj of resolved) {
-        const [result, readErr] = await adt.readObject(requestor, obj);
-        if (readErr) return err(readErr);
-        results.push(result);
-    }
-    return ok(results);
+    // Fails with the first object, in input order, that could not be read
+    return mapLimited(resolved, obj => adt.readObject(requestor, obj));
 }

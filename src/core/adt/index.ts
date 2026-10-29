@@ -132,9 +132,44 @@ export { createServiceBindingObject } from './businessservices/create';
 export { activateServiceBinding } from './businessservices/activate';
 export { publishServiceBinding, unpublishServiceBinding } from './businessservices/publish';
 export { deleteServiceBinding } from './businessservices/delete';
+export { readServiceBinding, parseServiceBinding } from './businessservices/read';
 export type {
     CreateServiceBindingOptions,
     ServiceBindingResult,
     ServiceBindingType,
     ServiceBindingVersion,
+    ServiceBindingCategory,
+    ServiceBindingInfo,
+    ServiceBindingSteps,
+    ServiceBindingStepStatus,
 } from './businessservices/types';
+
+// Cloud IAM (IAM apps, business catalogs)
+export { createIamAppObject, readIamApp, parseIamApp, addIamAppServices, appendServices, publishIamApp } from './iam/app';
+export {
+    createBusinessCatalogObject,
+    readBusinessCatalog,
+    parseBusinessCatalog,
+    readCatalogAssignments,
+    createCatalogAssignment,
+    nextAssignmentName,
+    publishBusinessCatalog,
+} from './iam/catalog';
+export type {
+    IamServiceType,
+    IamServiceRef,
+    IamAppService,
+    IamAppInfo,
+    IamPublishStatus,
+    CreateIamAppOptions,
+    IamStepStatus,
+    IamAppResult,
+    CatalogAppAssignment,
+    BusinessCatalogInfo,
+    CreateBusinessCatalogOptions,
+    BusinessCatalogResult,
+} from './iam/types';
+
+// Packages
+export { createPackage, readPackageSettings, parsePackageSettings } from './packages/createPackage';
+export type { CreatePackageOptions, CreatePackageResult, PackageSettings } from './packages/createPackage';

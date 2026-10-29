@@ -3,27 +3,26 @@
  */
 
 import type { AsyncResult } from '../../../types/result';
-import { ok, err } from '../../../types/result';
+import { err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import type { CreateServiceBindingOptions, ServiceBindingType, ServiceBindingVersion } from './types';
-import { extractTagText } from '../../utils/xml';
 import { checkResponse } from '../helpers';
-
-const SEVERITY_OK = 'OK';
+import { judgeSeverity } from './helpers';
 
 /**
  * Validate a service binding before creating it.
  *
- * Returns an error when the server reports a non-OK severity.
+ * OK and INFO pass (INFO is advice, e.g. "V4 without draft is primarily read-only");
+ * WARNING passes only with options.allowWarnings; ERROR fails.
  *
  * @param client - ADT client
  * @param options - Service binding options
- * @returns void or error
+ * @returns Notes for a passing INFO/WARNING (empty for OK) or error
  */
 export async function validateServiceBinding(
     client: AdtRequestor,
     options: CreateServiceBindingOptions
-): AsyncResult<void, Error> {
+): AsyncResult<string[], Error> {
     const bindingType: ServiceBindingType = options.bindingType ?? 'ODATA';
     const bindingVersion: ServiceBindingVersion = options.bindingVersion ?? 'V4';
 
@@ -48,12 +47,5 @@ export async function validateServiceBinding(
     );
     if (checkErr) return err(checkErr);
 
-    // Surface non-OK severities as errors.
-    const severity = extractTagText(text, 'SEVERITY');
-    if (severity && severity !== SEVERITY_OK) {
-        const shortText = extractTagText(text, 'SHORT_TEXT') ?? '';
-        return err(new Error(`Service binding validation failed (${severity}): ${shortText}`));
-    }
-
-    return ok(undefined);
+    return judgeSeverity(text, 'Service binding validation', options.allowWarnings ?? false);
 }

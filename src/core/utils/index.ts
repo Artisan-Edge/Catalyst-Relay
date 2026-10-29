@@ -38,3 +38,5 @@ export {
 } from './logging';
 
 export { normalizeContent } from './content';
+
+export { ADT_CONCURRENCY, mapLimited } from './concurrency';

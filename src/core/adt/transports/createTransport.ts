@@ -3,7 +3,9 @@
  *
  * Uses the transport-organizer endpoint, which allows choosing the request
  * type (Workbench vs Customizing). The target is taken from the caller, or
- * resolved from the target value-help when unambiguous.
+ * resolved from the target value-help when unambiguous. When the system refuses
+ * an auto-resolved target (public cloud only creates local requests), the
+ * request is retried once with target LOCAL.
  */
 
 import type { Result, AsyncResult } from '../../../types/result';
@@ -15,6 +17,9 @@ import { getTransportTargets } from './getTransportTargets';
 const TRANSPORTREQUESTS_PATH = '/sap/bc/adt/cts/transportrequests';
 const TM_CONTENT_TYPE = 'application/vnd.sap.adt.transportorganizer.v1+xml';
 const TM_NS = 'http://www.sap.com/cts/adt/tm';
+// Public cloud: "Creation of requests of type DEV is not allowed." — only local requests may be created.
+const TARGET_REJECTED = /Creation of requests of type .+ is not allowed/i;
+const LOCAL_TARGET = 'LOCAL';
 
 // SAP request-type codes (TRFUNCTION).
 const TRANSPORT_TYPE_CODES = {
@@ -50,6 +55,26 @@ export async function createTransport(
     const [target, targetErr] = await resolveTarget(client, config.target);
     if (targetErr) return err(targetErr);
 
+    const [number, createErr] = await submitRequest(client, config, target, owner);
+    if (!createErr) return ok(number);
+
+    const isTargetRefused = TARGET_REJECTED.test(createErr.message) && target !== LOCAL_TARGET;
+    if (!isTargetRefused) return err(createErr);
+    if (config.target) return err(new Error(`${createErr.message} (target ${target}). On a public cloud tenant, pass target ${LOCAL_TARGET}.`));
+
+    // Public cloud tenants only release locally: an auto-resolved target is retried as LOCAL.
+    const [localNumber, localErr] = await submitRequest(client, config, LOCAL_TARGET, owner);
+    if (localErr) return err(new Error(`${createErr.message} (target ${target}); retry with target ${LOCAL_TARGET} failed too: ${localErr.message}`));
+    return ok(localNumber);
+}
+
+// POST the transport-organizer request for one target.
+async function submitRequest(
+    client: AdtRequestor,
+    config: TransportConfig,
+    target: string,
+    owner: string
+): AsyncResult<string, Error> {
     const typeCode = TRANSPORT_TYPE_CODES[config.type ?? 'workbench'];
 
     // Build the transport-organizer XML request body.

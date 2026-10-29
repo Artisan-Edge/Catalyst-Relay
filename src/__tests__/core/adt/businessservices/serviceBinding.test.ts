@@ -11,6 +11,7 @@ import { validateServiceBinding } from '../../../../core/adt/businessservices/va
 import { createServiceBindingObject } from '../../../../core/adt/businessservices/create';
 import { publishServiceBinding, unpublishServiceBinding } from '../../../../core/adt/businessservices/publish';
 import { deleteServiceBinding } from '../../../../core/adt/businessservices/delete';
+import { readServiceBinding } from '../../../../core/adt/businessservices/read';
 import { createServiceBinding } from '../../../../client/methods/craud/specialcases/businessservices/createServiceBinding';
 import type { AdtRequestor } from '../../../../core/adt';
 import type { ClientState } from '../../../../client/types';
@@ -21,9 +22,11 @@ interface RecordedRequest {
     params?: Record<string, string | number>;
     headers?: Record<string, string>;
     body?: string;
+    timeout?: number;
 }
 
-type Responder = (req: RecordedRequest) => Response;
+// A responder may answer with a transport-level error (e.g. a timeout) instead of a response.
+type Responder = (req: RecordedRequest) => Response | Error;
 
 function mockRequestor(responder: Responder): { requestor: AdtRequestor; calls: RecordedRequest[] } {
     const calls: RecordedRequest[] = [];
@@ -33,12 +36,25 @@ function mockRequestor(responder: Responder): { requestor: AdtRequestor; calls: 
             if (options.params) call.params = options.params as Record<string, string | number>;
             if (options.headers) call.headers = options.headers;
             if (options.body !== undefined) call.body = options.body;
+            if (options.timeout !== undefined) call.timeout = options.timeout;
             calls.push(call);
-            return [responder(call), null];
+            const answer = responder(call);
+            if (answer instanceof Error) return [null, answer];
+            return [answer, null];
         },
     };
     return { requestor, calls };
 }
+
+// A servicebinding.v2 document as ADT returns it (shape taken from a public cloud tenant).
+function bindingDocument(options: { name?: string; published?: boolean; category?: '0' | '1'; version?: string; definition?: string; active?: boolean } = {}): string {
+    const name = options.name ?? 'ZB_O5';
+    const definition = options.definition ?? 'ZB_API';
+    return `<?xml version="1.0" encoding="utf-8"?><srvb:serviceBinding srvb:contract="C1" srvb:releaseSupported="true" srvb:published="${options.published ?? false}" srvb:bindingCreated="true" adtcore:name="${name}" adtcore:type="SRVB/SVB" adtcore:version="${options.active === false ? 'inactive' : 'active'}" adtcore:description="Test binding" xmlns:srvb="http://www.sap.com/adt/ddic/ServiceBindings" xmlns:adtcore="http://www.sap.com/adt/core"><atom:link href="versions" rel="http://www.sap.com/adt/relations/versions" xmlns:atom="http://www.w3.org/2005/Atom"/><adtcore:packageRef adtcore:uri="/sap/bc/adt/packages/zbeacon" adtcore:type="DEVC/K" adtcore:name="ZBEACON"/><srvb:services srvb:name="${definition}"><srvb:content srvb:version="0001" srvb:minorVersion="0" srvb:patchVersion="0" srvb:releaseState="NOT_RELEASED"><srvb:serviceDefinition adtcore:uri="/sap/bc/adt/ddic/srvd/sources/${definition.toLowerCase()}" adtcore:type="SRVD/SRV" adtcore:name="${definition}"/></srvb:content></srvb:services><srvb:binding srvb:type="ODATA" srvb:version="${options.version ?? 'V4'}" srvb:category="${options.category ?? '1'}"><srvb:implementation adtcore:name="${name}"/></srvb:binding></srvb:serviceBinding>`;
+}
+
+const BINDINGS_PATH = '/sap/bc/adt/businessservices/bindings';
+const isBindingRead = (req: RecordedRequest) => req.method === 'GET' && req.path.startsWith(`${BINDINGS_PATH}/`);
 
 function severityXml(severity: string, shortText = ''): string {
     return `<?xml version="1.0" encoding="UTF-8"?><asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0"><asx:values><DATA><SEVERITY>${severity}</SEVERITY><SHORT_TEXT>${shortText}</SHORT_TEXT><LONG_TEXT/></DATA></asx:values></asx:abap>`;
@@ -58,10 +74,11 @@ const BASE_OPTIONS = {
     transport: 'SDSK900001',
 };
 
-/** Full happy-path responder covering every endpoint in the lifecycle. */
+/** Full happy-path responder covering every endpoint in the lifecycle; the binding does not exist yet. */
 function lifecycleResponder(): Responder {
     return (req) => {
         const p = req.path;
+        if (isBindingRead(req)) return new Response('', { status: 404 });
         if (p.endsWith('/validation')) return new Response(severityXml('OK'), { status: 200 });
         if (p.endsWith('/publishjobs')) return new Response(severityXml('OK', 'ZB_O5 published locally'), { status: 200 });
         if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
@@ -200,7 +217,20 @@ describe('unlock failure after a binding job', () => {
     const DUMP_PAGE = '<html><head><title>Application Server Error</title></head><body>500 Internal Server Error</body></html>';
 
     function bindingXml(published: boolean): string {
-        return `<?xml version="1.0" encoding="utf-8"?><srvb:serviceBinding srvb:published="${published}" adtcore:name="ZB_API_V2" xmlns:srvb="http://www.sap.com/adt/ddic/ServiceBindings" xmlns:adtcore="http://www.sap.com/adt/core"/>`;
+        return bindingDocument({ name: 'ZB_API_V2', published, version: 'V2' });
+    }
+
+    // The orchestration reads the binding first (absent), then again to confirm a failed publish.
+    function readsAfterCreate(published: boolean): Responder {
+        let reads = 0;
+        return (req) => {
+            if (req.method === 'GET' && req.path === BINDING_PATH) {
+                reads += 1;
+                return reads === 1 ? new Response('', { status: 404 }) : new Response(bindingXml(published), { status: 200 });
+            }
+            if (req.params?.['_action'] === 'UNLOCK') return new Response(DUMP_PAGE, { status: 500 });
+            return lifecycleResponder()(req);
+        };
     }
 
     // Every UNLOCK in sequence answers with the next status; GET returns the binding with the given publish state.
@@ -290,24 +320,17 @@ describe('unlock failure after a binding job', () => {
     });
 
     it('fails the orchestration when the publish cannot be confirmed', async () => {
-        const { requestor } = mockRequestor((req) => {
-            if (req.params?.['_action'] === 'UNLOCK') return new Response(DUMP_PAGE, { status: 500 });
-            if (req.method === 'GET' && req.path === BINDING_PATH) return new Response(bindingXml(false), { status: 200 });
-            return lifecycleResponder()(req);
-        });
+        const { requestor } = mockRequestor(readsAfterCreate(false));
 
         const [result, error] = await createServiceBinding(STATE, requestor, { ...BASE_OPTIONS, bindingName: 'ZB_API_V2', bindingVersion: 'V2' });
 
         expect(result).toBeNull();
         expect(error?.message).toContain('Failed to unlock service binding ZB_API_V2');
+        expect(error?.message).toContain('NOT published');
     });
 
     it('reports the orchestration as published when the publish is confirmed', async () => {
-        const { requestor } = mockRequestor((req) => {
-            if (req.params?.['_action'] === 'UNLOCK') return new Response(DUMP_PAGE, { status: 500 });
-            if (req.method === 'GET' && req.path === BINDING_PATH) return new Response(bindingXml(true), { status: 200 });
-            return lifecycleResponder()(req);
-        });
+        const { requestor } = mockRequestor(readsAfterCreate(true));
 
         const [result, error] = await createServiceBinding(STATE, requestor, { ...BASE_OPTIONS, bindingName: 'ZB_API_V2', bindingVersion: 'V2' });
 
@@ -336,6 +359,7 @@ describe('createServiceBinding (orchestration)', () => {
 
     it('aborts before create when validation fails', async () => {
         const { requestor, calls } = mockRequestor((req) => {
+            if (isBindingRead(req)) return new Response('', { status: 404 });
             if (req.path.endsWith('/validation')) return new Response(severityXml('ERROR', 'bad'), { status: 200 });
             return new Response('', { status: 201 });
         });
@@ -344,8 +368,8 @@ describe('createServiceBinding (orchestration)', () => {
 
         expect(result).toBeNull();
         expect(error).not.toBeNull();
-        expect(calls).toHaveLength(1);
-        expect(calls[0]!.path).toBe('/sap/bc/adt/businessservices/bindings/validation');
+        expect(calls).toHaveLength(2);
+        expect(calls[1]!.path).toBe('/sap/bc/adt/businessservices/bindings/validation');
     });
 
     it('skips publish when publish is false', async () => {
@@ -503,5 +527,207 @@ describe('OData V2 bindings', () => {
         const publish = calls.find(c => c.path.endsWith('/publishjobs'))!;
         expect(publish.path).toBe(V2_PUBLISH_PATH);
         expect(publish.params).toEqual({ servicename: 'ZB_API_V2', serviceversion: '0001' });
+    });
+});
+
+describe('validation severities', () => {
+    it('passes INFO and returns its text as a note', async () => {
+        const text = 'oData V4 services with no draft capability will be primarily READ-ONLY';
+        const { requestor } = mockRequestor(() => new Response(severityXml('INFO', text), { status: 200 }));
+
+        const [notes, error] = await validateServiceBinding(requestor, BASE_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(notes).toEqual([`INFO: ${text}`]);
+    });
+
+    it('fails on WARNING unless warnings are allowed', async () => {
+        const { requestor } = mockRequestor(() => new Response(severityXml('WARNING', 'careful'), { status: 200 }));
+
+        const [, blocked] = await validateServiceBinding(requestor, BASE_OPTIONS);
+        const [notes, allowed] = await validateServiceBinding(requestor, { ...BASE_OPTIONS, allowWarnings: true });
+
+        expect(blocked?.message).toContain('(WARNING): careful');
+        expect(allowed).toBeNull();
+        expect(notes).toEqual(['WARNING: careful']);
+    });
+
+    it('returns no notes on OK', async () => {
+        const { requestor } = mockRequestor(() => new Response(severityXml('OK'), { status: 200 }));
+
+        const [notes, error] = await validateServiceBinding(requestor, BASE_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(notes).toEqual([]);
+    });
+});
+
+describe('binding category', () => {
+    it('creates a UI binding as category 0', async () => {
+        const { requestor, calls } = mockRequestor(() => new Response('', { status: 201 }));
+
+        const [, error] = await createServiceBindingObject(requestor, { ...BASE_OPTIONS, bindingCategory: 'UI' }, 'ebosch');
+
+        expect(error).toBeNull();
+        expect(calls[0]!.body).toContain('srvb:binding srvb:category="0" srvb:type="ODATA" srvb:version="V4"');
+    });
+
+    it('keeps Web API (category 1) as the default', async () => {
+        const { requestor, calls } = mockRequestor(() => new Response('', { status: 201 }));
+
+        await createServiceBindingObject(requestor, { ...BASE_OPTIONS, bindingCategory: 'WEB_API' }, 'ebosch');
+        await createServiceBindingObject(requestor, BASE_OPTIONS, 'ebosch');
+
+        expect(calls[0]!.body).toContain('srvb:category="1"');
+        expect(calls[1]!.body).toContain('srvb:category="1"');
+    });
+});
+
+describe('readServiceBinding', () => {
+    it('reads definition, category, publish and release state', async () => {
+        const { requestor, calls } = mockRequestor(() => new Response(bindingDocument({ published: true, category: '0' }), { status: 200 }));
+
+        const [binding, error] = await readServiceBinding(requestor, 'zb_o5');
+
+        expect(error).toBeNull();
+        expect(calls[0]!.path).toBe('/sap/bc/adt/businessservices/bindings/zb_o5');
+        expect(binding).toEqual({
+            name: 'ZB_O5',
+            description: 'Test binding',
+            packageName: 'ZBEACON',
+            serviceName: 'ZB_API',
+            serviceDefinition: 'ZB_API',
+            serviceVersion: '0001',
+            bindingType: 'ODATA',
+            odataVersion: 'V4',
+            category: 'UI',
+            published: true,
+            active: true,
+            releaseState: 'NOT_RELEASED',
+        });
+    });
+
+    it('returns null for a binding that does not exist', async () => {
+        const { requestor } = mockRequestor(() => new Response('', { status: 404 }));
+
+        const [binding, error] = await readServiceBinding(requestor, 'ZB_NONE');
+
+        expect(error).toBeNull();
+        expect(binding).toBeNull();
+    });
+});
+
+describe('createServiceBinding (re-run on an existing binding)', () => {
+    function existingResponder(document: string): Responder {
+        return (req) => {
+            if (isBindingRead(req)) return new Response(document, { status: 200 });
+            return lifecycleResponder()(req);
+        };
+    }
+
+    it('skips every step when the binding is active and published', async () => {
+        const { requestor, calls } = mockRequestor(existingResponder(bindingDocument({ published: true })));
+
+        const [result, error] = await createServiceBinding(STATE, requestor, BASE_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(result?.created).toBe(false);
+        expect(result?.published).toBe(true);
+        expect(result?.steps).toEqual({ validate: 'SKIPPED', create: 'SKIPPED', activate: 'SKIPPED', publish: 'SKIPPED' });
+        expect(calls).toHaveLength(1);
+    });
+
+    it('only publishes an active binding that is not published', async () => {
+        const { requestor, calls } = mockRequestor(existingResponder(bindingDocument({ published: false })));
+
+        const [result, error] = await createServiceBinding(STATE, requestor, BASE_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(result?.steps).toEqual({ validate: 'SKIPPED', create: 'SKIPPED', activate: 'SKIPPED', publish: 'DONE' });
+        expect(calls.map(c => c.path)).not.toContain('/sap/bc/adt/businessservices/bindings/validation');
+        expect(calls.some(c => c.path.endsWith('/publishjobs'))).toBe(true);
+    });
+
+    it('activates an existing inactive binding', async () => {
+        const { requestor } = mockRequestor(existingResponder(bindingDocument({ published: false, active: false })));
+
+        const [result, error] = await createServiceBinding(STATE, requestor, BASE_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(result?.steps.activate).toBe('DONE');
+    });
+
+    it('refuses an existing binding over a different service definition', async () => {
+        const { requestor } = mockRequestor(existingResponder(bindingDocument({ definition: 'ZB_OTHER' })));
+
+        const [result, error] = await createServiceBinding(STATE, requestor, BASE_OPTIONS);
+
+        expect(result).toBeNull();
+        expect(error?.message).toContain('already exists with service definition ZB_OTHER');
+    });
+
+    it('refuses an existing binding of the other category', async () => {
+        const { requestor } = mockRequestor(existingResponder(bindingDocument({ category: '1' })));
+
+        const [, error] = await createServiceBinding(STATE, requestor, { ...BASE_OPTIONS, bindingCategory: 'UI' });
+
+        expect(error?.message).toContain('category WEB_API');
+    });
+});
+
+describe('createServiceBinding (publish request failure)', () => {
+    // First read: absent. Later reads: the binding with the given publish state. The publish job times out.
+    function timeoutResponder(publishedAfter: boolean): Responder {
+        let reads = 0;
+        return (req) => {
+            if (isBindingRead(req)) {
+                reads += 1;
+                return reads === 1 ? new Response('', { status: 404 }) : new Response(bindingDocument({ published: publishedAfter, category: '0' }), { status: 200 });
+            }
+            if (req.path.endsWith('/publishjobs')) return new Error('Request timeout');
+            return lifecycleResponder()(req);
+        };
+    }
+
+    it('gives the publish job a long timeout', async () => {
+        const { requestor, calls } = mockRequestor(lifecycleResponder());
+
+        await createServiceBinding(STATE, requestor, BASE_OPTIONS);
+
+        expect(calls.find(c => c.path.endsWith('/publishjobs'))?.timeout).toBe(300_000);
+    });
+
+    it('reports success with a note when the binding reads back as published', async () => {
+        const { requestor } = mockRequestor(timeoutResponder(true));
+
+        const [result, error] = await createServiceBinding(STATE, requestor, { ...BASE_OPTIONS, bindingCategory: 'UI' });
+
+        expect(error).toBeNull();
+        expect(result?.published).toBe(true);
+        expect(result?.steps.publish).toBe('DONE');
+        expect(result?.notes.some(note => note.includes('Request timeout') && note.includes('reads back as published'))).toBe(true);
+    });
+
+    it('fails with the true state when the binding is not published', async () => {
+        const { requestor } = mockRequestor(timeoutResponder(false));
+
+        const [result, error] = await createServiceBinding(STATE, requestor, { ...BASE_OPTIONS, bindingCategory: 'UI' });
+
+        expect(result).toBeNull();
+        expect(error?.message).toContain('Request timeout');
+        expect(error?.message).toContain('exists and is active but is NOT published');
+    });
+
+    it('carries a validation INFO through to the result notes', async () => {
+        const { requestor } = mockRequestor((req) => {
+            if (req.path.endsWith('/validation')) return new Response(severityXml('INFO', 'primarily READ-ONLY'), { status: 200 });
+            return lifecycleResponder()(req);
+        });
+
+        const [result, error] = await createServiceBinding(STATE, requestor, BASE_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(result?.notes).toEqual(['INFO: primarily READ-ONLY']);
+        expect(result?.steps).toEqual({ validate: 'DONE', create: 'DONE', activate: 'DONE', publish: 'DONE' });
     });
 });

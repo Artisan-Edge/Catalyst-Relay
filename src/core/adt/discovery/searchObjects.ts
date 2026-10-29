@@ -24,6 +24,7 @@ export interface SearchResult {
 import { getConfigByType, getAllTypes } from '../types';
 import { containerFromUri } from '../helpers';
 import { extractError, safeParseXml } from '../../utils/xml';
+import { mapLimited } from '../../utils/concurrency';
 
 /**
  * Search for objects by name pattern
@@ -94,12 +95,11 @@ async function enrichWithPackages(client: AdtRequestor, results: SearchResult[])
     if (needsPackage.length === 0) return;
 
     // Fetch object properties in parallel; lookups that fail leave the package empty.
-    const promises = needsPackage.map(async (result) => {
+    await mapLimited(needsPackage, async (result) => {
         const [pkg] = await getObjectPackage(client, result.uri);
         if (pkg) result.package = pkg;
+        return ok(undefined);
     });
-
-    await Promise.all(promises);
 }
 
 // Parse search results from XML.

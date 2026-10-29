@@ -5,12 +5,12 @@
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import type { CreateServiceBindingOptions, ServiceBindingType, ServiceBindingVersion } from './types';
+import type { CreateServiceBindingOptions, ServiceBindingCategory, ServiceBindingType, ServiceBindingVersion } from './types';
 import { escapeXml } from '../../utils/xml';
 import { checkResponse } from '../helpers';
+import { bindingCategoryCode } from './helpers';
 
 const SERVICE_BINDING_TYPE_CODE = 'SRVB/SVB';
-const BINDING_CATEGORY = '1';
 const CONTENT_VERSION = '0001';
 
 /**
@@ -31,6 +31,7 @@ export async function createServiceBindingObject(
 ): AsyncResult<void, Error> {
     const bindingType: ServiceBindingType = options.bindingType ?? 'ODATA';
     const bindingVersion: ServiceBindingVersion = options.bindingVersion ?? 'V4';
+    const bindingCategory: ServiceBindingCategory = options.bindingCategory ?? 'WEB_API';
     const description = options.description ?? '';
     const bindingName = options.bindingName.toUpperCase();
     const serviceDefinition = options.serviceDefinition.toUpperCase();
@@ -47,7 +48,7 @@ export async function createServiceBindingObject(
       <srvb:serviceDefinition adtcore:name="${serviceDefinition}"/>
     </srvb:content>
   </srvb:services>
-  <srvb:binding srvb:category="${BINDING_CATEGORY}" srvb:type="${bindingType}" srvb:version="${bindingVersion}">
+  <srvb:binding srvb:category="${bindingCategoryCode(bindingCategory)}" srvb:type="${bindingType}" srvb:version="${bindingVersion}">
     <srvb:implementation adtcore:name=""/>
   </srvb:binding>
 </srvb:serviceBinding>`;

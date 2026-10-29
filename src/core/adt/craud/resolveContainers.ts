@@ -8,6 +8,7 @@ import type { ObjectRef } from '../../../types/requests';
 import type { AdtRequestor } from '../types';
 import { getConfigByExtension } from '../types';
 import { searchObjects } from '../discovery/searchObjects';
+import { mapLimited } from '../../utils/concurrency';
 
 /**
  * Return copies of the objects with `container` set where the type needs one
@@ -19,13 +20,9 @@ import { searchObjects } from '../discovery/searchObjects';
  * @returns Objects with containers, or an error naming an object that can't be found
  */
 export async function resolveContainers<T extends ObjectRef>(client: AdtRequestor, objects: T[]): AsyncResult<T[], Error> {
-    const resolved: T[] = [];
-    for (const object of objects) {
+    return mapLimited(objects, async (object): AsyncResult<T, Error> => {
         const config = getConfigByExtension(object.extension);
-        if (!config?.container || object.container) {
-            resolved.push(object);
-            continue;
-        }
+        if (!config?.container || object.container) return ok(object);
 
         // Quick search returns …/functions/groups/{group}/fmodules/{name}.
         const [results, searchErr] = await searchObjects(client, object.name, { types: [config.type], includePackages: false });
@@ -33,7 +30,6 @@ export async function resolveContainers<T extends ObjectRef>(client: AdtRequesto
         const match = results.find(r => r.name.toUpperCase() === object.name.toUpperCase() && r.container);
         if (!match?.container) return err(new Error(`${config.label} ${object.name} not found; pass its ${config.container.label} as the container`));
 
-        resolved.push({ ...object, container: match.container });
-    }
-    return ok(resolved);
+        return ok({ ...object, container: match.container });
+    });
 }

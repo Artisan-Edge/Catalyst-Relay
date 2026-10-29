@@ -19,8 +19,10 @@ export const createServiceBindingRequestSchema = z.object({
     description: z.string().optional(),
     bindingType: z.literal('ODATA').optional(),
     bindingVersion: z.enum(['V4', 'V2']).optional(),
+    bindingCategory: z.enum(['UI', 'WEB_API']).optional(),
     transport: z.string().optional(),
     publish: z.boolean().optional(),
+    allowWarnings: z.boolean().optional(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,6 +70,8 @@ export async function createServiceBindingHandler(c: RouteContext) {
     if (data.bindingVersion !== undefined) options.bindingVersion = data.bindingVersion;
     if (data.transport !== undefined) options.transport = data.transport;
     if (data.publish !== undefined) options.publish = data.publish;
+    if (data.bindingCategory !== undefined) options.bindingCategory = data.bindingCategory;
+    if (data.allowWarnings !== undefined) options.allowWarnings = data.allowWarnings;
 
     const client = c.get('client');
 

@@ -49,6 +49,15 @@ import type {
     CreateServiceBindingOptions,
     ServiceBindingResult,
     ServiceBindingVersion,
+    ServiceBindingInfo,
+    CreateIamAppOptions,
+    IamAppResult,
+    IamAppInfo,
+    CreateBusinessCatalogOptions,
+    BusinessCatalogResult,
+    BusinessCatalogInfo,
+    CreatePackageOptions,
+    CreatePackageResult,
     ApiReleaseState,
     ApiReleaseResult,
     ApiReleaseVisibility,
@@ -72,6 +81,8 @@ import * as transportMethods from './methods/transport';
 import * as diffMethods from './methods/diff';
 import * as configMethods from './methods/config';
 import * as businessServiceMethods from './methods/craud/specialcases/businessservices';
+import * as iamMethods from './methods/iam';
+import * as packageMethods from './methods/packages';
 import * as apiReleaseMethods from './methods/apirelease';
 import * as refactoringMethods from './methods/refactoring';
 import {
@@ -141,6 +152,16 @@ export interface ADTClient {
     // Business Services
     createServiceBinding(options: CreateServiceBindingOptions): AsyncResult<ServiceBindingResult>;
     deleteServiceBinding(bindingName: string, transport?: string, version?: ServiceBindingVersion): AsyncResult<void>;
+    readServiceBinding(bindingName: string): AsyncResult<ServiceBindingInfo>;
+
+    // Cloud IAM
+    createIamApp(options: CreateIamAppOptions): AsyncResult<IamAppResult>;
+    readIamApp(appName: string): AsyncResult<IamAppInfo>;
+    createBusinessCatalog(options: CreateBusinessCatalogOptions): AsyncResult<BusinessCatalogResult>;
+    readBusinessCatalog(catalogName: string): AsyncResult<BusinessCatalogInfo>;
+
+    // Packages
+    createPackage(options: CreatePackageOptions): AsyncResult<CreatePackageResult>;
 
     // API Release (CDS / DDLS C1 contract)
     getApiReleaseState(objectName: string): AsyncResult<ApiReleaseState>;
@@ -392,6 +413,34 @@ export class ADTClientImpl implements ADTClient {
 
     async deleteServiceBinding(bindingName: string, transport?: string, version?: ServiceBindingVersion): AsyncResult<void> {
         return businessServiceMethods.deleteServiceBinding(this.state, this.requestor, bindingName, transport, version);
+    }
+
+    async readServiceBinding(bindingName: string): AsyncResult<ServiceBindingInfo> {
+        return businessServiceMethods.readServiceBinding(this.state, this.requestor, bindingName);
+    }
+
+    // --- Cloud IAM ---
+
+    async createIamApp(options: CreateIamAppOptions): AsyncResult<IamAppResult> {
+        return iamMethods.createIamApp(this.state, this.requestor, options);
+    }
+
+    async readIamApp(appName: string): AsyncResult<IamAppInfo> {
+        return iamMethods.readIamApp(this.state, this.requestor, appName);
+    }
+
+    async createBusinessCatalog(options: CreateBusinessCatalogOptions): AsyncResult<BusinessCatalogResult> {
+        return iamMethods.createBusinessCatalog(this.state, this.requestor, options);
+    }
+
+    async readBusinessCatalog(catalogName: string): AsyncResult<BusinessCatalogInfo> {
+        return iamMethods.readBusinessCatalog(this.state, this.requestor, catalogName);
+    }
+
+    // --- Packages ---
+
+    async createPackage(options: CreatePackageOptions): AsyncResult<CreatePackageResult> {
+        return packageMethods.createPackage(this.state, this.requestor, options);
     }
 
     // --- API Release ---

@@ -2,6 +2,7 @@
  * Core HTTP request with CSRF handling
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { AsyncResult } from '../../../types/result';
 import type { ClientState, RequestOptions, SsoCerts } from '../../types';
 import { ok, err } from '../../../types/result';
@@ -23,17 +24,62 @@ export interface RequestDependencies {
     storeCookies: (response: Response) => void;
 }
 
+type RequestFn = (options: RequestOptions) => AsyncResult<Response, Error>;
+
+// Recovery (CSRF refresh, session reset) runs once per client at a time. Concurrent requests that
+// hit the same expiry share it: a second session reset's logoff would kill the session the first
+// one just established, along with any locks taken on it.
+const csrfRefreshes = new WeakMap<ClientState, AsyncResult<string, Error>>();
+const sessionResets = new WeakMap<ClientState, AsyncResult<void, Error>>();
+
+// Marks the requests a recovery itself makes, so they never start a recovery of their own (a reset's
+// logoff against a dead session answers 500, which would otherwise wait on the reset it belongs to)
+const recovering = new AsyncLocalStorage<true>();
+
+function shareRecovery<T>(inFlight: WeakMap<ClientState, AsyncResult<T, Error>>, state: ClientState, start: () => AsyncResult<T, Error>): AsyncResult<T, Error> {
+    const existing = inFlight.get(state);
+    if (existing) return existing;
+
+    const recovery = recovering.run(true, start).finally(() => inFlight.delete(state));
+    inFlight.set(state, recovery);
+    return recovery;
+}
+
+// The two recoveries never overlap: each would set its own session cookie and token, and the
+// client could end up holding a cookie from one and a token from the other
+async function refreshCsrfToken(state: ClientState, sentToken: string | null, selfRequest: RequestFn): AsyncResult<string, Error> {
+    // A reset in flight fetches a fresh token as part of its login; use that one
+    const reset = sessionResets.get(state);
+    if (reset) await reset;
+
+    // Another request already replaced the token this one was sent with
+    if (state.csrfToken && state.csrfToken !== sentToken) return ok(state.csrfToken);
+    return shareRecovery(csrfRefreshes, state, () => sessionOps.fetchCsrfToken(state, selfRequest));
+}
+
+async function resetSession(state: ClientState, sentSession: ClientState['session'], selfRequest: RequestFn): AsyncResult<void, Error> {
+    const refresh = csrfRefreshes.get(state);
+    if (refresh) await refresh;
+
+    // Another request already replaced the session this one was sent on
+    if (state.session && state.session !== sentSession) return ok(undefined);
+    return shareRecovery(sessionResets, state, () => sessionOps.sessionReset(state, selfRequest));
+}
+
 /**
  * Execute HTTP request with CSRF token injection and automatic retry on 403 errors
  */
 export async function executeRequest(
     deps: RequestDependencies,
     options: RequestOptions,
-    selfRequest: (options: RequestOptions) => AsyncResult<Response, Error>
+    selfRequest: RequestFn
 ): AsyncResult<Response, Error> {
     const { state, ssoCerts, getCookieHeader, storeCookies } = deps;
     const { method, path, params, headers: customHeaders, body, timeout: requestTimeout } = options;
     const { config } = state;
+    const isRecoveryRequest = recovering.getStore() === true;
+    const sentCsrfToken = state.csrfToken;
+    const sentSession = state.session;
 
     // Build headers with auth and CSRF token
     debug(`Request ${method} ${path} - CSRF token in state: ${state.csrfToken?.substring(0, 20) || 'null'}...`);
@@ -78,9 +124,9 @@ export async function executeRequest(
         // Handle CSRF token validation failure with automatic refresh
         if (response.status === 403) {
             const text = await response.text();
-            if (text.includes('CSRF token validation failed')) {
+            if (text.includes('CSRF token validation failed') && !isRecoveryRequest) {
                 // Fetch new CSRF token
-                const [newToken, tokenErr] = await sessionOps.fetchCsrfToken(state, selfRequest);
+                const [newToken, tokenErr] = await refreshCsrfToken(state, sentCsrfToken, selfRequest);
                 if (tokenErr) {
                     return err(new Error(`CSRF token refresh failed: ${tokenErr.message}`));
                 }
@@ -123,8 +169,8 @@ export async function executeRequest(
             // reset's logoff would destroy browser-established cookies that
             // cannot be re-acquired headlessly.
             const isSessionError = /session/i.test(text) && /(timed out|expired|no longer exists|not found)/i.test(text);
-            if (isSessionError && config.auth.type !== 'saml') {
-                const [, resetErr] = await sessionOps.sessionReset(state, selfRequest);
+            if (isSessionError && config.auth.type !== 'saml' && !isRecoveryRequest) {
+                const [, resetErr] = await resetSession(state, sentSession, selfRequest);
                 if (resetErr) {
                     debugError(`Session reset after 500 failed: ${resetErr.message}`);
                 }

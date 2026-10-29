@@ -10,6 +10,7 @@ import type { ActivationMessage } from './activation';
 import { readObject } from './read';
 import { extractError, safeParseXml } from '../../utils/xml';
 import { debug } from '../../utils/logging';
+import { mapLimited } from '../../utils/concurrency';
 
 // Result of syntax check operation
 export interface CheckResult {
@@ -54,12 +55,13 @@ export async function checkSyntax(
     }
 
     // Read source code for each object.
-    const sources: Map<string, string> = new Map();
-    for (const obj of objects) {
-        const [result, readErr] = await readObject(client, obj);
-        if (readErr) return err(new Error(`Failed to read ${obj.name}: ${readErr.message}`));
-        sources.set(obj.name.toLowerCase(), result.content);
-    }
+    const [read, readErr] = await mapLimited(objects, async (obj): AsyncResult<[string, string], Error> => {
+        const [result, objErr] = await readObject(client, obj);
+        if (objErr) return err(new Error(`Failed to read ${obj.name}: ${objErr.message}`));
+        return ok([obj.name.toLowerCase(), result.content]);
+    });
+    if (readErr) return err(readErr);
+    const sources: Map<string, string> = new Map(read);
 
     // Build check objects with inline source code.
     const checkObjects: string[] = [];

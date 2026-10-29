@@ -7,7 +7,8 @@ import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import type { ServiceBindingVersion } from './types';
 import { debug } from '../../utils/logging';
-import { lockServiceBinding, unlockServiceBinding, submitServiceBindingJob, readServiceBindingPublished } from './helpers';
+import { lockServiceBinding, unlockServiceBinding, submitServiceBindingJob } from './helpers';
+import { readServiceBinding } from './read';
 
 type BindingJobAction = 'publish' | 'unpublish';
 
@@ -89,9 +90,9 @@ async function recoverFailedUnlock(
     debug(`Service binding unlock retry failed: ${retryErr.message}`);
 
     // The job reported success; accept it only when the binding shows the state the job was meant to reach.
-    const [isPublished, readErr] = await readServiceBindingPublished(client, bindingName);
-    if (readErr) return err(unlockErr);
-    if (isPublished !== (action === 'publish')) return err(unlockErr);
+    const [binding, readErr] = await readServiceBinding(client, bindingName);
+    if (readErr || !binding) return err(unlockErr);
+    if (binding.published !== (action === 'publish')) return err(unlockErr);
 
     debug(`Service binding ${bindingName} ${action} confirmed by its publish state despite the unlock failure`);
     return ok(undefined);

@@ -5,23 +5,63 @@
  * adt/ barrel.
  */
 
-import type { AsyncResult } from '../../../types/result';
+import type { AsyncResult, Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import type { ServiceBindingVersion } from './types';
-import { extractLockHandle, extractTagText, safeParseXml } from '../../utils/xml';
+import type { ServiceBindingCategory, ServiceBindingVersion } from './types';
+import { extractLockHandle, extractTagText } from '../../utils/xml';
 import { checkResponse } from '../helpers';
 
 export const BINDINGS_BASE_PATH = '/sap/bc/adt/businessservices/bindings';
 
 const LOCK_ACCEPT_HEADER =
     'application/*,application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result';
-const BINDING_ACCEPT_HEADER = 'application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/*';
-const PUBLISHED_ATTRIBUTE = 'srvb:published';
+export const BINDING_ACCEPT_HEADER = 'application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/*';
 const JOBS_BASE_PATH = '/sap/bc/adt/businessservices';
 // V2 (un)publish jobs name the service and its version as query parameters; bindings start at version 0001.
 const V2_SERVICE_VERSION = '0001';
-const SEVERITY_OK = 'OK';
+// A public cloud publish job runs well past the default request timeout.
+const PUBLISH_JOB_TIMEOUT_MS = 300_000;
+
+// srvb:category codes
+const CATEGORY_CODES: Record<ServiceBindingCategory, string> = { UI: '0', WEB_API: '1' };
+
+// Severities that let the operation proceed; INFO is advice (e.g. "V4 without draft is primarily read-only").
+const PASSING_SEVERITIES = new Set(['OK', 'INFO']);
+const WARNING_SEVERITY = 'WARNING';
+
+/** srvb:category code for a binding category. */
+export function bindingCategoryCode(category: ServiceBindingCategory): string {
+    return CATEGORY_CODES[category];
+}
+
+/** Binding category for a srvb:category code, or null when the code is unknown. */
+export function bindingCategoryFromCode(code: string): ServiceBindingCategory | null {
+    const match = (Object.keys(CATEGORY_CODES) as ServiceBindingCategory[]).find(category => CATEGORY_CODES[category] === code);
+    return match ?? null;
+}
+
+/**
+ * Judge the SEVERITY / SHORT_TEXT of a validation or job response.
+ *
+ * OK and INFO pass; WARNING passes only when allowed; anything else (ERROR) fails.
+ * A passing non-OK severity comes back as a note.
+ *
+ * @param text - Response body
+ * @param operation - Operation name for the error message
+ * @param allowWarnings - Whether a WARNING passes
+ * @returns Notes (empty for OK) or error
+ */
+export function judgeSeverity(text: string, operation: string, allowWarnings = false): Result<string[], Error> {
+    const severity = extractTagText(text, 'SEVERITY');
+    if (!severity || severity === 'OK') return ok([]);
+
+    const shortText = extractTagText(text, 'SHORT_TEXT') ?? '';
+    const passes = PASSING_SEVERITIES.has(severity) || (allowWarnings && severity === WARNING_SEVERITY);
+    if (!passes) return err(new Error(`${operation} failed (${severity}): ${shortText}`));
+
+    return ok(shortText ? [`${severity}: ${shortText}`] : []);
+}
 
 /** ADT resource path for a service binding. */
 export function bindingPath(bindingName: string): string {
@@ -95,40 +135,6 @@ export async function unlockServiceBinding(
 }
 
 /**
- * Read whether a service binding's service is currently published.
- *
- * @param client - ADT client
- * @param bindingName - Service binding name
- * @returns The binding's srvb:published flag or error
- */
-export async function readServiceBindingPublished(
-    client: AdtRequestor,
-    bindingName: string
-): AsyncResult<boolean, Error> {
-    const [response, requestErr] = await client.request({
-        method: 'GET',
-        path: bindingPath(bindingName),
-        headers: { 'Accept': BINDING_ACCEPT_HEADER },
-    });
-
-    const [text, checkErr] = await checkResponse(
-        response,
-        requestErr,
-        `Failed to read service binding ${bindingName}`
-    );
-    if (checkErr) return err(checkErr);
-
-    const [doc, parseErr] = safeParseXml(text);
-    if (parseErr) return err(parseErr);
-
-    const published = doc.documentElement?.getAttribute(PUBLISHED_ATTRIBUTE);
-    if (published !== 'true' && published !== 'false') {
-        return err(new Error(`Service binding ${bindingName} response carries no publish state`));
-    }
-    return ok(published === 'true');
-}
-
-/**
  * Submit a publish or unpublish job for an (already-locked) service binding.
  *
  * @param client - ADT client
@@ -159,6 +165,7 @@ export async function submitServiceBindingJob(
         params,
         headers: { 'Content-Type': 'application/xml' },
         body,
+        timeout: PUBLISH_JOB_TIMEOUT_MS,
     });
 
     const [text, checkErr] = await checkResponse(
@@ -168,11 +175,8 @@ export async function submitServiceBindingJob(
     );
     if (checkErr) return err(checkErr);
 
-    const severity = extractTagText(text, 'SEVERITY');
-    if (severity && severity !== SEVERITY_OK) {
-        const shortText = extractTagText(text, 'SHORT_TEXT') ?? '';
-        return err(new Error(`Service binding ${action} failed (${severity}): ${shortText}`));
-    }
+    const [, severityErr] = judgeSeverity(text, `Service binding ${action}`);
+    if (severityErr) return err(severityErr);
 
     return ok(extractTagText(text, 'SHORT_TEXT') ?? '');
 }
