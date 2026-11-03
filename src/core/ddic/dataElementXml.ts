@@ -16,14 +16,20 @@ const DTEL_NS = 'http://www.sap.com/adt/dictionary/dataelements';
 const TYPE_KIND_DOMAIN = 'domain';
 const TYPE_KIND_PREDEFINED = 'predefinedAbapType';
 const NUMBER_WIDTH = 6;
-// 0 makes SAP set the field length to the label maximum on activation.
-const DERIVED_FIELD_LENGTH = '0';
 
 const LABEL_FIELDS: Record<keyof DataElementLabels, string> = {
     short: 'shortField',
     medium: 'mediumField',
     long: 'longField',
     heading: 'headingField',
+};
+
+// Fallback when the document has no <prefix>MaxLength.
+const LABEL_MAX_LENGTHS: Record<keyof DataElementLabels, number> = {
+    short: 10,
+    medium: 20,
+    long: 40,
+    heading: 55,
 };
 
 /**
@@ -147,11 +153,13 @@ export function mergeDataElementXml(xml: string, def: DataElementDef): Result<st
             ['dataTypeDecimals', padNumber(def.dataType?.decimals ?? 0, NUMBER_WIDTH)],
         ];
 
-    // Labels; a changed label resets its field length so SAP re-derives it.
+    // Labels; SAP does not re-derive the field length, so widen it to the max when the label no longer fits.
     for (const [key, prefix] of Object.entries(LABEL_FIELDS) as [keyof DataElementLabels, string][]) {
-        const current = childText(doc, DTEL_NS, `${prefix}Label`);
-        fields.push([`${prefix}Label`, def.labels[key]]);
-        if (current !== def.labels[key]) fields.push([`${prefix}Length`, DERIVED_FIELD_LENGTH]);
+        const label = def.labels[key];
+        fields.push([`${prefix}Label`, label]);
+        if (childNumber(doc, DTEL_NS, `${prefix}Length`) >= label.length) continue;
+        const maxLength = childNumber(doc, DTEL_NS, `${prefix}MaxLength`) || LABEL_MAX_LENGTHS[key];
+        fields.push([`${prefix}Length`, String(maxLength)]);
     }
 
     for (const [localName, value] of fields) {

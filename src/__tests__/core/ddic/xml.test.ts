@@ -102,7 +102,9 @@ describe('build round-trip', () => {
             const [def] = parseDataElement(fs.readFileSync(path.join(FIXTURES, file), 'utf8'));
             const [xml, error] = buildDataElementXml(def!, META);
             expect(error).toBeNull();
-            expect(xml).toContain('<dtel:shortFieldLength>0</dtel:shortFieldLength>');
+            // SAP does not derive label lengths, so create sends the maximums.
+            expect(xml).toContain('<dtel:shortFieldLength>10</dtel:shortFieldLength>');
+            expect(xml).toContain('<dtel:headingFieldLength>55</dtel:headingFieldLength>');
             const [back] = parseDataElementXml(xml!);
             expect(back).toEqual({
                 ...def!,
@@ -122,9 +124,24 @@ describe('merge', () => {
         expect(error).toBeNull();
         expect(xml).toContain('<dtel:setGetParameter>BUK</dtel:setGetParameter>');
         expect(xml).toContain('<dtel:shortFieldLabel>Changed</dtel:shortFieldLabel>');
-        // Changed label re-derives its length; unchanged labels keep theirs.
-        expect(xml).toContain('<dtel:shortFieldLength>0</dtel:shortFieldLength>');
+        // A changed label that still fits keeps its length.
+        expect(xml).toContain('<dtel:shortFieldLength>10</dtel:shortFieldLength>');
         expect(xml).toContain('<dtel:mediumFieldLength>20</dtel:mediumFieldLength>');
+    });
+
+    it('widens a label length that no longer fits to its maximum', () => {
+        const serverXml = fixture('dataelement-domain.xml').replace('<dtel:mediumFieldLength>20<', '<dtel:mediumFieldLength>12<');
+        const [current] = parseDataElementXml(serverXml);
+        const updated: DataElementDef = { ...current!, labels: { ...current!.labels, medium: 'Longer medium' } };
+        const [xml] = mergeDataElementXml(serverXml, updated);
+        expect(xml).toContain('<dtel:mediumFieldLength>20</dtel:mediumFieldLength>');
+    });
+
+    it('repairs a zero label length left by an earlier write', () => {
+        const serverXml = fixture('dataelement-domain.xml').replace('<dtel:longFieldLength>40<', '<dtel:longFieldLength>0<');
+        const [current] = parseDataElementXml(serverXml);
+        const [xml] = mergeDataElementXml(serverXml, current!);
+        expect(xml).toContain('<dtel:longFieldLength>40</dtel:longFieldLength>');
     });
 
     it('switches a data element from domain to predefined type', () => {
