@@ -13,6 +13,7 @@ import { getFormHandler } from '../../forms';
 import { stripBom } from '../../utils/bom';
 import type { ObjectContent } from '../../../types/requests';
 import { readObject } from './read';
+import { contentEquivalent } from './contentEquivalent';
 import { getConfigByExtension } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,12 +169,16 @@ export async function gitDiff(
         localContent = canonical;
     }
 
+    // What upsert would leave unchanged has no diff (e.g. SAP's pretty-printing of CDS on save).
+    const [unchanged, compareErr] = contentEquivalent(object.extension, object.content, serverObj.content);
+    if (compareErr) return err(new Error(`${object.name}: ${compareErr.message}`));
+
     // Split content into lines for comparison; SAP sends CRLF, and a trailing newline is not a change.
     const serverLines = toLines(serverObj.content);
     const localLines = toLines(localContent);
 
     // Compute diff.
-    const diffs = computeDiff(serverLines, localLines);
+    const diffs = unchanged ? [] : computeDiff(serverLines, localLines);
 
     return ok({
         name: serverObj.name,

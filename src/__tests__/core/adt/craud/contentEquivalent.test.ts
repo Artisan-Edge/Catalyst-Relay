@@ -3,6 +3,7 @@
  *
  * - AFF JSON compares as values: key order, 1 vs 1.0, whitespace and a BOM are no change
  * - Non-JSON falls back to normalized text
+ * - CDS sources ignore whitespace next to separators; ABAP spacing stays significant
  * - header.description is read past a BOM, and the create POST carries it
  */
 
@@ -34,6 +35,22 @@ describe('contentEquivalent (.asnrob)', () => {
 describe('contentEquivalent (other types)', () => {
     it('compares ABAP source as normalized text, BOM ignored', () => {
         expect(contentEquivalent('asprog', '﻿REPORT z.\n', 'REPORT z.\r\n')).toEqual([true, null]);
+    });
+
+    it('ignores SAP pretty-printing of CDS sources', () => {
+        const local = "@EndUserText.label: 'Map'\ndefine table zmap {\n\tkey mandt: mandt not null;\n}";
+        const sap = "@EndUserText.label : 'Map'\r\ndefine table zmap {\r\n\r\n  key mandt : mandt not null;\r\n\r\n}";
+        for (const extension of ['astabldt', 'astablds', 'asddls', 'asdcls', 'asbdef', 'srvd']) {
+            expect(contentEquivalent(extension, local, sap)).toEqual([true, null]);
+        }
+        expect(contentEquivalent('astabldt', local, sap.replace("'Map'", "'Map '"))).toEqual([false, null]);
+    });
+
+    it('keeps spacing significant in ABAP sources', () => {
+        for (const extension of ['asprog', 'asinc', 'aclass', 'asfunc', 'asfugr', 'asfinc']) {
+            expect(contentEquivalent(extension, 'x = a-b.', 'x = a - b.')).toEqual([false, null]);
+            expect(contentEquivalent(extension, 'foo( x ).', 'foo(x).')).toEqual([false, null]);
+        }
     });
 
     it('compares form objects semantically', () => {

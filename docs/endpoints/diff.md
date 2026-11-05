@@ -13,43 +13,45 @@ Compare local content with server content using Myers diff algorithm.
 
 Compare local object content with server content. Uses the Myers diff algorithm to compute line-by-line differences.
 
+`diffs` is empty when upsert would report the object `unchanged` (same comparison as `contentEquivalent`), so layout-only differences such as SAP's pretty-printing of CDS sources produce no hunks. Any real change returns the full line diff, layout lines included.
+
 ### Request
 
-| Method | Path | Auth Required |
-|--------|------|---------------|
-| POST | `/git-diff` | Yes |
+| Method | Path        | Auth Required |
+| ------ | ----------- | ------------- |
+| POST   | `/git-diff` | Yes           |
 
 ### Request Body
 
 Array of objects with content:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Object name (e.g., `ZTEST_VIEW`) |
-| `extension` | string | Yes | File extension (e.g., `asddls`) |
-| `content` | string | Yes | Local content to compare |
-| `description` | string | No | Optional description |
+| Field         | Type   | Required | Description                      |
+| ------------- | ------ | -------- | -------------------------------- |
+| `name`        | string | Yes      | Object name (e.g., `ZTEST_VIEW`) |
+| `extension`   | string | Yes      | File extension (e.g., `asddls`)  |
+| `content`     | string | Yes      | Local content to compare         |
+| `description` | string | No       | Optional description             |
 
 ### Response
 
 Array of diff results:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Object name |
-| `extension` | string | File extension |
-| `label` | string | Human-readable type label |
-| `diffs` | array | Array of diff hunks |
+| Field       | Type   | Description               |
+| ----------- | ------ | ------------------------- |
+| `name`      | string | Object name               |
+| `extension` | string | File extension            |
+| `label`     | string | Human-readable type label |
+| `diffs`     | array  | Array of diff hunks       |
 
 **Diff Hunk Fields:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | enum | `addition`, `deletion`, or `modification` |
-| `length` | number | Total lines in hunk |
-| `diffStart` | number | Starting line in diff output (0-indexed) |
-| `localStart` | number | Starting line in local file (0-indexed) |
-| `changes` | varies | Changed lines (see below) |
+| Field        | Type   | Description                               |
+| ------------ | ------ | ----------------------------------------- |
+| `type`       | enum   | `addition`, `deletion`, or `modification` |
+| `length`     | number | Total lines in hunk                       |
+| `diffStart`  | number | Starting line in diff output (0-indexed)  |
+| `localStart` | number | Starting line in local file (0-indexed)   |
+| `changes`    | varies | Changed lines (see below)                 |
 
 **Changes Field:**
 
@@ -59,6 +61,7 @@ Array of diff results:
 ### Example
 
 **Request:**
+
 ```bash
 curl -X POST http://localhost:3000/git-diff \
   -H "X-Session-ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
@@ -73,53 +76,52 @@ curl -X POST http://localhost:3000/git-diff \
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "data": [
+  "success": true,
+  "data": [
+    {
+      "name": "ZTEST_VIEW",
+      "extension": "asddls",
+      "label": "View",
+      "diffs": [
         {
-            "name": "ZTEST_VIEW",
-            "extension": "asddls",
-            "label": "View",
-            "diffs": [
-                {
-                    "type": "modification",
-                    "length": 2,
-                    "diffStart": 3,
-                    "localStart": 3,
-                    "changes": [
-                        ["  mtart"],
-                        ["  mtart,", "  matkl"]
-                    ]
-                }
-            ]
+          "type": "modification",
+          "length": 2,
+          "diffStart": 3,
+          "localStart": 3,
+          "changes": [["  mtart"], ["  mtart,", "  matkl"]]
         }
-    ]
+      ]
+    }
+  ]
 }
 ```
 
 **Response (No Changes):**
+
 ```json
 {
-    "success": true,
-    "data": [
-        {
-            "name": "ZTEST_VIEW",
-            "extension": "asddls",
-            "label": "View",
-            "diffs": []
-        }
-    ]
+  "success": true,
+  "data": [
+    {
+      "name": "ZTEST_VIEW",
+      "extension": "asddls",
+      "label": "View",
+      "diffs": []
+    }
+  ]
 }
 ```
 
 ### Errors
 
-| Code | Status | Cause |
-|------|--------|-------|
-| `VALIDATION_ERROR` | 400 | Invalid request format |
-| `SESSION_NOT_FOUND` | 401 | Invalid session |
-| `UNKNOWN_ERROR` | 500 | Object does not exist on server |
+| Code                | Status | Cause                           |
+| ------------------- | ------ | ------------------------------- |
+| `VALIDATION_ERROR`  | 400    | Invalid request format          |
+| `SESSION_NOT_FOUND` | 401    | Invalid session                 |
+| `UNKNOWN_ERROR`     | 500    | Object does not exist on server |
 
 ### Use Cases
 
@@ -141,42 +143,42 @@ client.gitDiff(objects: ObjectContent[]): AsyncResult<DiffResult[]>
 **Types:**
 
 ```typescript
-import type { ObjectContent, DiffResult, DiffHunk } from 'catalyst-relay';
+import type { ObjectContent, DiffResult, DiffHunk } from "catalyst-relay";
 
 // Input type
 interface ObjectContent {
-    name: string;           // Object name (e.g., 'ZTEST_VIEW')
-    extension: string;      // File extension (e.g., 'asddls')
-    content: string;        // Local content to compare
-    description?: string;   // Optional description
+  name: string; // Object name (e.g., 'ZTEST_VIEW')
+  extension: string; // File extension (e.g., 'asddls')
+  content: string; // Local content to compare
+  description?: string; // Optional description
 }
 
 // Return types
 interface DiffResult {
-    name: string;
-    extension: string;
-    label: string;          // Human-readable type label
-    diffs: DiffHunk[];
+  name: string;
+  extension: string;
+  label: string; // Human-readable type label
+  diffs: DiffHunk[];
 }
 
 // DiffHunk types:
 // - SimpleDiffHunk (addition/deletion)
 type SimpleDiffHunk = {
-    type: 'addition' | 'deletion';
-    length: number;
-    diffStart: number;      // Starting line in diff output (0-indexed)
-    localStart: number;     // Starting line in local file (0-indexed)
-    changes: string[];      // Array of added/removed lines
-}
+  type: "addition" | "deletion";
+  length: number;
+  diffStart: number; // Starting line in diff output (0-indexed)
+  localStart: number; // Starting line in local file (0-indexed)
+  changes: string[]; // Array of added/removed lines
+};
 
 // - ModifiedDiffHunk
 type ModifiedDiffHunk = {
-    type: 'modification';
-    length: number;
-    diffStart: number;
-    localStart: number;
-    changes: [string[], string[]];  // [serverLines, localLines]
-}
+  type: "modification";
+  length: number;
+  diffStart: number;
+  localStart: number;
+  changes: [string[], string[]]; // [serverLines, localLines]
+};
 
 type DiffHunk = SimpleDiffHunk | ModifiedDiffHunk;
 ```
@@ -184,46 +186,46 @@ type DiffHunk = SimpleDiffHunk | ModifiedDiffHunk;
 **Example Usage:**
 
 ```typescript
-import { createClient, type ObjectContent } from 'catalyst-relay';
+import { createClient, type ObjectContent } from "catalyst-relay";
 
 const [client, createErr] = createClient({
-    url: 'https://sap-server.example.com:443',
-    client: '100',
-    auth: { type: 'basic', username: 'DEVELOPER', password: 'password123' }
+  url: "https://sap-server.example.com:443",
+  client: "100",
+  auth: { type: "basic", username: "DEVELOPER", password: "password123" },
 });
 if (createErr) throw createErr;
 await client.login();
 
 const objects: ObjectContent[] = [
-    {
-        name: 'ZTEST_VIEW',
-        extension: 'asddls',
-        content: `@AbapCatalog.viewEnhancementCategory: [#NONE]
+  {
+    name: "ZTEST_VIEW",
+    extension: "asddls",
+    content: `@AbapCatalog.viewEnhancementCategory: [#NONE]
 define view ZTEST_VIEW as select from mara {
   key matnr,
   mtart,
   matkl
-}`
-    }
+}`,
+  },
 ];
 
 const [diffs, err] = await client.gitDiff(objects);
 
 if (err) {
-    console.error('Diff failed:', err.message);
-    return;
+  console.error("Diff failed:", err.message);
+  return;
 }
 
 // Process diff results
 for (const diff of diffs) {
-    if (diff.diffs.length === 0) {
-        console.log(`${diff.name}: No changes`);
-    } else {
-        console.log(`${diff.name}: ${diff.diffs.length} change(s)`);
-        for (const hunk of diff.diffs) {
-            console.log(`  ${hunk.type} at line ${hunk.localStart}`);
-        }
+  if (diff.diffs.length === 0) {
+    console.log(`${diff.name}: No changes`);
+  } else {
+    console.log(`${diff.name}: ${diff.diffs.length} change(s)`);
+    for (const hunk of diff.diffs) {
+      console.log(`  ${hunk.type} at line ${hunk.localStart}`);
     }
+  }
 }
 ```
 
@@ -234,20 +236,20 @@ const [diffs, err] = await client.gitDiff(objects);
 if (err) throw err;
 
 for (const diff of diffs) {
-    for (const hunk of diff.diffs) {
-        if (hunk.type === 'addition') {
-            console.log(`Added ${hunk.length} lines at ${hunk.localStart}:`);
-            console.log(hunk.changes.join('\n'));
-        } else if (hunk.type === 'deletion') {
-            console.log(`Deleted ${hunk.length} lines at ${hunk.localStart}:`);
-            console.log(hunk.changes.join('\n'));
-        } else if (hunk.type === 'modification') {
-            const [serverLines, localLines] = hunk.changes;
-            console.log(`Modified ${hunk.length} lines at ${hunk.localStart}:`);
-            console.log('Server version:', serverLines.join('\n'));
-            console.log('Local version:', localLines.join('\n'));
-        }
+  for (const hunk of diff.diffs) {
+    if (hunk.type === "addition") {
+      console.log(`Added ${hunk.length} lines at ${hunk.localStart}:`);
+      console.log(hunk.changes.join("\n"));
+    } else if (hunk.type === "deletion") {
+      console.log(`Deleted ${hunk.length} lines at ${hunk.localStart}:`);
+      console.log(hunk.changes.join("\n"));
+    } else if (hunk.type === "modification") {
+      const [serverLines, localLines] = hunk.changes;
+      console.log(`Modified ${hunk.length} lines at ${hunk.localStart}:`);
+      console.log("Server version:", serverLines.join("\n"));
+      console.log("Local version:", localLines.join("\n"));
     }
+  }
 }
 ```
 
@@ -257,15 +259,15 @@ for (const diff of diffs) {
 const [diffs, err] = await client.gitDiff(objects);
 
 if (err) {
-    // Object doesn't exist on server
-    if (err.message.includes('not found')) {
-        console.error('Object does not exist on server');
-        return;
-    }
-
-    // Other errors
-    console.error('Diff operation failed:', err.message);
+  // Object doesn't exist on server
+  if (err.message.includes("not found")) {
+    console.error("Object does not exist on server");
     return;
+  }
+
+  // Other errors
+  console.error("Diff operation failed:", err.message);
+  return;
 }
 
 // Process successful result
@@ -274,4 +276,4 @@ console.log(`Successfully compared ${diffs.length} object(s)`);
 
 ---
 
-*Last updated: v0.5.13*
+_Last updated: v0.5.13_

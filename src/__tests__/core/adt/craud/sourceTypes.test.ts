@@ -5,6 +5,7 @@
  * - A number range object is created as blue:blueSource with header.description from its JSON
  *   and read/written as application/json
  * - CRLF from SAP and a trailing newline are not diffs
+ * - gitDiff reports no hunks where upsert would report unchanged
  */
 
 import { describe, it, expect } from 'bun:test';
@@ -99,5 +100,27 @@ describe('gitDiff line endings', () => {
 
         expect(error).toBeNull();
         expect(result!.diffs).toEqual([]);
+    });
+});
+
+describe('gitDiff agrees with upsert', () => {
+    const SAP_TABLE = "@EndUserText.label : 'Map'\r\ndefine table zmap {\r\n\r\n  key mandt : mandt not null;\r\n  name      : abap.char( 30 );\r\n\r\n}";
+    const LOCAL_TABLE = "@EndUserText.label: 'Map'\ndefine table zmap {\n\tkey mandt: mandt not null;\n\tname: abap.char(30);\n}\n";
+
+    it('reports no diff for a CDS table SAP only re-laid out', async () => {
+        const { requestor } = recorder(() => new Response(SAP_TABLE, { status: 200 }));
+        const [result, error] = await gitDiff(requestor, { name: 'ZMAP', extension: 'astabldt', content: LOCAL_TABLE });
+
+        expect(error).toBeNull();
+        expect(result!.diffs).toEqual([]);
+    });
+
+    it('reports the full line diff for a real change', async () => {
+        const { requestor } = recorder(() => new Response(SAP_TABLE, { status: 200 }));
+        const [result, error] = await gitDiff(requestor, { name: 'ZMAP', extension: 'astabldt', content: LOCAL_TABLE.replace('char(30)', 'char(40)') });
+
+        expect(error).toBeNull();
+        expect(result!.diffs.length).toBeGreaterThan(0);
+        expect(result!.diffs.flatMap(hunk => hunk.changes.flat()).some(line => line.includes('char(40)'))).toBe(true);
     });
 });

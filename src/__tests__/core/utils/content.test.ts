@@ -4,10 +4,11 @@
  * Tests content normalization used to compare server vs local content:
  * - Whitespace normalization (spaces, tabs, newlines, carriage returns)
  * - Edge cases (empty strings, single characters)
+ * - CDS sources: whitespace next to separators ignored, literals verbatim
  */
 
 import { describe, it, expect } from 'bun:test';
-import { normalizeContent } from '../../../core/utils/content';
+import { normalizeContent, normalizeCdsContent } from '../../../core/utils/content';
 
 describe('normalizeContent', () => {
     describe('whitespace normalization', () => {
@@ -110,5 +111,47 @@ describe('normalizeContent', () => {
 
             expect(normalizeContent(serverContent)).not.toBe(normalizeContent(localContent));
         });
+    });
+});
+
+describe('normalizeCdsContent', () => {
+    const same = (a: string, b: string) => expect(normalizeCdsContent(a)).toBe(normalizeCdsContent(b));
+    const differs = (a: string, b: string) => expect(normalizeCdsContent(a)).not.toBe(normalizeCdsContent(b));
+
+    it('treats a table SAP pretty-printed on save as unchanged', () => {
+        const local = "@EndUserText.label: 'Valid CDS to Table mapping'\n@AbapCatalog.enhancement.category: #NOT_EXTENSIBLE\ndefine table zsnap_c2t_map {\n\tkey mandt: mandt not null;\n\tkey cds_name: ddlname not null;\n\ttab_name: abap.char(30);\n}\n";
+        const sap = "@EndUserText.label : 'Valid CDS to Table mapping'\r\n@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE\r\ndefine table zsnap_c2t_map {\r\n\r\n  key mandt      : mandt not null;\r\n  key cds_name   : ddlname not null;\r\n  tab_name       : abap.char( 30 );\r\n\r\n}";
+        same(`﻿${local}`, sap);
+    });
+
+    it('keeps string literals verbatim', () => {
+        differs("@EndUserText.label: 'a : b'", "@EndUserText.label: 'a: b'");
+        differs("label: 'a  b'", "label: 'a b'");
+        differs("label: '// x : y'", "label: '// x: y'");
+        same("label : 'it\\'s ; x'", "label: 'it\\'s ; x'");
+    });
+
+    it('detects a real token change', () => {
+        differs('key mandt : mandt not null;', 'key mandt : mandt;');
+        differs('key mandt : mandt not null;', 'key mandt : mandt notnull;');
+        differs('abap.char( 30 )', 'abap.char( 31 )');
+    });
+
+    it('keeps the space that separates two words', () => {
+        same('define  table\n z', 'define table z');
+        differs('define table z', 'definetable z');
+    });
+
+    it('does not join the halves of an operator', () => {
+        same('a<=b', 'a <= b');
+        differs('a < = b', 'a <= b');
+        differs('a ! = b', 'a != b');
+    });
+
+    it('does not let code move into a line comment', () => {
+        differs('// note\n}', '// note }');
+        differs('// note\n}', '// note}');
+        same('//  note  \n  }', '// note\r\n}');
+        same('/*  a\n b */ key', '/* a b */\nkey');
     });
 });

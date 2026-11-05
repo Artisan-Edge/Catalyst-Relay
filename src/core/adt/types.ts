@@ -93,6 +93,8 @@ export interface ObjectConfig {
     createContentType?: string;
     /** Format of /source/main when it isn't ABAP text (default: plain text) */
     sourceFormat?: SourceFormat;
+    /** Source is a CDS-family language (DDL, DCL, BDL, SDL): whitespace next to separators is insignificant */
+    cdsSource?: boolean;
     /** Title (and, for programs, authorization group) readable/writable via read/writeObjectAttributes */
     hasAttributes?: boolean;
 }
@@ -160,6 +162,7 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'DDLS/DF',
         label: ObjectTypeLabel.VIEW,
         extension: 'asddls',
+        cdsSource: true,
         dpEndpoint: 'cds',
         dpParam: 'ddlSourceName',
     },
@@ -170,6 +173,7 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'DCLS/DL',
         label: ObjectTypeLabel.ACCESS_CONTROL,
         extension: 'asdcls',
+        cdsSource: true,
     },
     'aclass': {
         endpoint: 'oo/classes',
@@ -187,6 +191,7 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'TABL/DT',
         label: ObjectTypeLabel.TABLE,
         extension: 'astabldt',
+        cdsSource: true,
         dpEndpoint: 'ddic',
         dpParam: 'ddicEntityName',
     },
@@ -197,6 +202,7 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'STRU/D',
         label: ObjectTypeLabel.STRUCTURE,
         extension: 'astablds',
+        cdsSource: true,
     },
     'asprog': {
         endpoint: 'programs/programs',
@@ -223,6 +229,7 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'SRVD/SRV',
         label: ObjectTypeLabel.SERVICE_DEFINITION,
         extension: 'srvd',
+        cdsSource: true,
         rootAttributes: { 'srvd:srvdSourceType': 'S' },
     },
     'asbdef': {
@@ -232,6 +239,7 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'BDEF/BDO',
         label: ObjectTypeLabel.BEHAVIOR_DEFINITION,
         extension: 'asbdef',
+        cdsSource: true,
         requiresImplementationType: true,
     },
     'asdtel': {

@@ -7,11 +7,12 @@ import { ok, err } from '../../../types/result';
 import { getConfigByExtension } from '../types';
 import { getFormHandler } from '../../forms';
 import { affJsonEquivalent } from '../aff';
-import { normalizeContent } from '../../utils/content';
+import { normalizeContent, normalizeCdsContent } from '../../utils/content';
 
 /**
  * Compare local source with the server's for an object type: form objects semantically,
- * AFF JSON as parsed values, other sources as whitespace-normalized text (BOM ignored)
+ * AFF JSON as parsed values, CDS sources ignoring whitespace next to separators, other sources
+ * (ABAP, where spacing is significant) as whitespace-normalized text; a BOM is ignored
  *
  * @param extension - Object extension
  * @param local - Local source
@@ -25,5 +26,6 @@ export function contentEquivalent(extension: string, local: string, remote: stri
     if (config.sourceFormat === 'aff-json') return ok(affJsonEquivalent(local, remote));
     const handler = config.kind === 'form' ? getFormHandler(extension) : null;
     if (handler) return handler.equivalent(local, remote);
+    if (config.cdsSource) return ok(normalizeCdsContent(local) === normalizeCdsContent(remote));
     return ok(normalizeContent(local) === normalizeContent(remote));
 }
