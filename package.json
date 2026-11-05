@@ -23,8 +23,9 @@
   "scripts": {
     "dev": "bun run src/server.ts",
     "build": "tsup",
-    "test": "bun test",
-    "test:run": "bun test",
+    "test": "bun test src/__tests__/core src/__tests__/client src/__tests__/index.test.ts",
+    "test:unit": "bun test src/__tests__/core src/__tests__/client src/__tests__/index.test.ts",
+    "test:integration": "bun test --path-ignore-patterns=node_modules/** src/__tests__/integration",
     "test:node": "node -e \"import('./dist/index.js')\"",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",

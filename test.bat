@@ -9,7 +9,7 @@ echo.
 REM Run unit tests first (no credentials needed)
 echo [1/2] Running unit tests...
 echo --------------------------------------------
-bun test src/__tests__/index.test.ts
+bun run test:unit
 if %errorlevel% neq 0 (
     echo.
     echo Unit tests FAILED
@@ -28,7 +28,7 @@ echo Credentials: SAP_PASSWORD env var, or OS keyring via SAP_TEST_SYSTEM_ALIAS
 echo.
 
 REM Run all integration tests (bun auto-loads .env)
-bun test src/__tests__/integration/ > test.output 2>&1
+bun run test:integration > test.output 2>&1
 set TEST_EXIT_CODE=%errorlevel%
 
 REM Display the output

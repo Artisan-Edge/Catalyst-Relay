@@ -11,6 +11,7 @@ import { getConfigByExtension } from '../types';
 import { extractError } from '../../utils/xml';
 import { debug } from '../../utils/logging';
 import { parseDataPreview } from './previewParser';
+import { wrapSqlLines } from './wrapSqlLines';
 
 /**
  * Execute SQL query against table/view data
@@ -46,7 +47,7 @@ export async function previewData(
             'Accept': 'application/vnd.sap.adt.datapreview.table.v1+xml',
             'Content-Type': 'text/plain',
         },
-        body: query.sqlQuery,
+        body: wrapSqlLines(query.sqlQuery),
     });
 
     // Handle errors.

@@ -5,14 +5,14 @@
  * a domain using it, and data elements typed both ways; then activate → read back
  * → re-upsert (unchanged) → update → check → diff → delete.
  *
- * Run with: bun test src/__tests__/integration/ddic-workflow.test.ts
+ * Run with: bun test --path-ignore-patterns=node_modules/** src/__tests__/integration/ddic-workflow.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { TEST_CONFIG, createTestClient, shouldSkip, safeLogout } from './test-helpers';
 import type { ADTClient } from '../../core';
 import type { ObjectContent, ObjectRef } from '../../types/requests';
-import { getFormHandler } from '../../core/ddic';
+import { getFormHandler } from '../../core/forms';
 
 type RawRequest = (options: object) => Promise<[Response | null, Error | null]>;
 

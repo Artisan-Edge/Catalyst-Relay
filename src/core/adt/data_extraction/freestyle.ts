@@ -12,6 +12,7 @@ import type { DataFrame } from './previewParser';
 import { extractError } from '../../utils/xml';
 import { debug } from '../../utils/logging';
 import { parseDataPreview } from './previewParser';
+import { wrapSqlLines } from './wrapSqlLines';
 
 const DEFAULT_ROW_LIMIT = 100;
 
@@ -45,7 +46,7 @@ export async function freestyleQuery(
             // GENERATE_SUBPOOL_DIR_FULL (36-pool limit per work process).
             'X-sap-adt-sessiontype': 'stateless',
         },
-        body: sqlQuery,
+        body: wrapSqlLines(sqlQuery),
         ...(timeout !== undefined && { timeout }),
     });
 

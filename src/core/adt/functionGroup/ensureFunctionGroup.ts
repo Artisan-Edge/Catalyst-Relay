@@ -1,13 +1,14 @@
 /**
- * Function Group — make sure the container of a function module exists
+ * Ensure Function Group — make sure the container of a function module or include exists
  */
 
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import { FUNCTION_GROUP_CONFIG } from '../types';
 import { escapeXml } from '../../utils/xml';
 import { checkResponse } from '../helpers';
+
+import { FUNCTION_GROUP } from './names';
 
 const NOT_FOUND = 404;
 
@@ -19,10 +20,11 @@ const NOT_FOUND = 404;
  * @param packageName - Package for a new group
  * @param transport - Transport request (required for non-$TMP packages)
  * @param username - Responsible user for a new group
+ * @param description - Short text of a new group (default "Function group <NAME>")
  * @returns true when the group was created, false when it already existed
  */
-export async function ensureFunctionGroup(client: AdtRequestor, name: string, packageName: string, transport: string | undefined, username: string): AsyncResult<boolean, Error> {
-    const config = FUNCTION_GROUP_CONFIG;
+export async function ensureFunctionGroup(client: AdtRequestor, name: string, packageName: string, transport: string | undefined, username: string, description?: string): AsyncResult<boolean, Error> {
+    const config = FUNCTION_GROUP;
     const uri = `/sap/bc/adt/${config.endpoint}/${name.toLowerCase()}`;
 
     // Existing group: nothing to do.
@@ -38,7 +40,7 @@ export async function ensureFunctionGroup(client: AdtRequestor, name: string, pa
     const body = `<?xml version="1.0" encoding="UTF-8"?>
 <${config.rootName} ${config.nameSpace}
     xmlns:adtcore="http://www.sap.com/adt/core"
-    adtcore:description="${escapeXml(`Function group ${name.toUpperCase()}`)}"
+    adtcore:description="${escapeXml(description || `Function group ${name.toUpperCase()}`)}"
     adtcore:language="EN"
     adtcore:name="${escapeXml(name.toUpperCase())}"
     adtcore:type="${config.type}"

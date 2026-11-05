@@ -21,66 +21,68 @@ Execute SQL queries against table or CDS view data.
 
 ### Request
 
-| Method | Path | Auth Required |
-|--------|------|---------------|
-| POST | `/preview/data` | Yes |
+| Method | Path            | Auth Required |
+| ------ | --------------- | ------------- |
+| POST   | `/preview/data` | Yes           |
 
 ### Request Body
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `objectName` | string | Yes | Table or CDS view name |
-| `objectType` | enum | Yes | `table` or `view` |
-| `sqlQuery` | string | Yes | SQL query to execute |
-| `limit` | number | No | Max rows (default: 100, max: 50000) |
+| Field        | Type   | Required | Description                         |
+| ------------ | ------ | -------- | ----------------------------------- |
+| `objectName` | string | Yes      | Table or CDS view name              |
+| `objectType` | enum   | Yes      | `table` or `view`                   |
+| `sqlQuery`   | string | Yes      | SQL query to execute                |
+| `limit`      | number | No       | Max rows (default: 100, max: 50000) |
 
 ### Response
 
 DataFrame structure:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `columns` | array | Column metadata |
-| `rows` | array[] | Row data (array of arrays) |
+| Field       | Type    | Description                        |
+| ----------- | ------- | ---------------------------------- |
+| `columns`   | array   | Column metadata                    |
+| `rows`      | array[] | Row data (array of arrays)         |
 | `totalRows` | number? | Total matching rows (if available) |
 
 **Column Info:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Column name |
-| `dataType` | string | SAP data type |
-| `label` | string? | Column label/description |
+| Field      | Type    | Description              |
+| ---------- | ------- | ------------------------ |
+| `name`     | string  | Column name              |
+| `dataType` | string  | SAP data type            |
+| `label`    | string? | Column label/description |
 
 ### Example
 
 **Request:**
+
 ```json
 {
-    "objectName": "MARA",
-    "objectType": "table",
-    "sqlQuery": "SELECT MATNR, MTART, MAKTX FROM MARA WHERE MTART = 'FERT' AND MATNR LIKE 'A%' ORDER BY MATNR ASC",
-    "limit": 50
+  "objectName": "MARA",
+  "objectType": "table",
+  "sqlQuery": "SELECT MATNR, MTART, MAKTX FROM MARA WHERE MTART = 'FERT' AND MATNR LIKE 'A%' ORDER BY MATNR ASC",
+  "limit": 50
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "data": {
-        "columns": [
-            { "name": "MATNR", "dataType": "CHAR", "label": "Material Number" },
-            { "name": "MTART", "dataType": "CHAR", "label": "Material Type" },
-            { "name": "MAKTX", "dataType": "CHAR", "label": "Material Description" }
-        ],
-        "rows": [
-            ["A001", "FERT", "Finished Product A"],
-            ["A002", "FERT", "Finished Product B"],
-            ["A003", "FERT", "Finished Product C"]
-        ],
-        "totalRows": 150
-    }
+  "success": true,
+  "data": {
+    "columns": [
+      { "name": "MATNR", "dataType": "CHAR", "label": "Material Number" },
+      { "name": "MTART", "dataType": "CHAR", "label": "Material Type" },
+      { "name": "MAKTX", "dataType": "CHAR", "label": "Material Description" }
+    ],
+    "rows": [
+      ["A001", "FERT", "Finished Product A"],
+      ["A002", "FERT", "Finished Product B"],
+      ["A003", "FERT", "Finished Product C"]
+    ],
+    "totalRows": 150
+  }
 }
 ```
 
@@ -114,12 +116,12 @@ SELECT * FROM MARA WHERE (MTART = 'FERT' OR MTART = 'HALB') AND MATNR LIKE 'A%'
 
 ### Errors
 
-| Code | Status | Cause |
-|------|--------|-------|
-| `VALIDATION_ERROR` | 400 | Invalid query parameters or missing sqlQuery |
-| `OBJECT_NOT_FOUND` | 404 | Table/view does not exist |
-| `SESSION_NOT_FOUND` | 401 | Invalid session |
-| `UNKNOWN_ERROR` | 500 | Query execution failed (check SQL syntax) |
+| Code                | Status | Cause                                        |
+| ------------------- | ------ | -------------------------------------------- |
+| `VALIDATION_ERROR`  | 400    | Invalid query parameters or missing sqlQuery |
+| `OBJECT_NOT_FOUND`  | 404    | Table/view does not exist                    |
+| `SESSION_NOT_FOUND` | 401    | Invalid session                              |
+| `UNKNOWN_ERROR`     | 500    | Query execution failed (check SQL syntax)    |
 
 ### Use Cases
 
@@ -134,74 +136,80 @@ SELECT * FROM MARA WHERE (MTART = 'FERT' OR MTART = 'HALB') AND MATNR LIKE 'A%'
 When using Catalyst-Relay as a TypeScript library, call `client.previewData()` to execute SQL queries:
 
 ```typescript
-import { createClient, type PreviewSQL, type AsyncResult, type DataFrame } from 'catalyst-relay';
+import {
+  createClient,
+  type PreviewSQL,
+  type AsyncResult,
+  type DataFrame,
+} from "catalyst-relay";
 
 // Create authenticated client
 const [client, createErr] = createClient({
-    url: 'https://sap-server.example.com:443',
-    client: '100',
-    auth: { type: 'basic', username: 'developer', password: 'password' }
+  url: "https://sap-server.example.com:443",
+  client: "100",
+  auth: { type: "basic", username: "developer", password: "password" },
 });
 if (createErr) throw createErr;
 
 const [_, loginErr] = await client.login();
 if (loginErr) {
-    console.error('Login failed:', loginErr.message);
-    process.exit(1);
+  console.error("Login failed:", loginErr.message);
+  process.exit(1);
 }
 
 // Execute data preview query
 const query: PreviewSQL = {
-    objectName: 'MARA',
-    objectType: 'table',
-    sqlQuery: "SELECT MATNR, MTART, MAKTX FROM MARA WHERE MTART = 'FERT' AND MATNR LIKE 'A%' ORDER BY MATNR ASC",
-    limit: 50  // optional, default 100, max 50000
+  objectName: "MARA",
+  objectType: "table",
+  sqlQuery:
+    "SELECT MATNR, MTART, MAKTX FROM MARA WHERE MTART = 'FERT' AND MATNR LIKE 'A%' ORDER BY MATNR ASC",
+  limit: 50, // optional, default 100, max 50000
 };
 
 const [dataFrame, err] = await client.previewData(query);
 if (err) {
-    console.error('Query failed:', err.message);
-    process.exit(1);
+  console.error("Query failed:", err.message);
+  process.exit(1);
 }
 
 // DataFrame structure
-console.log('Columns:', dataFrame.columns);
+console.log("Columns:", dataFrame.columns);
 // [
 //   { name: 'MATNR', dataType: 'CHAR', label: 'Material Number' },
 //   { name: 'MTART', dataType: 'CHAR', label: 'Material Type' },
 //   { name: 'MAKTX', dataType: 'CHAR', label: 'Material Description' }
 // ]
 
-console.log('Rows:', dataFrame.rows);
+console.log("Rows:", dataFrame.rows);
 // [
 //   ['A001', 'FERT', 'Finished Product A'],
 //   ['A002', 'FERT', 'Finished Product B'],
 //   ['A003', 'FERT', 'Finished Product C']
 // ]
 
-console.log('Total rows:', dataFrame.totalRows);  // 150 (if available)
+console.log("Total rows:", dataFrame.totalRows); // 150 (if available)
 ```
 
 **Type Definitions:**
 
 ```typescript
 interface PreviewSQL {
-    objectName: string;
-    objectType: 'table' | 'view';
-    sqlQuery: string;
-    limit?: number;  // default: 100, max: 50000
+  objectName: string;
+  objectType: "table" | "view";
+  sqlQuery: string;
+  limit?: number; // default: 100, max: 50000
 }
 
 interface DataFrame {
-    columns: ColumnInfo[];
-    rows: any[][];
-    totalRows?: number;
+  columns: ColumnInfo[];
+  rows: any[][];
+  totalRows?: number;
 }
 
 interface ColumnInfo {
-    name: string;
-    dataType: string;
-    label?: string;
+  name: string;
+  dataType: string;
+  label?: string;
 }
 
 type AsyncResult<T> = Promise<[T, null] | [null, Error]>;
@@ -214,15 +222,15 @@ The method returns an `AsyncResult` tuple. Always check for errors:
 ```typescript
 const [dataFrame, err] = await client.previewData(query);
 if (err) {
-    // Handle specific error cases
-    if (err.message.includes('not found')) {
-        console.error('Table/view does not exist');
-    } else if (err.message.includes('SQL')) {
-        console.error('Invalid SQL syntax');
-    } else {
-        console.error('Query failed:', err.message);
-    }
-    return;
+  // Handle specific error cases
+  if (err.message.includes("not found")) {
+    console.error("Table/view does not exist");
+  } else if (err.message.includes("SQL")) {
+    console.error("Invalid SQL syntax");
+  } else {
+    console.error("Query failed:", err.message);
+  }
+  return;
 }
 
 // Safe to use dataFrame here
@@ -237,86 +245,87 @@ Get distinct values for a column with occurrence counts.
 
 ### Request
 
-| Method | Path | Auth Required |
-|--------|------|---------------|
-| POST | `/preview/distinct` | Yes |
+| Method | Path                | Auth Required |
+| ------ | ------------------- | ------------- |
+| POST   | `/preview/distinct` | Yes           |
 
 ### Request Body
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `objectName` | string | Yes | Table or view name |
-| `parameters` | array | No | CDS view parameters (default: `[]`) |
-| `column` | string | Yes | Column to analyze |
+| Field        | Type   | Required | Description                         |
+| ------------ | ------ | -------- | ----------------------------------- |
+| `objectName` | string | Yes      | Table or view name                  |
+| `parameters` | array  | No       | CDS view parameters (default: `[]`) |
+| `column`     | string | Yes      | Column to analyze                   |
 
 The HTTP route always treats the target as a CDS view. To distinguish table vs. view, use the library method (which accepts an `objectType` argument).
 
 **Parameter Object:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Parameter name |
-| `value` | string | Yes | Parameter value |
+| Field   | Type   | Required | Description     |
+| ------- | ------ | -------- | --------------- |
+| `name`  | string | Yes      | Parameter name  |
+| `value` | string | Yes      | Parameter value |
 
 ### Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `column` | string | Column name |
-| `values` | array | Distinct values with counts |
+| Field    | Type   | Description                 |
+| -------- | ------ | --------------------------- |
+| `column` | string | Column name                 |
+| `values` | array  | Distinct values with counts |
 
 Each value entry:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `value` | any | The distinct value |
+| Field   | Type   | Description           |
+| ------- | ------ | --------------------- |
+| `value` | any    | The distinct value    |
 | `count` | number | Number of occurrences |
 
 ### Example
 
 **Request (table):**
+
 ```json
 {
-    "objectName": "MARA",
-    "column": "MTART"
+  "objectName": "MARA",
+  "column": "MTART"
 }
 ```
 
 **Request (CDS view with parameters):**
+
 ```json
 {
-    "objectName": "I_JOURNALENTRY",
-    "parameters": [
-        { "name": "P_FISCALYEAR", "value": "2024" }
-    ],
-    "column": "CompanyCode"
+  "objectName": "I_JOURNALENTRY",
+  "parameters": [{ "name": "P_FISCALYEAR", "value": "2024" }],
+  "column": "CompanyCode"
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "data": {
-        "column": "MTART",
-        "values": [
-            { "value": "FERT", "count": 1523 },
-            { "value": "HALB", "count": 892 },
-            { "value": "ROH", "count": 445 },
-            { "value": "HAWA", "count": 234 }
-        ]
-    }
+  "success": true,
+  "data": {
+    "column": "MTART",
+    "values": [
+      { "value": "FERT", "count": 1523 },
+      { "value": "HALB", "count": 892 },
+      { "value": "ROH", "count": 445 },
+      { "value": "HAWA", "count": 234 }
+    ]
+  }
 }
 ```
 
 ### Errors
 
-| Code | Status | Cause |
-|------|--------|-------|
-| `VALIDATION_ERROR` | 400 | Missing objectName or column |
-| `OBJECT_NOT_FOUND` | 404 | Table/view does not exist |
-| `SESSION_NOT_FOUND` | 401 | Invalid session |
-| `UNKNOWN_ERROR` | 500 | Query execution failed |
+| Code                | Status | Cause                        |
+| ------------------- | ------ | ---------------------------- |
+| `VALIDATION_ERROR`  | 400    | Missing objectName or column |
+| `OBJECT_NOT_FOUND`  | 404    | Table/view does not exist    |
+| `SESSION_NOT_FOUND` | 401    | Invalid session              |
+| `UNKNOWN_ERROR`     | 500    | Query execution failed       |
 
 ### Use Cases
 
@@ -330,13 +339,18 @@ Each value entry:
 When using Catalyst-Relay as a TypeScript library, call `client.getDistinctValues()` to analyze column values:
 
 ```typescript
-import { createClient, type Parameter, type AsyncResult, type DistinctResult } from 'catalyst-relay';
+import {
+  createClient,
+  type Parameter,
+  type AsyncResult,
+  type DistinctResult,
+} from "catalyst-relay";
 
 // Create authenticated client
 const [client, createErr] = createClient({
-    url: 'https://sap-server.example.com:443',
-    client: '100',
-    auth: { type: 'basic', username: 'developer', password: 'password' }
+  url: "https://sap-server.example.com:443",
+  client: "100",
+  auth: { type: "basic", username: "developer", password: "password" },
 });
 if (createErr) throw createErr;
 
@@ -344,20 +358,20 @@ await client.login();
 
 // Example 1: Get distinct values from a table
 const [result, err] = await client.getDistinctValues(
-    'MARA',      // objectName
-    [],          // parameters (empty for tables)
-    'MTART',     // column
-    'table'      // objectType (optional, defaults to 'view')
+  "MARA", // objectName
+  [], // parameters (empty for tables)
+  "MTART", // column
+  "table", // objectType (optional, defaults to 'view')
 );
 
 if (err) {
-    console.error('Query failed:', err.message);
-    process.exit(1);
+  console.error("Query failed:", err.message);
+  process.exit(1);
 }
 
 console.log(`Distinct values for ${result.column}:`);
 result.values.forEach(({ value, count }) => {
-    console.log(`  ${value}: ${count} occurrences`);
+  console.log(`  ${value}: ${count} occurrences`);
 });
 // Output:
 //   FERT: 1523 occurrences
@@ -366,25 +380,23 @@ result.values.forEach(({ value, count }) => {
 //   HAWA: 234 occurrences
 
 // Example 2: Get distinct values from a CDS view with parameters
-const params: Parameter[] = [
-    { name: 'P_FISCALYEAR', value: '2024' }
-];
+const params: Parameter[] = [{ name: "P_FISCALYEAR", value: "2024" }];
 
 const [viewResult, viewErr] = await client.getDistinctValues(
-    'I_JOURNALENTRY',  // CDS view name
-    params,            // view parameters
-    'CompanyCode',     // column to analyze
-    'view'             // objectType
+  "I_JOURNALENTRY", // CDS view name
+  params, // view parameters
+  "CompanyCode", // column to analyze
+  "view", // objectType
 );
 
 if (viewErr) {
-    console.error('View query failed:', viewErr.message);
-    process.exit(1);
+  console.error("View query failed:", viewErr.message);
+  process.exit(1);
 }
 
 // Process distinct company codes
-const companyCodes = viewResult.values.map(v => v.value);
-console.log('Available company codes:', companyCodes);
+const companyCodes = viewResult.values.map((v) => v.value);
+console.log("Available company codes:", companyCodes);
 ```
 
 **Method Signature:**
@@ -402,16 +414,16 @@ async getDistinctValues(
 
 ```typescript
 interface Parameter {
-    name: string;   // Parameter name (e.g., 'P_FISCALYEAR')
-    value: string;  // Parameter value (e.g., '2024')
+  name: string; // Parameter name (e.g., 'P_FISCALYEAR')
+  value: string; // Parameter value (e.g., '2024')
 }
 
 interface DistinctResult {
-    column: string;
-    values: Array<{
-        value: any;     // The distinct value
-        count: number;  // Number of occurrences
-    }>;
+  column: string;
+  values: Array<{
+    value: any; // The distinct value
+    count: number; // Number of occurrences
+  }>;
 }
 
 type AsyncResult<T> = Promise<[T, null] | [null, Error]>;
@@ -421,30 +433,45 @@ type AsyncResult<T> = Promise<[T, null] | [null, Error]>;
 
 ```typescript
 // Pattern 1: Build filter dropdown options
-const [result, err] = await client.getDistinctValues('MARA', [], 'MTART', 'table');
+const [result, err] = await client.getDistinctValues(
+  "MARA",
+  [],
+  "MTART",
+  "table",
+);
 if (!err) {
-    const options = result.values.map(({ value, count }) => ({
-        label: `${value} (${count})`,
-        value: value
-    }));
-    // Use options in UI dropdown
+  const options = result.values.map(({ value, count }) => ({
+    label: `${value} (${count})`,
+    value: value,
+  }));
+  // Use options in UI dropdown
 }
 
 // Pattern 2: Find most common values
-const [result, err] = await client.getDistinctValues('SALES', [], 'REGION', 'table');
+const [result, err] = await client.getDistinctValues(
+  "SALES",
+  [],
+  "REGION",
+  "table",
+);
 if (!err) {
-    const sorted = result.values.sort((a, b) => b.count - a.count);
-    console.log('Top 5 regions:', sorted.slice(0, 5));
+  const sorted = result.values.sort((a, b) => b.count - a.count);
+  console.log("Top 5 regions:", sorted.slice(0, 5));
 }
 
 // Pattern 3: Validate expected values
-const [result, err] = await client.getDistinctValues('CONFIG', [], 'STATUS', 'table');
+const [result, err] = await client.getDistinctValues(
+  "CONFIG",
+  [],
+  "STATUS",
+  "table",
+);
 if (!err) {
-    const validStatuses = ['ACTIVE', 'INACTIVE', 'PENDING'];
-    const invalid = result.values.filter(v => !validStatuses.includes(v.value));
-    if (invalid.length > 0) {
-        console.warn('Unexpected status values:', invalid);
-    }
+  const validStatuses = ["ACTIVE", "INACTIVE", "PENDING"];
+  const invalid = result.values.filter((v) => !validStatuses.includes(v.value));
+  if (invalid.length > 0) {
+    console.warn("Unexpected status values:", invalid);
+  }
 }
 ```
 
@@ -456,49 +483,51 @@ Get total row count for a table or view.
 
 ### Request
 
-| Method | Path | Auth Required |
-|--------|------|---------------|
-| POST | `/preview/count` | Yes |
+| Method | Path             | Auth Required |
+| ------ | ---------------- | ------------- |
+| POST   | `/preview/count` | Yes           |
 
 ### Request Body
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `objectName` | string | Yes | Table or view name |
-| `objectType` | enum | Yes | `table` or `view` |
+| Field        | Type   | Required | Description        |
+| ------------ | ------ | -------- | ------------------ |
+| `objectName` | string | Yes      | Table or view name |
+| `objectType` | enum   | Yes      | `table` or `view`  |
 
 ### Response
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field  | Type   | Description     |
+| ------ | ------ | --------------- |
 | `data` | number | Total row count |
 
 ### Example
 
 **Request:**
+
 ```json
 {
-    "objectName": "MARA",
-    "objectType": "table"
+  "objectName": "MARA",
+  "objectType": "table"
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "data": 15234
+  "success": true,
+  "data": 15234
 }
 ```
 
 ### Errors
 
-| Code | Status | Cause |
-|------|--------|-------|
-| `VALIDATION_ERROR` | 400 | Missing or invalid parameters |
-| `OBJECT_NOT_FOUND` | 404 | Table/view does not exist |
-| `SESSION_NOT_FOUND` | 401 | Invalid session |
-| `UNKNOWN_ERROR` | 500 | Query execution failed |
+| Code                | Status | Cause                         |
+| ------------------- | ------ | ----------------------------- |
+| `VALIDATION_ERROR`  | 400    | Missing or invalid parameters |
+| `OBJECT_NOT_FOUND`  | 404    | Table/view does not exist     |
+| `SESSION_NOT_FOUND` | 401    | Invalid session               |
+| `UNKNOWN_ERROR`     | 500    | Query execution failed        |
 
 ### Use Cases
 
@@ -512,24 +541,24 @@ Get total row count for a table or view.
 When using Catalyst-Relay as a TypeScript library, call `client.countRows()` to get row counts:
 
 ```typescript
-import { createClient, type AsyncResult } from 'catalyst-relay';
+import { createClient, type AsyncResult } from "catalyst-relay";
 
 // Create authenticated client
 const [client, createErr] = createClient({
-    url: 'https://sap-server.example.com:443',
-    client: '100',
-    auth: { type: 'basic', username: 'developer', password: 'password' }
+  url: "https://sap-server.example.com:443",
+  client: "100",
+  auth: { type: "basic", username: "developer", password: "password" },
 });
 if (createErr) throw createErr;
 
 await client.login();
 
 // Get row count for a table
-const [count, err] = await client.countRows('MARA', 'table');
+const [count, err] = await client.countRows("MARA", "table");
 
 if (err) {
-    console.error('Count query failed:', err.message);
-    process.exit(1);
+  console.error("Count query failed:", err.message);
+  process.exit(1);
 }
 
 console.log(`Total rows in MARA: ${count}`);
@@ -556,84 +585,86 @@ type AsyncResult<T> = Promise<[T, null] | [null, Error]>;
 
 ```typescript
 // Pattern 1: Calculate pagination
-const [totalRows, err] = await client.countRows('SALES', 'table');
+const [totalRows, err] = await client.countRows("SALES", "table");
 if (!err) {
-    const pageSize = 100;
-    const totalPages = Math.ceil(totalRows / pageSize);
-    console.log(`Total pages: ${totalPages}`);
+  const pageSize = 100;
+  const totalPages = Math.ceil(totalRows / pageSize);
+  console.log(`Total pages: ${totalPages}`);
 }
 
 // Pattern 2: Estimate export size
-const [count, err] = await client.countRows('TRANSACTIONS', 'table');
+const [count, err] = await client.countRows("TRANSACTIONS", "table");
 if (!err) {
-    const estimatedSizeMB = (count * 0.5) / 1024;  // Assume ~500 bytes per row
-    console.log(`Estimated export size: ${estimatedSizeMB.toFixed(2)} MB`);
+  const estimatedSizeMB = (count * 0.5) / 1024; // Assume ~500 bytes per row
+  console.log(`Estimated export size: ${estimatedSizeMB.toFixed(2)} MB`);
 
-    if (estimatedSizeMB > 100) {
-        console.warn('Large export - consider filtering or batching');
-    }
+  if (estimatedSizeMB > 100) {
+    console.warn("Large export - consider filtering or batching");
+  }
 }
 
 // Pattern 3: Validate expected counts
-const [count, err] = await client.countRows('CONFIG', 'table');
+const [count, err] = await client.countRows("CONFIG", "table");
 if (!err) {
-    const expectedMin = 10;
-    const expectedMax = 100;
+  const expectedMin = 10;
+  const expectedMax = 100;
 
-    if (count < expectedMin) {
-        console.error(`Too few rows: ${count} (expected at least ${expectedMin})`);
-    } else if (count > expectedMax) {
-        console.warn(`Unexpected row count: ${count} (expected max ${expectedMax})`);
-    } else {
-        console.log(`Row count within expected range: ${count}`);
-    }
+  if (count < expectedMin) {
+    console.error(`Too few rows: ${count} (expected at least ${expectedMin})`);
+  } else if (count > expectedMax) {
+    console.warn(
+      `Unexpected row count: ${count} (expected max ${expectedMax})`,
+    );
+  } else {
+    console.log(`Row count within expected range: ${count}`);
+  }
 }
 
 // Pattern 4: Monitor table growth
 async function trackGrowth(tableName: string) {
-    const [count, err] = await client.countRows(tableName, 'table');
-    if (err) {
-        console.error('Count failed:', err.message);
-        return;
-    }
+  const [count, err] = await client.countRows(tableName, "table");
+  if (err) {
+    console.error("Count failed:", err.message);
+    return;
+  }
 
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${tableName}: ${count} rows`);
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${tableName}: ${count} rows`);
 
-    // Store in monitoring system
-    // await monitoring.recordMetric({ table: tableName, count, timestamp });
+  // Store in monitoring system
+  // await monitoring.recordMetric({ table: tableName, count, timestamp });
 }
 
 // Pattern 5: Batch operations based on size
-const [count, err] = await client.countRows('ORDERS', 'table');
+const [count, err] = await client.countRows("ORDERS", "table");
 if (!err) {
-    const batchSize = 1000;
-    const numBatches = Math.ceil(count / batchSize);
+  const batchSize = 1000;
+  const numBatches = Math.ceil(count / batchSize);
 
-    console.log(`Processing ${count} rows in ${numBatches} batches`);
+  console.log(`Processing ${count} rows in ${numBatches} batches`);
 
-    for (let i = 0; i < numBatches; i++) {
-        const offset = i * batchSize;
-        console.log(`Processing batch ${i + 1}/${numBatches} (offset: ${offset})`);
-        // Process batch with LIMIT and OFFSET
-    }
+  for (let i = 0; i < numBatches; i++) {
+    const offset = i * batchSize;
+    console.log(`Processing batch ${i + 1}/${numBatches} (offset: ${offset})`);
+    // Process batch with LIMIT and OFFSET
+  }
 }
 ```
 
 **Error Handling:**
 
 ```typescript
-const [count, err] = await client.countRows('MARA', 'table');
+const [count, err] = await client.countRows("MARA", "table");
 if (err) {
-    // Handle specific error cases
-    if (err.message.includes('not found')) {
-        console.error('Table/view does not exist');
-    } else if (err.message.includes('timeout')) {
-        console.error('Query timed out - table may be very large');
-    } else {
-        console.error('Count query failed:', err.message);
-    }
-    return;
+  // Handle specific error cases
+  if (err.message.includes("not found")) {
+    console.error("Table/view does not exist");
+  } else if (err.message.includes("timeout")) {
+    console.error("Query timed out - table may be very large");
+  } else {
+    console.error("Count query failed:", err.message);
+  }
+  return;
 }
 
 // Safe to use count here
@@ -648,68 +679,71 @@ Execute arbitrary OpenSQL queries including aggregations, JOINs, GROUP BY, and o
 
 ### Request
 
-| Method | Path | Auth Required |
-|--------|------|---------------|
-| POST | `/preview/freestyle` | Yes |
+| Method | Path                 | Auth Required |
+| ------ | -------------------- | ------------- |
+| POST   | `/preview/freestyle` | Yes           |
 
 ### Request Body
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `sqlQuery` | string | Yes | Full OpenSQL SELECT statement |
-| `limit` | number | No | Max rows to return (default: 100, max: 50000) |
+| Field      | Type   | Required | Description                                   |
+| ---------- | ------ | -------- | --------------------------------------------- |
+| `sqlQuery` | string | Yes      | Full OpenSQL SELECT statement                 |
+| `limit`    | number | No       | Max rows to return (default: 100, max: 50000) |
 
 ### Response
 
 DataFrame structure (same as `/preview/data`):
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `columns` | array | Column metadata |
-| `rows` | array[] | Row data (array of arrays) |
+| Field       | Type    | Description                        |
+| ----------- | ------- | ---------------------------------- |
+| `columns`   | array   | Column metadata                    |
+| `rows`      | array[] | Row data (array of arrays)         |
 | `totalRows` | number? | Total matching rows (if available) |
 
 ### Example
 
 **Request:**
+
 ```json
 {
-    "sqlQuery": "SELECT CompanyCode, SUM( AmountInCompanyCodeCurrency ) AS Total FROM ZSNAP_F01S_C01( P_ControllingArea = 'MED1', P_Signage = 'R' ) GROUP BY CompanyCode",
-    "limit": 50
+  "sqlQuery": "SELECT CompanyCode, SUM( AmountInCompanyCodeCurrency ) AS Total FROM ZSNAP_F01S_C01( P_ControllingArea = 'MED1', P_Signage = 'R' ) GROUP BY CompanyCode",
+  "limit": 50
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "data": {
-        "columns": [
-            { "name": "CompanyCode", "dataType": "CHAR" },
-            { "name": "Total", "dataType": "CURR" }
-        ],
-        "rows": [
-            ["1000", "4521893.50"],
-            ["2000", "1238450.00"]
-        ]
-    }
+  "success": true,
+  "data": {
+    "columns": [
+      { "name": "CompanyCode", "dataType": "CHAR" },
+      { "name": "Total", "dataType": "CURR" }
+    ],
+    "rows": [
+      ["1000", "4521893.50"],
+      ["2000", "1238450.00"]
+    ]
+  }
 }
 ```
+
 ### Errors
 
-| Code | Status | Cause |
-|------|--------|-------|
-| `VALIDATION_ERROR` | 400 | Missing or empty `sqlQuery` |
-| `UNKNOWN_ERROR` | 500 | SAP rejected the query — check `details` field for raw SAP error XML |
+| Code               | Status | Cause                                                                |
+| ------------------ | ------ | -------------------------------------------------------------------- |
+| `VALIDATION_ERROR` | 400    | Missing or empty `sqlQuery`                                          |
+| `UNKNOWN_ERROR`    | 500    | SAP rejected the query — check `details` field for raw SAP error XML |
 
 On error, the response includes a `details` field with the raw SAP XML error response:
 
 ```json
 {
-    "success": false,
-    "error": "Freestyle query failed: A Boolean expression was expected in \"MA\".",
-    "code": "UNKNOWN_ERROR",
-    "details": "<?xml version=\"1.0\"...><message>...</message>...</exc:exception>"
+  "success": false,
+  "error": "Freestyle query failed: A Boolean expression was expected in \"MA\".",
+  "code": "UNKNOWN_ERROR",
+  "details": "<?xml version=\"1.0\"...><message>...</message>...</exc:exception>"
 }
 ```
 
@@ -718,19 +752,19 @@ On error, the response includes a `details` field with the raw SAP XML error res
 - **Aggregate queries** — `SUM`, `COUNT`, `AVG`, `MIN`, `MAX` across large datasets
 - **GROUP BY analysis** — Breakdown by dimension
 - **CDS view with parameters** — Pass parameters inline in the SQL string
-- **Multi-line SQL** — Complex queries exceeding ABAP's 255-character line limit (use `\n` between clauses)
+- **Long SQL** — Queries of any length; lines over ABAP's 255-character limit are wrapped for you
 
 ### Library Usage
 
 When using Catalyst-Relay as a TypeScript library, call `client.freestyleQuery()`:
 
 ```typescript
-import { createClient, type AsyncResult, type DataFrame } from 'catalyst-relay';
+import { createClient, type AsyncResult, type DataFrame } from "catalyst-relay";
 
 const [client, createErr] = createClient({
-    url: 'https://sap-server.example.com:443',
-    client: '100',
-    auth: { type: 'basic', username: 'developer', password: 'password' }
+  url: "https://sap-server.example.com:443",
+  client: "100",
+  auth: { type: "basic", username: "developer", password: "password" },
 });
 if (createErr) throw createErr;
 
@@ -738,17 +772,17 @@ await client.login();
 
 // Simple aggregate query
 const [dataFrame, err] = await client.freestyleQuery(
-    "SELECT CompanyCode, COUNT(*) AS Cnt\nFROM ZSNAP_F01S_C01( P_ControllingArea = 'MED1', P_Signage = 'R' )\nGROUP BY CompanyCode",
-    100  // optional limit
+  "SELECT CompanyCode, COUNT(*) AS Cnt\nFROM ZSNAP_F01S_C01( P_ControllingArea = 'MED1', P_Signage = 'R' )\nGROUP BY CompanyCode",
+  100, // optional limit
 );
 
 if (err) {
-    console.error('Query failed:', err.message);
-    process.exit(1);
+  console.error("Query failed:", err.message);
+  process.exit(1);
 }
 
-console.log('Columns:', dataFrame.columns);
-console.log('Rows:', dataFrame.rows);
+console.log("Columns:", dataFrame.columns);
+console.log("Rows:", dataFrame.rows);
 ```
 
 **Method Signature:**
@@ -760,15 +794,16 @@ async freestyleQuery(
 ): AsyncResult<DataFrame>
 ```
 
-**Note on multi-line SQL:** ABAP has a historical 255-character line length limit. For queries longer than ~255 characters, split clauses with `\n`:
+**Note on long SQL:** the endpoint cuts the body into 255-character lines, which split tokens mid-word. Relay wraps any longer line at whitespace (never inside a `'…'` or `` `…` `` literal; a wrapped `"` comment stays a comment) before sending it, for `freestyleQuery()` and data preview alike. Breaking clauses with `
+` yourself still reads best:
 
 ```typescript
 const sql = [
-    "SELECT CompanyCode, FiscalYear, SUM( AmountInCompanyCodeCurrency ) AS Total",
-    "FROM ZSNAP_F01S_C01( P_ControllingArea = 'MED1', P_Signage = 'R' )",
-    "WHERE FiscalYear = '2025'",
-    "GROUP BY CompanyCode, FiscalYear",
-    "ORDER BY CompanyCode ASC",
+  "SELECT CompanyCode, FiscalYear, SUM( AmountInCompanyCodeCurrency ) AS Total",
+  "FROM ZSNAP_F01S_C01( P_ControllingArea = 'MED1', P_Signage = 'R' )",
+  "WHERE FiscalYear = '2025'",
+  "GROUP BY CompanyCode, FiscalYear",
+  "ORDER BY CompanyCode ASC",
 ].join("\n");
 
 const [dataFrame, err] = await client.freestyleQuery(sql);
@@ -776,4 +811,4 @@ const [dataFrame, err] = await client.freestyleQuery(sql);
 
 ---
 
-*Last updated: v0.5.13*
+_Last updated: v0.5.13_

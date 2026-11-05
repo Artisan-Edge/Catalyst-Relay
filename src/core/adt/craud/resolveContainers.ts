@@ -1,5 +1,5 @@
 /**
- * Resolve Containers — fill in the function group of function modules addressed by name only
+ * Resolve Containers — fill in the function group of function modules and includes addressed by name only
  */
 
 import type { AsyncResult } from '../../../types/result';
@@ -9,6 +9,7 @@ import type { AdtRequestor } from '../types';
 import { getConfigByExtension } from '../types';
 import { searchObjects } from '../discovery/searchObjects';
 import { mapLimited } from '../../utils/concurrency';
+import { containerFromIncludeName, isFunctionGroupInclude } from '../functionGroup/names';
 
 /**
  * Return copies of the objects with `container` set where the type needs one
@@ -23,6 +24,10 @@ export async function resolveContainers<T extends ObjectRef>(client: AdtRequesto
     return mapLimited(objects, async (object): AsyncResult<T, Error> => {
         const config = getConfigByExtension(object.extension);
         if (!config?.container || object.container) return ok(object);
+
+        // Function group includes are named L<group>xxx; search only for names that don't fit.
+        const fromName = isFunctionGroupInclude(object) ? containerFromIncludeName(object.name) : null;
+        if (fromName) return ok({ ...object, container: fromName });
 
         // Quick search returns …/functions/groups/{group}/fmodules/{name}.
         const [results, searchErr] = await searchObjects(client, object.name, { types: [config.type], includePackages: false });

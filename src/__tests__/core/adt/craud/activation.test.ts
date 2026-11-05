@@ -7,6 +7,8 @@
  * - Positioned errors keep their line/column
  * - Abort ('A') counts as an error, warnings ('W') are ignored
  * - A prefix name cannot claim a longer name's message
+ * - A cancelled run (activationExecuted=false) fails the objects still inactive
+ * - An object SAP is silent about is checked to exist (a deleted DCL "activated" fine)
  */
 
 import { describe, it, expect } from 'bun:test';
@@ -22,10 +24,18 @@ interface ResultsResponse {
 
 // Serves the three-step flow, returning queued results responses in order so a retry can
 // see a different answer than the first attempt.
-function mockRequestorFor(responses: ResultsResponse[]): { requestor: AdtRequestor; resultsCalls: () => number } {
+// Object URIs in `missing` answer the existence GET with 404, all others with 200.
+function mockRequestorFor(responses: ResultsResponse[], inactive?: ResultsResponse, missing: string[] = []): { requestor: AdtRequestor; resultsCalls: () => number } {
     let calls = 0;
     const requestor: AdtRequestor = {
         request: async (options) => {
+            if (options.method === 'GET' && !options.path.includes('/activation/')) {
+                return [new Response('', { status: missing.includes(options.path) ? 404 : 200 }), null];
+            }
+            if (options.path.includes('/activation/inactiveobjects')) {
+                const answer = inactive ?? { status: 200, body: inactiveXml([]) };
+                return [new Response(answer.body, { status: answer.status }), null];
+            }
             if (options.method === 'POST') {
                 const headers = new Headers({ location: `/sap/bc/adt/activation/runs/${RUN_ID}` });
                 return [new Response('', { status: 202, headers }), null];
@@ -46,11 +56,21 @@ function mockRequestor(resultsXml: string): AdtRequestor {
     return mockRequestorFor([{ status: 200, body: resultsXml }]).requestor;
 }
 
-function resultsXml(messages: string): string {
+function resultsXml(messages: string, properties = ''): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
-${messages}
+${properties}${messages}
 </chkl:messages>`;
+}
+
+function properties(checkExecuted: boolean, activationExecuted: boolean): string {
+    return `<chkl:properties checkExecuted="${checkExecuted}" activationExecuted="${activationExecuted}" generationExecuted="false"/>`;
+}
+
+// Inactive objects list naming the given classes.
+function inactiveXml(classes: string[]): string {
+    const entries = classes.map(name => `<ioc:entry><ioc:object ioc:user="ME" ioc:deleted="false"><ioc:ref adtcore:uri="/sap/bc/adt/oo/classes/${name.toLowerCase()}" adtcore:type="CLAS/OC" adtcore:name="${name}"/></ioc:object></ioc:entry>`).join('');
+    return `<?xml version="1.0" encoding="utf-8"?><ioc:inactiveObjects xmlns:ioc="http://www.sap.com/abapxml/inactiveCtsObjects" xmlns:adtcore="http://www.sap.com/adt/core">${entries}</ioc:inactiveObjects>`;
 }
 
 function message(objDescr: string, type: string, text: string, href: string): string {
@@ -138,6 +158,88 @@ describe('activateObjects result parsing', () => {
     });
 });
 
+describe('cancelled activation runs', () => {
+    // The regression: a class with a syntax error cancels the whole run (activationExecuted=false),
+    // but only it gets a message, so the other classes were reported active while still inactive.
+    const cancelledXml = resultsXml([
+        `<msg objDescr="" type="W" line="0" href=""><shortText><txt>Activation was cancelled.</txt></shortText></msg>`,
+        message('Class ZCAT_ACT_BAD, Method RUN', 'E', 'Field "X" is unknown.', '/sap/bc/adt/oo/classes/zcat_act_bad/source/main#start=8,8'),
+    ].join(''), properties(true, false));
+
+    it('fails the objects that are still inactive after a cancelled run', async () => {
+        const { requestor } = mockRequestorFor([{ status: 200, body: cancelledXml }], { status: 200, body: inactiveXml(['ZCAT_ACT_BAD', 'ZCAT_ACT_OK']) });
+
+        const [results, error] = await activateObjects(requestor, [
+            { name: 'ZCAT_ACT_BAD', extension: 'aclass' },
+            { name: 'ZCAT_ACT_OK', extension: 'aclass' },
+        ]);
+
+        expect(error).toBeNull();
+        expect(results!.find(r => r.name === 'ZCAT_ACT_BAD')!.messages[0]!.text).toBe('Field "X" is unknown.');
+        const ok = results!.find(r => r.name === 'ZCAT_ACT_OK')!;
+        expect(ok.status).toBe('error');
+        expect(ok.messages[0]!.text).toContain('cancelled the activation run');
+    });
+
+    it('keeps objects that were already active as a success', async () => {
+        const { requestor } = mockRequestorFor([{ status: 200, body: cancelledXml }], { status: 200, body: inactiveXml(['ZCAT_ACT_BAD']) });
+
+        const [results] = await activateObjects(requestor, [
+            { name: 'ZCAT_ACT_BAD', extension: 'aclass' },
+            { name: 'ZCAT_ACT_OK', extension: 'aclass' },
+        ]);
+
+        expect(results!.find(r => r.name === 'ZCAT_ACT_OK')!.status).toBe('success');
+    });
+
+    it('fails every object without its own error when the inactive list cannot be read', async () => {
+        const { requestor } = mockRequestorFor([{ status: 200, body: cancelledXml }], { status: 500, body: EXCEPTION_BODY });
+
+        const [results] = await activateObjects(requestor, [
+            { name: 'ZCAT_ACT_BAD', extension: 'aclass' },
+            { name: 'ZCAT_ACT_OK', extension: 'aclass' },
+        ]);
+
+        expect(results!.every(r => r.status === 'error')).toBe(true);
+    });
+
+    it('treats a run with nothing to check (already active) as a success', async () => {
+        const [results] = await activateObjects(mockRequestor(resultsXml('', properties(false, false))), [
+            { name: 'ZCAT_ACT_OK', extension: 'aclass' },
+        ]);
+
+        expect(results![0]!.status).toBe('success');
+    });
+});
+
+describe('objects that do not exist', () => {
+    it('fails a missing access control that SAP reports as nothing to do', async () => {
+        // The regression: SAP answers checkExecuted=false/activationExecuted=false with no messages
+        // for a DCL that was deleted, which read as "already active"
+        const { requestor } = mockRequestorFor([{ status: 200, body: resultsXml('', properties(false, false)) }], undefined, ['/sap/bc/adt/acm/dcl/sources/zcat_gone']);
+
+        const [results] = await activateObjects(requestor, [
+            { name: 'ZCAT_GONE', extension: 'asdcls' },
+            { name: 'ZCAT_ACT_OK', extension: 'aclass' },
+        ]);
+
+        expect(results![0]).toEqual({ name: 'ZCAT_GONE', extension: 'asdcls', status: 'error', messages: [{ severity: 'error', text: 'Access Control ZCAT_GONE does not exist' }] });
+        expect(results![1]!.status).toBe('success');
+    });
+
+    it('does not look up objects SAP reported on', async () => {
+        const xml = resultsXml(message('ZCAT_ACT_BAD', 'E', 'Broken', '/sap/bc/adt/oo/classes/zcat_act_bad/source/main#start=1,1'));
+        const paths: string[] = [];
+        const { requestor } = mockRequestorFor([{ status: 200, body: xml }], undefined, ['/sap/bc/adt/oo/classes/zcat_act_bad']);
+        const recording: AdtRequestor = { request: async options => { paths.push(options.path); return requestor.request(options); } };
+
+        const [results] = await activateObjects(recording, [{ name: 'ZCAT_ACT_BAD', extension: 'aclass' }]);
+
+        expect(results![0]!.messages[0]!.text).toBe('Broken');
+        expect(paths).not.toContain('/sap/bc/adt/oo/classes/zcat_act_bad');
+    });
+});
+
 const EXCEPTION_BODY = '<exc><localizedMessage>An exception was raised</localizedMessage></exc>';
 
 describe('activation results retry', () => {
@@ -173,4 +275,70 @@ describe('activation results retry', () => {
         expect(error?.message).toContain('after 3 attempts');
         expect(resultsCalls()).toBe(3);
     }, 15_000);
+});
+
+// Inactive list with explicit refs (URI, type, deleted flag).
+function inactiveRefsXml(refs: { uri: string; type: string; name: string; deleted?: boolean }[]): string {
+    const entries = refs.map(r => `<ioc:entry><ioc:object ioc:user="ME" ioc:deleted="${r.deleted ? 'true' : 'false'}"><ioc:ref adtcore:uri="${r.uri}" adtcore:type="${r.type}" adtcore:name="${r.name}"/></ioc:object></ioc:entry>`).join('');
+    return `<?xml version="1.0" encoding="utf-8"?><ioc:inactiveObjects xmlns:ioc="http://www.sap.com/abapxml/inactiveCtsObjects" xmlns:adtcore="http://www.sap.com/adt/core">${entries}</ioc:inactiveObjects>`;
+}
+
+describe('activation result order and always-active types', () => {
+    it('keeps input order when message classes are mixed with activated objects', async () => {
+        const [results, error] = await activateObjects(mockRequestor(resultsXml('')), [
+            { name: 'ZMSG_A', extension: 'asmsag' },
+            { name: 'ZCL_ONE', extension: 'aclass' },
+            { name: 'ZMSG_B', extension: 'asmsag' },
+            { name: 'ZCL_TWO', extension: 'aclass' },
+        ]);
+
+        expect(error).toBeNull();
+        expect(results!.map(r => r.name)).toEqual(['ZMSG_A', 'ZCL_ONE', 'ZMSG_B', 'ZCL_TWO']);
+        expect(results![0]!.messages[0]!.severity).toBe('info');
+        expect(results![1]!.messages).toEqual([]);
+    });
+
+    it('sends nothing when every object is a message class', async () => {
+        let calls = 0;
+        const requestor: AdtRequestor = { request: async () => { calls++; return [new Response('', { status: 500 }), null]; } };
+
+        const [results, error] = await activateObjects(requestor, [{ name: 'ZMSG_A', extension: 'asmsag' }, { name: 'ZMSG_B', extension: 'asmsag' }]);
+
+        expect(error).toBeNull();
+        expect(results!.map(r => r.status)).toEqual(['success', 'success']);
+        expect(calls).toBe(0);
+    });
+});
+
+describe('cancelled run: inactive lookup', () => {
+    const cancelled = resultsXml(
+        message('Class ZCL_BAD', 'E', 'Syntax error', '/sap/bc/adt/oo/classes/zcl_bad/source/main#start=3,1'),
+        properties(true, false),
+    );
+
+    it('matches an inactive entry by name and type when its URI differs (function group include)', async () => {
+        const inactive = inactiveRefsXml([{ uri: '/sap/bc/adt/functions/groups/zfoo/includes/lzfoof01/source/main', type: 'FUGR/I', name: 'LZFOOF01' }]);
+        const { requestor } = mockRequestorFor([{ status: 200, body: cancelled }], { status: 200, body: inactive });
+
+        const [results] = await activateObjects(requestor, [
+            { name: 'ZCL_BAD', extension: 'aclass' },
+            { name: 'LZFOOF01', extension: 'asfinc', container: 'ZFOO' },
+        ]);
+
+        const include = results!.find(r => r.name === 'LZFOOF01')!;
+        expect(include.status).toBe('error');
+        expect(include.messages[0]!.text).toContain('SAP cancelled the activation run');
+    });
+
+    it('does not count deleted="true" entries as inactive', async () => {
+        const inactive = inactiveRefsXml([{ uri: '/sap/bc/adt/oo/classes/zcl_gone', type: 'CLAS/OC', name: 'ZCL_GONE', deleted: true }]);
+        const { requestor } = mockRequestorFor([{ status: 200, body: cancelled }], { status: 200, body: inactive });
+
+        const [results] = await activateObjects(requestor, [
+            { name: 'ZCL_BAD', extension: 'aclass' },
+            { name: 'ZCL_GONE', extension: 'aclass' },
+        ]);
+
+        expect(results!.find(r => r.name === 'ZCL_GONE')!.status).toBe('success');
+    });
 });

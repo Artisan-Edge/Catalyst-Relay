@@ -7,7 +7,7 @@
  * The checkSyntax function reads source from SAP, then sends it inline
  * (base64) for checking — catching both syntax errors and ATC warnings.
  *
- * Run with: bun test src/__tests__/integration/syntax-check-errors-workflow.test.ts
+ * Run with: bun test --path-ignore-patterns=node_modules/** src/__tests__/integration/syntax-check-errors-workflow.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';

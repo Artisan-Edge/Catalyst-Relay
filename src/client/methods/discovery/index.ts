@@ -8,3 +8,4 @@ export { getPackageStats } from './getPackageStats';
 export { getTransports } from './getTransports';
 export { getUserTransports } from './getUserTransports';
 export { getInactiveObjects } from './getInactiveObjects';
+export { getFunctionGroupParts } from './getFunctionGroupParts';

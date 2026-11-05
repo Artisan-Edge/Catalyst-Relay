@@ -5,6 +5,7 @@
  * - previewData: Query table data with limit
  * - countRows: Count total rows in a table
  * - getDistinctValues: Get distinct values for a column (table and CDS view)
+ * - freestyleQuery: a one-line query far longer than the endpoint's 255-character lines
  *
  * Uses T000 standard table and I_JournalEntry CDS view which exist in all SAP systems.
  *
@@ -12,7 +13,7 @@
  * - SAP_TEST_USERNAME: SAP username
  * - SAP_PASSWORD: SAP password
  *
- * Run with: bun test src/__tests__/integration/data-preview-workflow.test.ts
+ * Run with: bun test --path-ignore-patterns=node_modules/** src/__tests__/integration/data-preview-workflow.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
@@ -61,6 +62,23 @@ describe('Data Preview Workflow', () => {
             });
         }
     });
+
+    it('should run a one-line freestyle query longer than 255 characters', async () => {
+        if (shouldSkip(client)) return;
+
+        // The regression: SAP cut the body into 255-character lines mid-token ("Boolean expression
+        // expected" / "Only one SELECT"); relay now wraps long lines at whitespace
+        const clients = Array.from({ length: 60 }, (_, i) => `'${String(i).padStart(3, '0')}'`).join(', ');
+        const sql = `SELECT mandt, mtext FROM t000 WHERE mandt IN ( ${clients} ) AND mtext <> 'keep me whole' ORDER BY mandt`;
+        expect(sql.length).toBeGreaterThan(500);
+        expect(sql).not.toContain('\n');
+
+        const [dataFrame, err] = await client!.freestyleQuery(sql, 100);
+
+        expect(err).toBeNull();
+        expect(dataFrame!.columns.map(c => c.name.toUpperCase())).toEqual(['MANDT', 'MTEXT']);
+        expect(dataFrame!.rows.length).toBeGreaterThan(0);
+    }, 60000);
 
     it('should count rows in T000', async () => {
         if (shouldSkip(client)) return;

@@ -44,6 +44,10 @@ import type {
     Parameter,
     AdtRequestor,
     InactiveEntry,
+    FunctionGroupParts,
+    ObjectAttributes,
+    ObjectAttributesInfo,
+    ObjectAttributesWriteResult,
     DeleteResult,
     ClassIncludeType,
     CreateServiceBindingOptions,
@@ -65,6 +69,13 @@ import type {
     ApiReleaseVisibilityResult,
     ChangePackageResult,
     ChangePackageOptions,
+    TextElementsOwner,
+    TextElementsPart,
+    TextElementsParts,
+    TextElementsWriteResult,
+    UnitTestRunOptions,
+    UnitTestRunResult,
+    UnitTestMetadata,
 } from '../core/adt';
 import type { AsyncResult } from '../types/result';
 import { createAuthStrategy } from '../core/auth/factory';
@@ -85,6 +96,9 @@ import * as iamMethods from './methods/iam';
 import * as packageMethods from './methods/packages';
 import * as apiReleaseMethods from './methods/apirelease';
 import * as refactoringMethods from './methods/refactoring';
+import * as textElementMethods from './methods/textelements';
+import * as abapUnitMethods from './methods/abapunit';
+import * as attributeMethods from './methods/attributes';
 import {
     storeCookies,
     buildCookieHeader,
@@ -129,6 +143,11 @@ export interface ADTClient {
     getTransports(packageName: string): AsyncResult<Transport[]>;
     getUserTransports(filters?: UserTransportFilters & { user?: string }): AsyncResult<UserTransport[]>;
     getInactiveObjects(): AsyncResult<InactiveEntry[]>;
+    getFunctionGroupParts(group: string): AsyncResult<FunctionGroupParts>;
+
+    // Object attributes: title and program authorization group (saved inactive; activate afterwards)
+    readObjectAttributes(object: ObjectRef): AsyncResult<ObjectAttributesInfo>;
+    writeObjectAttributes(object: ObjectRef, attributes: ObjectAttributes, transport?: string): AsyncResult<ObjectAttributesWriteResult>;
 
     // Data Preview
     previewData(query: PreviewSQL): AsyncResult<DataFrame>;
@@ -168,6 +187,16 @@ export interface ADTClient {
     releaseApi(objectName: string, transport?: string, visibility?: ApiReleaseVisibility): AsyncResult<ApiReleaseResult>;
     unreleaseApi(objectName: string, transport?: string): AsyncResult<ApiReleaseResult>;
     updateApiReleaseVisibility(objectName: string, change: Partial<ApiReleaseVisibility>, options?: ApiReleaseVisibilityOptions): AsyncResult<ApiReleaseVisibilityResult>;
+
+    // Text elements (text symbols, selection texts, list headings); writes stay inactive until activateTextElements
+    readTextElements(owner: TextElementsOwner, parts?: readonly TextElementsPart[]): AsyncResult<TextElementsParts>;
+    writeTextElements(owner: TextElementsOwner, parts: TextElementsParts, transport?: string): AsyncResult<TextElementsWriteResult>;
+    resolveTextElementsOwner(name: string): AsyncResult<TextElementsOwner>;
+    activateTextElements(owners: readonly TextElementsOwner[]): AsyncResult<ActivationResult[]>;
+
+    // ABAP Unit
+    runUnitTests(options: UnitTestRunOptions): AsyncResult<UnitTestRunResult>;
+    getUnitTestMetadata(): AsyncResult<UnitTestMetadata>;
 
     // Configuration
     getObjectConfig(): ObjectConfig[];
@@ -353,6 +382,20 @@ export class ADTClientImpl implements ADTClient {
         return discoveryMethods.getInactiveObjects(this.state, this.requestor);
     }
 
+    async getFunctionGroupParts(group: string): AsyncResult<FunctionGroupParts> {
+        return discoveryMethods.getFunctionGroupParts(this.state, this.requestor, group);
+    }
+
+    // --- Object Attributes ---
+
+    async readObjectAttributes(object: ObjectRef): AsyncResult<ObjectAttributesInfo> {
+        return attributeMethods.readObjectAttributes(this.state, this.requestor, object);
+    }
+
+    async writeObjectAttributes(object: ObjectRef, attributes: ObjectAttributes, transport?: string): AsyncResult<ObjectAttributesWriteResult> {
+        return attributeMethods.writeObjectAttributes(this.state, this.requestor, object, attributes, transport);
+    }
+
     // --- Data Preview ---
 
     async previewData(query: PreviewSQL): AsyncResult<DataFrame> {
@@ -465,6 +508,34 @@ export class ADTClientImpl implements ADTClient {
 
     async changePackage(objects: ObjectRef[], targetPackage: string, options?: ChangePackageOptions): AsyncResult<ChangePackageResult[]> {
         return refactoringMethods.changePackage(this.state, this.requestor, objects, targetPackage, options);
+    }
+
+    // --- Text Elements ---
+
+    async readTextElements(owner: TextElementsOwner, parts?: readonly TextElementsPart[]): AsyncResult<TextElementsParts> {
+        return textElementMethods.readTextElements(this.state, this.requestor, owner, parts);
+    }
+
+    async writeTextElements(owner: TextElementsOwner, parts: TextElementsParts, transport?: string): AsyncResult<TextElementsWriteResult> {
+        return textElementMethods.writeTextElements(this.state, this.requestor, owner, parts, transport);
+    }
+
+    async resolveTextElementsOwner(name: string): AsyncResult<TextElementsOwner> {
+        return textElementMethods.resolveTextElementsOwner(this.state, this.requestor, name);
+    }
+
+    async activateTextElements(owners: readonly TextElementsOwner[]): AsyncResult<ActivationResult[]> {
+        return textElementMethods.activateTextElements(this.state, this.requestor, owners);
+    }
+
+    // --- ABAP Unit ---
+
+    async runUnitTests(options: UnitTestRunOptions): AsyncResult<UnitTestRunResult> {
+        return abapUnitMethods.runUnitTests(this.state, this.requestor, options);
+    }
+
+    async getUnitTestMetadata(): AsyncResult<UnitTestMetadata> {
+        return abapUnitMethods.getUnitTestMetadata(this.state, this.requestor);
     }
 
     // --- Configuration ---

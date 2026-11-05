@@ -35,13 +35,13 @@ Batch read objects with their source content.
 
 Array of object references:
 
-| Field       | Type   | Required | Description                                                                    |
-| ----------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `name`      | string | Yes      | Object name (e.g., `ZTEST_VIEW`)                                               |
-| `extension` | string | Yes      | File extension (e.g., `asddls`, `clas.abap`)                                   |
-| `container` | string | No       | Function group of a function module (`asfunc`); looked up by name when omitted |
+| Field       | Type   | Required | Description                                                                                                                 |
+| ----------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `name`      | string | Yes      | Object name (e.g., `ZTEST_VIEW`)                                                                                            |
+| `extension` | string | Yes      | File extension (e.g., `asddls`, `clas.abap`)                                                                                |
+| `container` | string | No       | Function group of a function module (`asfunc`) or include (`asfinc`); taken from the include name or looked up when omitted |
 
-Data elements (`asdtel`) and domains (`asdoma`) are read as canonical DSL, translated from SAP's XML definition. See [SAP ADT: form-based objects](../sap-adt.md#form-based-objects-and-function-modules).
+Data elements (`asdtel`), domains (`asdoma`) and lock objects (`asenqu`) are read as canonical DSL, and message classes (`asmsag`) as canonical JSON, translated from SAP's XML definition. Function groups (`asfugr`) read as their main program, number range objects (`asnrob`) as SAP's JSON. See [SAP ADT: form-based objects](../sap-adt.md#form-based-objects-and-function-modules).
 
 ### Response
 
@@ -184,12 +184,12 @@ Create or update objects. Automatically handles locking and content upload.
 
 Array of object contents:
 
-| Field         | Type   | Required | Description           |
-| ------------- | ------ | -------- | --------------------- |
-| `name`        | string | Yes      | Object name           |
-| `extension`   | string | Yes      | File extension        |
-| `content`     | string | Yes      | Source code content   |
-| `description` | string | No       | Transport description |
+| Field         | Type   | Required | Description                                                                                                |
+| ------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `name`        | string | Yes      | Object name                                                                                                |
+| `extension`   | string | Yes      | File extension                                                                                             |
+| `content`     | string | Yes      | Source code content                                                                                        |
+| `description` | string | No       | Object description, used on create (default: the object name; SAP refuses includes and tables without one) |
 
 ### Response
 
@@ -261,6 +261,8 @@ POST /objects/upsert/ZDEV/DEVK900123
 | `TRANSPORT_REQUIRED` | 400    | Non-$TMP package needs transport |
 | `OBJECT_LOCKED`      | 409    | Object locked by another user    |
 | `SESSION_NOT_FOUND`  | 401    | Invalid session                  |
+
+Other upsert failures come back as error messages, e.g. `…: not supported on this SAP release — it does not accept application/vnd.sap.adt.lockobjects.v1+xml (HTTP 406)` on a release without that object type, or `Message Class X was partially updated: saved …; not saved: new messages 004 (…)` when a message class's second PUT fails. A leading BOM in `content` is ignored.
 
 ### Use Cases
 
@@ -454,6 +456,8 @@ Activate objects to make them runtime-available. Uses SAP's run-based flow — `
 
 A single batch may mix object extensions (e.g. activate a DDLS, a class, and an include in one call).
 
+SAP says nothing about an object that does not exist, just as for one already active, so every object SAP is silent about is looked up: a missing one is an `error` with the message `<Label> <NAME> does not exist`. Activating a function group also activates its inactive includes and function modules.
+
 ### Request
 
 | Method | Path                | Auth Required |
@@ -471,7 +475,7 @@ Array of object references:
 
 ### Response
 
-Array of activation results:
+Array of activation results, in request order (plus any function group parts activated with them):
 
 | Field       | Type   | Description                      |
 | ----------- | ------ | -------------------------------- |
@@ -479,6 +483,8 @@ Array of activation results:
 | `extension` | string | File extension                   |
 | `status`    | enum   | `success`, `warning`, or `error` |
 | `messages`  | array  | Activation messages              |
+
+Message classes are saved active: they get a `success` result with one `info` message and are not sent to SAP.
 
 Each message:
 
@@ -738,6 +744,8 @@ results.forEach((result) => {
 
 Multi-delete with where-used dependency analysis. Independent objects are deleted in parallel; dependent objects are sequenced into waves so referencers go before referents. Partial failures do not abort the batch — every object is attempted and the per-object outcome is reported in the response.
 
+Each object is looked up first: one that does not exist is reported `not_found` and nothing is sent for it (SAP's own answer is unreliable — success for a missing message class, a package error for a missing CDS view). Every delete releases its lock afterwards, so the name can be re-created in the same session.
+
 ### Request
 
 | Method | Path                   | Auth Required |
@@ -767,8 +775,10 @@ Array of object references:
 | ----------- | ------- | ---------------------------------------- |
 | `name`      | string  | Object name                              |
 | `extension` | string  | File extension                           |
-| `status`    | enum    | `success` or `error`                     |
+| `status`    | enum    | `success`, `not_found` or `error`        |
 | `message`   | string? | Error message (when `status` is `error`) |
+
+Includes and function modules deleted together with their function group follow the group: `success` with `message: "Deleted with function group ZFG"`, `not_found` when the group does not exist, or `error` with `message: "Not deleted: function group ZFG failed: <group's error>"`.
 
 ### Example
 
@@ -867,8 +877,8 @@ if (failed.length > 0) {
 
 - `name` — Object name
 - `extension` — File extension
-- `status` — `'success'` or `'error'`
-- `message?` — Error message when status is `'error'`
+- `status` — `'success'`, `'not_found'` (nothing to delete) or `'error'`
+- `message?` — Error message when status is `'error'`, `<Label> <NAME> does not exist` when `'not_found'`; for a part deleted with its function group, `Deleted with function group X` or `Not deleted: function group X failed: …`
 
 When the deletion is blocked by external references, the error tuple's error is an `ExternalReferencesError` whose `references: ExternalReference[]` lists each `(object, referencedBy)` pair. Use `instanceof ExternalReferencesError` to narrow.
 

@@ -10,7 +10,7 @@
  * - SAP_TEST_USERNAME: SAP username
  * - SAP_PASSWORD: SAP password
  *
- * Run with: bun test src/__tests__/integration/table-workflow.test.ts
+ * Run with: bun test --path-ignore-patterns=node_modules/** src/__tests__/integration/table-workflow.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';

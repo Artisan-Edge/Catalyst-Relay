@@ -6,8 +6,8 @@ import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { ObjectRef } from '../../../types/requests';
 import type { AdtRequestor, ObjectConfig } from '../types';
-import { checkResponse, contentUri, requireConfig } from '../helpers';
-import { getFormHandler } from '../../ddic';
+import { checkResponse, contentUri, requireConfig, sourceMediaType } from '../helpers';
+import { getFormHandler } from '../../forms';
 import { readFormDocument } from './formDocument';
 
 /**
@@ -73,7 +73,7 @@ async function readSource(client: AdtRequestor, config: ObjectConfig, object: Ob
     const [response, requestErr] = await client.request({
         method: 'GET',
         path: uri,
-        headers: { 'Accept': 'text/plain' },
+        headers: { 'Accept': sourceMediaType(config) },
     });
     return checkResponse(response, requestErr, `Failed to read ${config.label} ${object.name}`);
 }

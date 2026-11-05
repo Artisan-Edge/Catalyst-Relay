@@ -17,5 +17,7 @@ export async function activate(
     if (!state.session) return err(new Error('Not logged in'));
     const [resolved, resolveErr] = await adt.resolveContainers(requestor, objects);
     if (resolveErr) return err(resolveErr);
-    return adt.activateObjects(requestor, resolved);
+    const [expanded, expandErr] = await adt.withFunctionGroupParts(requestor, resolved);
+    if (expandErr) return err(expandErr);
+    return adt.activateObjects(requestor, expanded);
 }

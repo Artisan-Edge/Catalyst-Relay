@@ -1,9 +1,11 @@
 /**
  * Integration Test: CDS View Workflow
  *
- * Tests the full lifecycle: create → activate → preview → delete
+ * Tests the full lifecycle: create → activate → preview → delete; then, on the same session, a
+ * delete of the missing objects (not_found), an activation of the missing DCL (error) and a
+ * re-create + delete of the view (the delete released its lock)
  *
- * Run with: bun test src/__tests__/integration/cds-workflow.test.ts
+ * Run with: bun test --path-ignore-patterns=node_modules/** src/__tests__/integration/cds-workflow.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
@@ -275,4 +277,45 @@ describe('CDS View Workflow', () => {
         viewCreated = false;
         dclCreated = false;
     }, 60000);
+
+    it('reports the deleted view and DCL as not_found when deleted again', async () => {
+        if (!client?.session) throw new Error('No active session');
+
+        const [results, error] = await client.delete(
+            [
+                { name: TEST_VIEW_NAME, extension: 'asddls' },
+                { name: TEST_DCL_NAME, extension: 'asdcls' },
+            ],
+            TEST_CONFIG.transport
+        );
+
+        // Was "cannot be created without a package" (status error)
+        expect(error).toBeNull();
+        expect(results!.map(r => r.status)).toEqual(['not_found', 'not_found']);
+    }, 60000);
+
+    it('fails the activation of the deleted DCL', async () => {
+        if (!client?.session) throw new Error('No active session');
+
+        // Was a success: SAP says nothing about a missing DCL
+        const [results, error] = await client.activate([{ name: TEST_DCL_NAME, extension: 'asdcls' }]);
+
+        expect(error).toBeNull();
+        expect(results![0]!.status).toBe('error');
+        expect(results![0]!.messages[0]!.text).toContain('does not exist');
+    }, 60000);
+
+    it('re-creates and deletes the view on the same session', async () => {
+        if (!client?.session) throw new Error('No active session');
+
+        // Was "currently editing": SAP kept the deleted view's lock in the session
+        const [, createErr] = await client.create({ name: TEST_VIEW_NAME, extension: 'asddls', content: CDS_SOURCE, description: 'Test CDS View Entity' }, TEST_CONFIG.package, TEST_CONFIG.transport);
+        expect(createErr).toBeNull();
+        viewCreated = true;
+
+        const [results, error] = await client.delete([{ name: TEST_VIEW_NAME, extension: 'asddls' }], TEST_CONFIG.transport);
+        expect(error).toBeNull();
+        expect(results![0]!.status).toBe('success');
+        viewCreated = false;
+    }, 120000);
 });

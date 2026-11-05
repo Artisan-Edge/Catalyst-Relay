@@ -15,5 +15,3 @@ export { buildDataElementXml, parseDataElementXml, mergeDataElementXml } from '.
 export { buildDomainXml, parseDomainXml, mergeDomainXml } from './domainXml';
 export { validateDataElement, validateDomain } from './validate';
 export { dataElementsEquivalent, domainsEquivalent } from './equivalent';
-export { getFormHandler } from './formHandler';
-export type { FormHandler } from './formHandler';

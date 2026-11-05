@@ -300,6 +300,11 @@ describe('getConfigByType', () => {
         expect(getConfigByType('TABL/DT')?.extension).toBe('astabldt');
         expect(getConfigByType('CLAS/OC')?.extension).toBe('aclass');
         expect(getConfigByType('PROG/P')?.extension).toBe('asprog');
+        expect(getConfigByType('MSAG/N')?.extension).toBe('asmsag');
+        expect(getConfigByType('FUGR/F')?.extension).toBe('asfugr');
+        expect(getConfigByType('FUGR/I')?.extension).toBe('asfinc');
+        expect(getConfigByType('ENQU/DL')?.extension).toBe('asenqu');
+        expect(getConfigByType('NROB/NRO')?.extension).toBe('asnrob');
     });
 });
 
@@ -307,7 +312,7 @@ describe('getAllExtensions', () => {
     it('should return array of extensions', () => {
         const extensions = getAllExtensions();
         expect(Array.isArray(extensions)).toBe(true);
-        expect(extensions.length).toBe(12);
+        expect(extensions.length).toBe(17);
     });
 
     it('should include all configured extensions', () => {
@@ -325,7 +330,7 @@ describe('getAllTypes', () => {
     it('should return array of ADT types', () => {
         const types = getAllTypes();
         expect(Array.isArray(types)).toBe(true);
-        expect(types.length).toBe(12);
+        expect(types.length).toBe(17);
     });
 
     it('should include all configured types', () => {

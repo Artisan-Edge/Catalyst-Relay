@@ -6,15 +6,17 @@
  * that shouldn't be considered meaningful differences.
  */
 
+import { stripBom } from './bom';
+
 /**
  * Normalize content for comparison
  *
- * Replaces all consecutive whitespace (spaces, tabs, newlines, carriage returns)
- * with a single space. Trims leading/trailing whitespace.
+ * Drops a leading BOM, replaces all consecutive whitespace (spaces, tabs, newlines,
+ * carriage returns) with a single space. Trims leading/trailing whitespace.
  *
  * @param content - Raw content string
  * @returns Normalized content with single spaces
  */
 export function normalizeContent(content: string): string {
-    return content.replace(/\s+/g, ' ').trim();
+    return stripBom(content).replace(/\s+/g, ' ').trim();
 }

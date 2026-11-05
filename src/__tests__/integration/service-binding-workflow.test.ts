@@ -16,7 +16,7 @@
  * client, and it pins the whole chain. Created names + transport are logged at the
  * end for manual cleanup.
  *
- * Run with: bun test src/__tests__/integration/service-binding-workflow.test.ts
+ * Run with: bun test --path-ignore-patterns=node_modules/** src/__tests__/integration/service-binding-workflow.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';

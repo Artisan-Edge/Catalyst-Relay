@@ -256,3 +256,29 @@ export async function safeLogout(client: ADTClient | null): Promise<void> {
         console.warn(`Logout warning: ${logoutErr.message}`);
     }
 }
+
+/**
+ * Delete whichever of `refs` still exist, in a fresh session (call after logging the test client
+ * out: a failed write can leave the test session holding a lock that blocks the delete).
+ * Refs are deleted one by one, in order (referencers first).
+ *
+ * @param refs - Objects to delete if present
+ * @param transport - Optional transport request
+ */
+export async function deleteExisting(refs: ObjectRef[], transport?: string): Promise<void> {
+    const [client, loginErr] = await createTestClient();
+    if (loginErr || !client) {
+        console.warn(`Cleanup login failed: ${loginErr?.message}`);
+        return;
+    }
+
+    for (const ref of refs) {
+        const [existing] = await client.read([ref]);
+        if (!existing) continue;
+
+        const [results, deleteErr] = await client.delete([ref], transport);
+        const message = deleteErr?.message ?? results?.find(r => r.status !== 'success')?.message;
+        if (message) console.warn(`Cleanup failed for ${ref.name}: ${message}`);
+    }
+    await safeLogout(client);
+}

@@ -2,11 +2,12 @@
  * Unit Tests for shared request recovery
  *
  * Concurrent requests that hit an expired CSRF token or a dead session must share one recovery
- * instead of each running their own. Runs executeRequest against a local stand-in for SAP.
+ * instead of each running their own. A request the ICM rejects for a lost session context
+ * (ICMENOSESSION) is retried once on a fresh context. Runs executeRequest against a local stand-in for SAP.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
-import { executeRequest, type RequestDependencies } from '../../client/methods/internal/request';
+import { executeRequest, SESSION_LOST_MESSAGE, type RequestDependencies } from '../../client/methods/internal/request';
 import type { ClientState, RequestOptions } from '../../client/types';
 
 // =============================================================================
@@ -24,7 +25,12 @@ const server = {
     // Recovery requests (CSRF fetch, logoff) in flight right now, and the most seen at once
     recoveryInFlight: 0,
     peakRecovery: 0,
+    // Requests to '/context' the ICM still rejects with ICMENOSESSION, and the context cookies they carried
+    lostContextAnswers: 0,
+    contextCalls: [] as (string | null)[],
 };
+
+const ICM_NO_SESSION_PAGE = '<!-- Error code: ICMENOSESSION --><html><head><title>Application Server Error</title></head><body>400 Session Timed Out</body></html>';
 
 async function asRecovery(handle: () => Promise<Response>): Promise<Response> {
     server.recoveryInFlight++;
@@ -64,6 +70,18 @@ beforeAll(() => {
                 });
             }
 
+            // '/context' stands for work on a stateful session context the server no longer has
+            if (path === '/context') {
+                server.contextCalls.push(req.headers.get('cookie'));
+                if (server.lostContextAnswers > 0) {
+                    server.lostContextAnswers--;
+                    return new Response(ICM_NO_SESSION_PAGE, { status: 400, headers: { 'content-type': 'text/html', 'sap-err-id': 'ICMENOSESSION' } });
+                }
+                return new Response('done');
+            }
+
+            if (path === '/bad-request') return new Response('Invalid parameter', { status: 400 });
+
             // '/expire' stands for work on a session that has timed out; '/work' only checks the token
             if (path === '/expire' && server.sessionExpired) return new Response(SESSION_TIMED_OUT, { status: 500 });
             if (req.headers.get('x-csrf-token') !== server.validToken) return new Response('CSRF token validation failed', { status: 403 });
@@ -96,7 +114,7 @@ function createClient(csrfToken: string): { state: ClientState; request: (option
     const deps: RequestDependencies = {
         state,
         ssoCerts: undefined,
-        getCookieHeader: () => null,
+        getCookieHeader: () => [...state.cookies.entries()].map(([name, value]) => `${name}=${value}`).join('; ') || null,
         storeCookies: () => undefined,
     };
     const request = (options: RequestOptions): ReturnType<typeof executeRequest> => executeRequest(deps, options, request);
@@ -111,6 +129,8 @@ beforeEach(() => {
     server.logoffAnswersDeadSession = false;
     server.recoveryInFlight = 0;
     server.peakRecovery = 0;
+    server.lostContextAnswers = 0;
+    server.contextCalls = [];
 });
 
 // =============================================================================
@@ -176,5 +196,45 @@ describe('executeRequest recovery', () => {
         expect(server.logoffs).toBe(1);
         expect(state.csrfToken).toBe(server.validToken);
         expect(results.filter((_, i) => i % 2 === 1).every(([response]) => response?.status === 200)).toBe(true);
+    });
+});
+
+describe('executeRequest lost session context (ICMENOSESSION)', () => {
+    it('retries once on a fresh context, without the dead context cookie', async () => {
+        // The regression: the ICM's HTML 400 surfaced as an unknown error (CLI exit 99)
+        const { state, request } = createClient('initial');
+        state.cookies.set('sap-contextid', 'SID:dead');
+        state.cookies.set('SAP_SESSIONID_X_100', 'keep');
+        server.lostContextAnswers = 1;
+
+        const [response, error] = await request({ method: 'GET', path: '/context' });
+
+        expect(error).toBeNull();
+        expect(response?.status).toBe(200);
+        expect(server.contextCalls).toHaveLength(2);
+        expect(server.contextCalls[0]).toContain('sap-contextid=SID:dead');
+        expect(server.contextCalls[1]).not.toContain('sap-contextid');
+        expect(server.contextCalls[1]).toContain('SAP_SESSIONID_X_100=keep');
+    });
+
+    it('reports an expired session when the retry is rejected too', async () => {
+        const { request } = createClient('initial');
+        server.lostContextAnswers = 5;
+
+        const [response, error] = await request({ method: 'POST', path: '/context' });
+
+        expect(response).toBeNull();
+        expect(error?.message).toBe(SESSION_LOST_MESSAGE);
+        expect(error?.message).toContain('session expired');
+        expect(server.contextCalls).toHaveLength(2);
+    });
+
+    it('passes any other 400 through untouched', async () => {
+        const { request } = createClient('initial');
+
+        const [response] = await request({ method: 'GET', path: '/bad-request' });
+
+        expect(response?.status).toBe(400);
+        expect(await response?.text()).toBe('Invalid parameter');
     });
 });

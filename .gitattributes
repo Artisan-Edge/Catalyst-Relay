@@ -1,0 +1,2 @@
+# Text element fixtures are SAP responses compared byte-for-byte (CRLF); never convert line endings
+src/__tests__/fixtures/textelements/*.txt -text

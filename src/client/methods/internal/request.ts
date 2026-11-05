@@ -36,6 +36,38 @@ const sessionResets = new WeakMap<ClientState, AsyncResult<void, Error>>();
 // logoff against a dead session answers 500, which would otherwise wait on the reset it belongs to)
 const recovering = new AsyncLocalStorage<true>();
 
+// Marks the one retry of a request the ICM rejected for a lost session context
+const retryingLostContext = new AsyncLocalStorage<true>();
+
+// The ICM answers a request on a session context that no longer exists (timed out, ended by
+// another logoff or `session drop`) with HTTP 400 and this error id, before ABAP runs anything
+const ICM_NO_SESSION = 'ICMENOSESSION';
+const ICM_ERROR_HEADERS = ['sap-err-id', 'x-sap-icm-err-id'];
+const BAD_REQUEST = 400;
+const CONTEXT_COOKIE = /^sap-contextid$/i;
+export const SESSION_LOST_MESSAGE = `SAP session expired (${ICM_NO_SESSION}: the server no longer knows this session) and could not be re-established: log in again`;
+
+function isLostContext(response: Response, body: string): boolean {
+    if (response.status !== BAD_REQUEST) return false;
+    return ICM_ERROR_HEADERS.some(name => response.headers.get(name) === ICM_NO_SESSION) || body.includes(ICM_NO_SESSION);
+}
+
+const SESSION_TYPE_HEADER = /^x-sap-adt-sessiontype$/i;
+const STATELESS = 'stateless';
+
+function isStatelessRequest(headers: Record<string, string>): boolean {
+    return Object.entries(headers).some(([name, value]) => SESSION_TYPE_HEADER.test(name) && value.toLowerCase() === STATELESS);
+}
+
+// A stateless request sent on the stateful context ends that context (and every lock it holds).
+// Without the context cookie it runs in a short-lived context of its own: it sees none of the
+// stateful context's buffers and SAP releases what it enqueued when the request ends.
+function cookiesFor(cookieHeader: string | null, stateless: boolean): string | null {
+    if (!cookieHeader || !stateless) return cookieHeader;
+    const kept = cookieHeader.split(/;\s*/).filter(pair => !CONTEXT_COOKIE.test(pair.split('=')[0] ?? ''));
+    return kept.length > 0 ? kept.join('; ') : null;
+}
+
 function shareRecovery<T>(inFlight: WeakMap<ClientState, AsyncResult<T, Error>>, state: ClientState, start: () => AsyncResult<T, Error>): AsyncResult<T, Error> {
     const existing = inFlight.get(state);
     if (existing) return existing;
@@ -92,7 +124,8 @@ export async function executeRequest(
     debug(`CSRF header being sent: ${headers['x-csrf-token']?.substring(0, 20) || 'none'}...`);
 
     // Add stored cookies to request
-    const cookieHeader = getCookieHeader();
+    const stateless = isStatelessRequest(headers);
+    const cookieHeader = cookiesFor(getCookieHeader(), stateless);
     if (cookieHeader) {
         headers['Cookie'] = cookieHeader;
         debug(`Cookies being sent: ${cookieHeader.substring(0, 50)}...`);
@@ -133,7 +166,7 @@ export async function executeRequest(
 
                 // Retry request with new token and cookies
                 headers[CSRF_TOKEN_HEADER] = newToken;
-                const retryCookieHeader = getCookieHeader();
+                const retryCookieHeader = cookiesFor(getCookieHeader(), stateless);
                 if (retryCookieHeader) {
                     headers['Cookie'] = retryCookieHeader;
                 }
@@ -158,6 +191,21 @@ export async function executeRequest(
                 statusText: response.statusText,
                 headers: response.headers,
             }));
+        }
+
+        // Lost session context: nothing ran, so retry once on a fresh context (locks of the old one are gone)
+        if (response.status === BAD_REQUEST) {
+            const text = await response.text();
+            if (!isLostContext(response, text)) {
+                return ok(new Response(text, { status: response.status, statusText: response.statusText, headers: response.headers }));
+            }
+            if (isRecoveryRequest || retryingLostContext.getStore() === true) return err(new Error(SESSION_LOST_MESSAGE));
+
+            debug(`${ICM_NO_SESSION} on ${method} ${path}: retrying on a new session context`);
+            for (const name of [...state.cookies.keys()]) {
+                if (CONTEXT_COOKIE.test(name)) state.cookies.delete(name);
+            }
+            return retryingLostContext.run(true, () => selfRequest(options));
         }
 
         // Handle session expiration with automatic reset

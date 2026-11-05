@@ -1,5 +1,5 @@
 /**
- * XML DOM helpers for the ADT DDIC documents
+ * XML DOM helpers for ADT documents (form objects, attributes, ABAP Unit results)
  */
 
 import { XMLSerializer } from '@xmldom/xmldom';
@@ -7,6 +7,32 @@ import type { Result } from '../../types/result';
 import { ok, err } from '../../types/result';
 
 export const ADTCORE_NS = 'http://www.sap.com/adt/core';
+
+const ELEMENT_NODE = 1;
+
+/**
+ * Direct child elements with the given local name (nested ones are not searched);
+ * a namespace narrows the match, '*' or omitted matches any
+ */
+export function childElements(parent: Element | null, localName: string, ns = '*'): Element[] {
+    if (!parent) return [];
+    const result: Element[] = [];
+    for (let node = parent.firstChild; node; node = node.nextSibling) {
+        if (node.nodeType !== ELEMENT_NODE) continue;
+        const element = node as Element;
+        if (element.localName !== localName) continue;
+        if (ns !== '*' && element.namespaceURI !== ns) continue;
+        result.push(element);
+    }
+    return result;
+}
+
+/**
+ * First direct child element with the given local name, or null
+ */
+export function firstChildElement(parent: Element | null, localName: string, ns = '*'): Element | null {
+    return childElements(parent, localName, ns)[0] ?? null;
+}
 
 export function findChild(doc: Document, ns: string, localName: string): Element | null {
     return doc.getElementsByTagNameNS(ns, localName)[0] ?? null;

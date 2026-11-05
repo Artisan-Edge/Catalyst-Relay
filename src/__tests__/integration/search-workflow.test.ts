@@ -10,7 +10,7 @@
  * - SAP_TEST_USERNAME: SAP username
  * - SAP_PASSWORD: SAP password
  *
- * Run with: bun test src/__tests__/integration/search-workflow.test.ts
+ * Run with: bun test --path-ignore-patterns=node_modules/** src/__tests__/integration/search-workflow.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
@@ -34,11 +34,13 @@ describe('Search Workflow', () => {
     it('should search for objects starting with Z', async () => {
         if (shouldSkip(client)) return;
 
-        const [results, err] = await client!.search('Z*');
+        // Without maxResults SAP is asked for 10001 hits (minutes on a large system)
+        const [results, err] = await client!.search('Z*', { maxResults: 20 });
 
         expect(err).toBeNull();
         expect(results).toBeDefined();
         expect(Array.isArray(results)).toBe(true);
+        expect(results!.length).toBeLessThanOrEqual(20);
 
         console.log(`Found ${results!.length} objects matching 'Z*'`);
         if (results!.length > 0) {
@@ -52,9 +54,10 @@ describe('Search Workflow', () => {
     it('should search with type filter', async () => {
         if (shouldSkip(client)) return;
 
-        const [results, err] = await client!.search('Z*', { types: ['DDLS/DF'] });
+        const [results, err] = await client!.search('Z*', { types: ['DDLS/DF'], maxResults: 20 });
 
         expect(err).toBeNull();
+        expect(results!.length).toBeLessThanOrEqual(20);
         expect(results).toBeDefined();
         expect(Array.isArray(results)).toBe(true);
 

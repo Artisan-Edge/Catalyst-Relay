@@ -1,0 +1,194 @@
+@MaxLength:30
+C01=Continue Past Failed Segment
+
+@MaxLength:30
+C02=Stop on First Failed Segment
+
+@MaxLength:79
+H01=Load engine: IN-DATABASE - HANA INSERT/UPSERT ... SELECT; rows never leave HANA
+
+@MaxLength:79
+H02=No ABAP type conversion (NULL/padding/truncation differ); mismatches refused
+
+@MaxLength:79
+H03=Native SQL: bypasses table buffer + change log; HANA resolves session variables
+
+@MaxLength:79
+H04=First run: narrow WHERE, compare counts with the ABAP engine, check ChangedBy
+
+@MaxLength:35
+M01=ERROR: Selected cds is not valid
+
+@MaxLength:40
+M02=Error initializing dynamic selection
+
+@MaxLength:30
+M03=No free selection created
+
+@MaxLength:25
+M04=Selection is required
+
+@MaxLength:30
+M05=Character % is not allowed
+
+@MaxLength:30
+M06=Value ' LIKE ' is not allowed
+
+@MaxLength:25
+M07=Error reading table
+
+@MaxLength:50
+M25=ERROR: Selected table cannot be maintained.
+
+@MaxLength:50
+M26=Wildcard + is not allowed. Only * is allowed.
+
+@MaxLength:85
+M30=WHERE selection is active but no conditions were entered. Execution cancelled.
+
+@MaxLength:70
+M32=Could not build the partition value list. Check iteration config.
+
+@MaxLength:35
+M33=Error reading partition values
+
+@MaxLength:60
+M35=Load stopped on a failed segment. See the iteration log.
+
+@MaxLength:65
+M36=Stale-segment cleanup stopped on error. See the iteration log.
+
+@MaxLength:50
+M37=No iteration detail recorded for this run.
+
+@MaxLength:50
+M40=No stored selection found for this template.
+
+@MaxLength:55
+M41=This template has no stored selection criteria.
+
+@MaxLength:40
+M44=Select a row first.
+
+@MaxLength:40
+M45=Only job templates can be edited.
+
+@MaxLength:40
+M46=This run is not a job template.
+
+@MaxLength:75
+M47=Iteration enabled but this CDS/Table has no partition field configured.
+
+@MaxLength:40
+M50=Invalid numeric value for parameter
+
+@MaxLength:40
+M51=Source is not unique on the target key
+
+@MaxLength:75
+M56=&1 run(s) marked as error: their SM37 job is no longer running.
+
+@MaxLength:70
+M57=Only a run with status R (Running) can be marked as error.
+
+@MaxLength:85
+M58=Job &1 (&2) is still active in SM37; the run cannot be marked as error.
+
+@MaxLength:30
+M61=In-database load refused
+
+@MaxLength:15
+M62=problem(s)
+
+@MaxLength:20
+M63=Database error
+
+@MaxLength:50
+M64=The database rejected the generated statement
+
+@MaxLength:90
+M65=Scope list is empty - nothing to load. Check the scope view and the WHERE selection.
+
+@MaxLength:75
+M71=Could not read the scope values. Check SCOPE_SOURCE / SCOPE_FIELD.
+
+@MaxLength:75
+M72=Could not read the segment sizes. Check SIZE_SOURCE and its fields.
+
+@MaxLength:60
+M75=Scheduling cancelled - no job template was saved.
+
+@MaxLength:60
+M76=Cancelled - delete entire table was not confirmed.
+
+@MaxLength:80
+M77=A scope list is configured, but Delete Entire Table deletes ALL rows of
+
+@MaxLength:60
+M78=including data outside the scope window. Continue?
+
+@MaxLength:70
+M79=No ZSNAP_C2T_MAP row for this CDS/Table/Sequence; re-select it via F4.
+
+@MaxLength:40
+M80=Only job templates can be scheduled.
+
+@MaxLength:50
+M81=Scheduling cancelled - no job was created.
+
+@MaxLength:29
+S01=Source & Target
+
+@MaxLength:29
+S03=Load Options
+
+@MaxLength:29
+S05=Iteration Mode
+
+@MaxLength:29
+S07=Email Notification
+
+@MaxLength:27
+SS1=Change Log Filters
+
+@MaxLength:30
+SS2=Edit Job Template
+
+@MaxLength:30
+T03=CDS Parameter Selection
+
+@MaxLength:20
+T04=WHERE Selection
+
+@MaxLength:20
+T07=Change Log
+
+@MaxLength:110
+T08=Double-click for detail; Edit or Schedule a selected template; Mark as Error closes a selected Running run
+
+@MaxLength:30
+T09=Maintain Source Mapping
+
+@MaxLength:40
+T10=Job template selection criteria
+
+@MaxLength:20
+T11=Iteration Log:
+
+@MaxLength:15
+T12=entries
+
+@MaxLength:20
+T13=Mark Run as Error
+
+@MaxLength:10
+T14=Reason
+
+@MaxLength:30
+T15=Delete Entire Table
+
+@MaxLength:15
+T16=Delete All
+
+@MaxLength:15
+T17=Cancel

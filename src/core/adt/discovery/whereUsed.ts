@@ -15,6 +15,8 @@ export interface Dependency {
     extension: string;
     package: string;
     usageType: string;
+    /** ADT URI of the using object (e.g. …/functions/groups/zfoo/includes/lzfoot00) */
+    uri?: string;
 }
 
 import { getConfigByType, getConfigByExtension } from '../types';
@@ -117,12 +119,15 @@ function parseWhereUsed(xml: string): Result<Dependency[], Error> {
             : '';
 
         // Build dependency object.
-        dependencies.push({
+        const dependency: Dependency = {
             name,
             extension: config.extension,
             package: packageName || '',
             usageType: 'reference',
-        });
+        };
+        const uri = refObj.getAttribute('uri');
+        if (uri) dependency.uri = uri;
+        dependencies.push(dependency);
     }
 
     return ok(dependencies);

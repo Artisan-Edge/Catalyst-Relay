@@ -10,7 +10,7 @@
  *
  * Requires a transportable package (not $TMP).
  *
- * Run with: bun test src/__tests__/integration/transport-lifecycle.test.ts
+ * Run with: bun test --path-ignore-patterns=node_modules/** src/__tests__/integration/transport-lifecycle.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';

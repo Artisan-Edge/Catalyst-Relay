@@ -10,7 +10,7 @@ import { ok, err } from '../../types/result';
 import { escapeXml, safeParseXml } from '../utils/xml';
 import type { DataElementDef, DataElementLabels, DdicObjectMeta } from './types';
 import { abapTypeFromAdt } from './abapTypes';
-import { ADTCORE_NS, childNumber, childText, padNumber, requireChild, serializeXml, setChildText } from './xmlDom';
+import { ADTCORE_NS, childNumber, childText, padNumber, requireChild, serializeXml, setChildText } from '../utils/xmlDom';
 
 const DTEL_NS = 'http://www.sap.com/adt/dictionary/dataelements';
 const TYPE_KIND_DOMAIN = 'domain';

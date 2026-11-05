@@ -141,6 +141,11 @@ export type {
     InactiveObject,
     InactiveTransport,
     InactiveRef,
+    FunctionGroupParts,
+    FunctionGroupPart,
+    ObjectAttributes,
+    ObjectAttributesInfo,
+    ObjectAttributesWriteResult,
     // Tree types
     TreeResponse,
     PackageNode,
@@ -158,6 +163,52 @@ export type { DataPreviewQuery, QueryFilter, BasicFilter, BetweenFilter, ListFil
 
 // Extensions only `changePackage` accepts (not readable/writable/deletable)
 export { MOVE_ONLY_EXTENSIONS } from './core/adt';
+
+// Object types with a title/attributes in their metadata document
+export { ATTRIBUTE_EXTENSIONS } from './core/adt';
+
+// Object type registry (extension ↔ ADT type); ObjectConfig.hasAttributes / sourceFormat / kind describe each type
+export { OBJECT_CONFIG_MAP, getConfigByExtension, getConfigByType } from './core/adt';
+export type { ConfiguredExtension, SourceFormat } from './core/adt';
+
+// Function group rules (no HTTP): include name → group, generated includes, URIs
+export { containerFromIncludeName, containerFromUri, groupFromUri, isGeneratedInclude } from './core/adt';
+
+// Local vs server source comparison, as upsert decides "unchanged" (no HTTP)
+export { contentEquivalent } from './core/adt';
+
+// UTF-8 byte order mark helper used for every source parse
+export { stripBom } from './core/utils';
+
+// Message class (.asmsag) source helpers (pure; no HTTP)
+export { parseMessageClass, validateMessageClass, serializeMessageClass, messageClassesEquivalent } from './core/msag';
+
+// Lock objects (.asenqu)
+export { parseLockObject, serializeLockObject, validateLockObject, lockObjectsEquivalent, LOCK_MODES } from './core/enqu';
+export type { LockObjectDef, LockTableDef, LockParameterDef, LockMode } from './core/enqu';
+export type { MessageClassDef, MessageDef } from './core/msag';
+
+// Text elements (types + pure format helpers; client methods do the HTTP)
+export { parseTextElements, serializeTextElements, canonicalTextElements, textElementsEquivalent, validateTextElements, textElementsReference, TEXT_ELEMENTS_KINDS, TEXT_ELEMENTS_EXTENSION } from './core/adt';
+export type { TextElementsOwner, TextElementsOwnerKind, TextElementsPart, TextElementsParts, TextElementEntry, TextElementsWriteResult } from './core/adt';
+
+// ABAP Unit
+export { UNIT_TEST_RISK_LEVELS, UNIT_TEST_DURATIONS, DEFAULT_UNIT_TEST_RISK_LEVELS, DEFAULT_UNIT_TEST_DURATIONS } from './core/adt';
+export type {
+    UnitTestRunOptions,
+    UnitTestRunResult,
+    UnitTestSummary,
+    UnitTestProgram,
+    UnitTestClass,
+    UnitTestMethod,
+    UnitTestMethodStatus,
+    UnitTestAlert,
+    UnitTestAlertKind,
+    UnitTestStackEntry,
+    UnitTestRiskLevel,
+    UnitTestDuration,
+    UnitTestMetadata,
+} from './core/adt';
 
 // Result utilities
 export { ok, err } from './types/result';

@@ -1,0 +1,3 @@
+# Bare `bun test` runs the unit set only; live-SAP tests: bun run test:integration
+[test]
+pathIgnorePatterns = ["**/integration/**", "node_modules/**"]

@@ -40,3 +40,7 @@ export {
 export { normalizeContent } from './content';
 
 export { ADT_CONCURRENCY, mapLimited } from './concurrency';
+
+export { BOM, stripBom } from './bom';
+
+export { safeJsonParse } from './json';

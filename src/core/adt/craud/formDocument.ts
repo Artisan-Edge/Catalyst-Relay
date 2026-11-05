@@ -1,5 +1,5 @@
 /**
- * Form Document — fetch the XML document of a form-based object (data element, domain)
+ * Form Document — fetch the XML document of a form-based object (data element, domain, message class, lock object)
  */
 
 import type { AsyncResult } from '../../../types/result';
@@ -25,5 +25,5 @@ export async function readFormDocument(client: AdtRequestor, config: ObjectConfi
         path: uri,
         headers: { 'Accept': config.contentType ?? 'application/xml' },
     });
-    return checkResponse(response, requestErr, `Failed to read ${config.label} ${object.name}`);
+    return checkResponse(response, requestErr, `Failed to read ${config.label} ${object.name}`, config.contentType);
 }

@@ -11,10 +11,11 @@
  */
 
 // Types and configuration (shared across module)
-export type { AdtRequestor, ObjectConfig, ConfiguredExtension, UpsertResult, ObjectKind, ContainerConfig } from './types';
+export type { AdtRequestor, ObjectConfig, ConfiguredExtension, UpsertResult, ObjectKind, ContainerConfig, SourceFormat, LockTarget } from './types';
 export {
     OBJECT_CONFIG_MAP,
     FUNCTION_GROUP_CONFIG,
+    SOURCE_FORMAT_MEDIA_TYPES,
     ObjectTypeLabel,
     getConfigByExtension,
     getConfigByType,
@@ -54,11 +55,42 @@ export type { SearchResult, SearchOptions } from './discovery/searchObjects';
 export type { Dependency } from './discovery/whereUsed';
 
 // Lock management
-export { lockObject, unlockObject } from './craud/lock';
+export { lockObject, unlockObject, acquireLock, releaseLock } from './craud/lock';
+export { withLock } from './craud/withLock';
+export { objectLockTarget } from './helpers';
 
-// Function groups and containers (function modules)
-export { ensureFunctionGroup } from './craud/functionGroup';
+// Function groups and containers (function modules, function group includes)
+export {
+    containerFromUri,
+    containerFromIncludeName,
+    groupFromUri,
+    groupFromMainProgramName,
+    isGeneratedInclude,
+    isFunctionGroup,
+    isFunctionGroupInclude,
+    ensureFunctionGroup,
+    prepareFunctionGroups,
+    withFunctionGroupParts,
+    FUNCTION_GROUP_UPSERT_ORDER,
+    refuseGeneratedInclude,
+    withIncludeHint,
+    splitGroupParts,
+    isOwnGroupReference,
+    owningGroupInSet,
+    rollUpGroupParts,
+    oneAtATimePerGroup,
+} from './functionGroup';
 export { resolveContainers } from './craud/resolveContainers';
+export { getFunctionGroupParts } from './discovery/functionGroupParts';
+export type { FunctionGroupParts, FunctionGroupPart } from './discovery/functionGroupParts';
+
+// Object attributes (title, program authorization group)
+export { readObjectAttributes, writeObjectAttributes, ATTRIBUTE_EXTENSIONS } from './attributes';
+export type { ObjectAttributes, ObjectAttributesInfo, ObjectAttributesWriteResult } from './attributes';
+
+// Content comparison (form objects semantically, AFF JSON as values, text normalized)
+export { contentEquivalent } from './craud/contentEquivalent';
+export { affJsonDescription, affJsonEquivalent } from './aff';
 
 // Write operations
 export { createObject } from './craud/create';
@@ -173,3 +205,35 @@ export type {
 // Packages
 export { createPackage, readPackageSettings, parsePackageSettings } from './packages/createPackage';
 export type { CreatePackageOptions, CreatePackageResult, PackageSettings } from './packages/createPackage';
+
+// Text elements (text symbols, selection texts, list headings)
+export { readTextElements } from './textelements/readTextElements';
+export { writeTextElements } from './textelements/writeTextElements';
+export type { TextElementsWriteResult } from './textelements/writeTextElements';
+export { resolveTextElementsOwner } from './textelements/resolveTextElementsOwner';
+export { activateTextElements, textElementsReference } from './textelements/activateTextElements';
+export { parseTextElements } from './textelements/parseTextElements';
+export { serializeTextElements, canonicalTextElements, textElementsEquivalent } from './textelements/serializeTextElements';
+export { validateTextElements } from './textelements/validateTextElements';
+export { TEXT_ELEMENTS_KINDS, TEXT_ELEMENTS_EXTENSION } from './textelements/types';
+export type { TextElementsOwner, TextElementsOwnerKind, TextElementsPart, TextElementsParts, TextElementEntry } from './textelements/types';
+
+// ABAP Unit
+export { runUnitTests } from './abapunit/runUnitTests';
+export { getUnitTestMetadata } from './abapunit/getUnitTestMetadata';
+export { UNIT_TEST_RISK_LEVELS, UNIT_TEST_DURATIONS, DEFAULT_UNIT_TEST_RISK_LEVELS, DEFAULT_UNIT_TEST_DURATIONS } from './abapunit/types';
+export type { UnitTestMetadata } from './abapunit/getUnitTestMetadata';
+export type {
+    UnitTestRunOptions,
+    UnitTestRunResult,
+    UnitTestSummary,
+    UnitTestProgram,
+    UnitTestClass,
+    UnitTestMethod,
+    UnitTestMethodStatus,
+    UnitTestAlert,
+    UnitTestAlertKind,
+    UnitTestStackEntry,
+    UnitTestRiskLevel,
+    UnitTestDuration,
+} from './abapunit/types';

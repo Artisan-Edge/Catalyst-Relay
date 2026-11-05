@@ -9,7 +9,8 @@ import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import { toRef } from '../helpers';
-import { getFormHandler } from '../../ddic';
+import { getFormHandler } from '../../forms';
+import { stripBom } from '../../utils/bom';
 import type { ObjectContent } from '../../../types/requests';
 import { readObject } from './read';
 import { getConfigByExtension } from '../types';
@@ -159,7 +160,7 @@ export async function gitDiff(
     const label = config?.label ?? object.extension;
 
     // Form objects are read back as canonical DSL; canonicalize the local side too.
-    let localContent = object.content;
+    let localContent = stripBom(object.content);
     const handler = getFormHandler(object.extension);
     if (handler) {
         const [canonical, canonicalErr] = handler.canonical(object.content);
@@ -167,9 +168,9 @@ export async function gitDiff(
         localContent = canonical;
     }
 
-    // Split content into lines for comparison.
-    const serverLines = serverObj.content.split('\n');
-    const localLines = localContent.split('\n');
+    // Split content into lines for comparison; SAP sends CRLF, and a trailing newline is not a change.
+    const serverLines = toLines(serverObj.content);
+    const localLines = toLines(localContent);
 
     // Compute diff.
     const diffs = computeDiff(serverLines, localLines);
@@ -180,4 +181,8 @@ export async function gitDiff(
         label,
         diffs,
     });
+}
+
+function toLines(content: string): string[] {
+    return content.replace(/(\r?\n)+$/, '').split(/\r?\n/);
 }

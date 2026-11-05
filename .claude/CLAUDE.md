@@ -79,8 +79,20 @@ src/
 │   │       ├── index.ts
 │   │       └── sso.ts
 │   ├── session/          # Session management
-│   ├── adt/              # ADT operations (CRAUD, discovery, preview)
-│   └── utils/            # Internal utilities
+│   ├── adt/              # ADT operations
+│   │   ├── craud/        # Create, read, update, delete, activate, lock/withLock, contentEquivalent
+│   │   ├── discovery/    # Packages, tree, search, where-used, inactive objects
+│   │   ├── functionGroup/# All function group rules (names, ensure, upsert order, delete roll-up, activation)
+│   │   ├── attributes/   # Object titles / program authorization group
+│   │   ├── aff/          # abap-file-formats JSON sources (description, compare)
+│   │   ├── textelements/ # Text pools (symbols, selections, headings)
+│   │   ├── abapunit/     # ABAP Unit runs and metadata
+│   │   └── ...           # data_extraction, transports, iam, packages, refactoring, apirelease, businessservices
+│   ├── forms/            # Form handler: source ↔ ADT document per form type (sits above ddic/msag/enqu)
+│   ├── ddic/             # Data element / domain DSL ↔ XML
+│   ├── msag/             # Message class JSON ↔ XML
+│   ├── enqu/             # Lock object DSL ↔ XML
+│   └── utils/            # Internal utilities (xml, xmlDom, bom, json, content, ...)
 │
 ├── types/                # Shared type definitions
 │   ├── index.ts          # Type exports

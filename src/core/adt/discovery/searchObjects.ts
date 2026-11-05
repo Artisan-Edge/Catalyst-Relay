@@ -22,7 +22,7 @@ export interface SearchResult {
 }
 
 import { getConfigByType, getAllTypes } from '../types';
-import { containerFromUri } from '../helpers';
+import { containerFromUri } from '../functionGroup/names';
 import { extractError, safeParseXml } from '../../utils/xml';
 import { mapLimited } from '../../utils/concurrency';
 
@@ -37,14 +37,19 @@ import { mapLimited } from '../../utils/concurrency';
 export interface SearchOptions {
     types?: string[];
     includePackages?: boolean;
+    /** Most results SAP returns (default 10001); a small limit keeps wide patterns fast */
+    maxResults?: number;
 }
+
+const DEFAULT_MAX_RESULTS = 10001;
 
 export async function searchObjects(
     client: AdtRequestor,
     query: string,
     options?: SearchOptions
 ): AsyncResult<SearchResult[], Error> {
-    const { types, includePackages = true } = options ?? {};
+    const { types, includePackages = true, maxResults = DEFAULT_MAX_RESULTS } = options ?? {};
+    if (!Number.isInteger(maxResults) || maxResults < 1) return err(new Error(`maxResults must be a positive integer, got ${maxResults}`));
     // Build search parameters.
     const searchPattern = query || '*';
     const objectTypes = types && types.length > 0 ? types : getAllTypes();
@@ -53,7 +58,7 @@ export async function searchObjects(
     const params: Array<[string, string]> = [
         ['operation', 'quickSearch'],
         ['query', searchPattern],
-        ['maxResults', '10001'],
+        ['maxResults', String(maxResults)],
     ];
     for (const type of objectTypes) {
         params.push(['objectType', type]);

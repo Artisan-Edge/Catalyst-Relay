@@ -1,0 +1,75 @@
+E_CONT  =Continue Past Failed Segment
+
+E_DEDUP =Remove Duplicates
+
+E_DELALL=Delete Complete Table Data
+
+E_DODEL =Delete Data (WHERE / Scope)
+
+E_EMAIL =Email Recipients
+
+E_EMEN  =Email on Completion
+
+E_EMER  =Email on Error
+
+E_EMST  =Email on Job Start
+
+E_ITDEL =Delete Segment Before Load
+
+E_ITER  =Iterate by Partition Field
+
+E_STOP  =Stop on First Failed Segment
+
+E_SWEEP =Delete Stale Segments
+
+E_WHERE =WHERE Selection (CDS/Table)
+
+P_CDS   =CDS View(Source)
+
+P_CONT  =Continue Past Failed Segment
+
+P_DEDUP =Remove Duplicates
+
+P_DELALL=Delete Complete Table Data
+
+P_DO_DEL=Delete Data (WHERE / Scope)
+
+P_EMEN  =Email on Completion
+
+P_EMER  =Email on Error
+
+P_EMST  =Email on Job Start
+
+P_ITDEL =Delete Segment Before Load
+
+P_ITER  =Iterate by Partition Field
+
+P_JOB   =Submit Job
+
+P_MAXHIT=Maximum No. of Hits
+
+P_SEQ   =Mapping Sequence
+
+P_STOP  =Stop on First Failed Segment
+
+P_SWEEP =Delete Stale Segments
+
+P_TABLE =Table (Target)
+
+P_WHERE =WHERE Selection (CDS/Table)
+
+S_CDS   =CDS View(Source)
+
+S_CR_BY =Created By
+
+S_CR_DT =Created On
+
+S_CR_TM =Created At
+
+S_EMAIL =Email Recipients
+
+S_SRTFD =Run ID
+
+S_TABLE =Table (Target)
+
+P_RUNID =?...

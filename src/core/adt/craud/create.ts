@@ -9,6 +9,7 @@ import { BehaviorImplementationType } from '../../../types/requests';
 import type { AdtRequestor } from '../types';
 import { escapeXml } from '../../utils/xml';
 import { checkResponse, collectionUri, requireConfig, requireFormHandler } from '../helpers';
+import { affJsonDescription } from '../aff';
 
 /**
  * Create a new object in SAP
@@ -39,27 +40,30 @@ export async function createObject(
         params['corrNr'] = transport;
     }
 
-    // Form objects: one POST of the full document built from the DSL.
+    // Form objects: one POST of the document built from the source (validated first).
     if (config.kind === 'form') {
         const [handler, handlerErr] = requireFormHandler(object);
         if (handlerErr) return err(handlerErr);
-        const [xml, buildErr] = handler.buildXml(object.content, { packageName, responsible: username });
+        const [xml, buildErr] = handler.buildXml(object.content, { name: object.name, packageName, responsible: username });
         if (buildErr) return err(buildErr);
 
+        const headers: Record<string, string> = { 'Content-Type': config.contentType ?? 'application/xml' };
+        if (config.statelessCreate) headers['X-sap-adt-sessiontype'] = 'stateless';
         const [response, requestErr] = await client.request({
             method: 'POST',
             path,
             params,
-            headers: { 'Content-Type': config.contentType ?? 'application/xml' },
+            headers,
             body: xml,
         });
-        const [, checkErr] = await checkResponse(response, requestErr, `Failed to create ${config.label} ${object.name}`);
+        const [, checkErr] = await checkResponse(response, requestErr, `Failed to create ${config.label} ${object.name}`, config.contentType);
         if (checkErr) return err(checkErr);
         return ok(undefined);
     }
 
-    // Default empty description if not provided.
-    const description = object.description ?? '';
+    // JSON sources (abap-file-formats) carry the description in header.description. Without one the
+    // object name is used: SAP refuses some creates (includes, tables) without a title.
+    const description = object.description || (config.sourceFormat === 'aff-json' ? affJsonDescription(object.content) : '') || object.name.toUpperCase();
 
     // Extra root attributes for types that need them (e.g. srvd:srvdSourceType).
     const extraAttrs = config.rootAttributes
@@ -76,7 +80,7 @@ export async function createObject(
     </adtcore:adtTemplate>`
         : '';
 
-    // Nested objects (function modules) reference their container instead of a package.
+    // Nested objects (function modules, function group includes) reference their container instead of a package.
     const owner = config.container && object.container
         ? `<adtcore:containerRef adtcore:name="${escapeXml(object.container.toUpperCase())}" adtcore:type="${config.container.type}" adtcore:uri="/sap/bc/adt/${config.container.endpoint}/${escapeXml(object.container.toLowerCase())}"/>`
         : `<adtcore:packageRef adtcore:name="${packageName}"/>`;
@@ -96,19 +100,22 @@ ${adtTemplate}
 </${config.rootName}>`;
 
     // Execute create request.
+    const headers: Record<string, string> = { 'Content-Type': config.createContentType ?? 'application/*' };
+    if (config.statelessCreate) headers['X-sap-adt-sessiontype'] = 'stateless';
     const [response, requestErr] = await client.request({
         method: 'POST',
         path,
         params,
-        headers: { 'Content-Type': 'application/*' },
+        headers,
         body: body.trim(),
     });
 
     // Validate successful response.
-    const [_, checkErr] = await checkResponse(
+    const [, checkErr] = await checkResponse(
         response,
         requestErr,
-        `Failed to create ${config.label} ${object.name}`
+        `Failed to create ${config.label} ${object.name}`,
+        config.createContentType
     );
     if (checkErr) return err(checkErr);
 

@@ -8,6 +8,10 @@ import { getConfigByExtension } from '../types';
 import { objectUri } from '../helpers';
 import { extractError, safeParseXml } from '../../utils/xml';
 import { debug } from '../../utils/logging';
+import { getInactiveObjects } from '../discovery/inactiveObjects';
+import type { InactiveEntry } from '../discovery/inactiveObjects';
+import { mapLimited } from '../../utils/concurrency';
+import { objectExists } from './objectExists';
 
 /**
  * Result of activation operation
@@ -48,7 +52,9 @@ const LONG_POLL_TIMEOUT_MS = 3_600_000; // 1 hour
 const MAX_RESULTS_ATTEMPTS = 3;
 const RESULTS_RETRY_DELAY_MS = 1_000;
 const RUN_ID_REGEX = /\/activation\/runs\/([^?/]+)/;
+const CANCELLED_TEXT = 'Not activated: SAP cancelled the activation run because another object in it failed';
 const BACKGROUND_RUN_MEDIA_TYPE = 'application/vnd.sap.adt.backgroundrun.v1+xml';
+const CHECKLIST_NS = 'http://www.sap.com/abapxml/checklist';
 
 export async function activateObjects(
     client: AdtRequestor,
@@ -59,10 +65,21 @@ export async function activateObjects(
     }
 
     // Resolve each object to an activation reference via the extension registry.
+    // Types saved active (message classes) have nothing to activate; their results keep their place.
     const references: ActivationReference[] = [];
+    const slots: (ActivationResult | null)[] = [];
     for (const obj of objects) {
         const config = getConfigByExtension(obj.extension);
         if (!config) return err(new Error(`Unsupported extension: ${obj.extension}`));
+        if (config.alwaysActive) {
+            slots.push({
+                name: obj.name,
+                extension: obj.extension,
+                status: 'success',
+                messages: [{ severity: 'info', text: `No activation needed: ${config.label.toLowerCase()} changes are active when saved` }],
+            });
+            continue;
+        }
         const [uri, uriErr] = objectUri(config, obj);
         if (uriErr) return err(uriErr);
         references.push({
@@ -71,9 +88,31 @@ export async function activateObjects(
             name: obj.name,
             extension: obj.extension,
         });
+        slots.push(null);
     }
 
-    return activateByReferences(client, references);
+    // Results come back in reference order; fill them into the remaining slots (input order).
+    const [results, activateErr] = await activateByReferences(client, references);
+    if (activateErr) return err(activateErr);
+    const checked = await markMissing(client, objects, slots, results);
+    let next = 0;
+    return ok(slots.map(slot => slot ?? checked[next++]!));
+}
+
+// SAP says nothing about an object that does not exist (a deleted access control), the same as for
+// one already active: confirm each silent success exists. A failed lookup keeps the result.
+async function markMissing(client: AdtRequestor, objects: ObjectRef[], slots: (ActivationResult | null)[], results: ActivationResult[]): Promise<ActivationResult[]> {
+    // results[i] belongs to the i-th object that was sent to SAP
+    const activated = objects.filter((_, index) => slots[index] === null);
+    const [checked] = await mapLimited(results.map((result, index) => ({ result, object: activated[index] })), async ({ result, object }): AsyncResult<ActivationResult, Error> => {
+        if (!object || result.status !== 'success' || result.messages.length > 0) return ok(result);
+        const [exists, existsErr] = await objectExists(client, object);
+        if (existsErr) debug(`Existence check of ${object.name}.${object.extension} failed: ${existsErr.message}`);
+        if (exists !== false) return ok(result);
+        const label = getConfigByExtension(object.extension)?.label ?? object.extension;
+        return ok({ ...result, status: 'error', messages: [{ severity: 'error', text: `${label} ${object.name.toUpperCase()} does not exist` }] });
+    });
+    return checked ?? results;
 }
 
 /**
@@ -168,9 +207,36 @@ export async function activateByReferences(
     const [resultsText, resultsErr] = await fetchActivationResults(client, runId);
     if (resultsErr) return err(resultsErr);
 
-    const [results, parseErr] = extractActivationErrors(references, resultsText);
+    const [parsed, parseErr] = extractActivationErrors(references, resultsText);
     if (parseErr) return err(parseErr);
-    return ok(results);
+    if (!parsed.cancelled) return ok(parsed.results);
+
+    // A cancelled run activates nothing, yet only the failing object carries a message.
+    return ok(await markCancelled(client, references, parsed.results));
+}
+
+// The objects of a cancelled run that are still inactive did not activate; ones already
+// active before the run (nothing to do) stay a success. When the inactive list can't be
+// read, every object without its own error is reported failed rather than guessed active.
+async function markCancelled(client: AdtRequestor, references: ActivationReference[], results: ActivationResult[]): Promise<ActivationResult[]> {
+    const [entries, inactiveErr] = await getInactiveObjects(client);
+    if (inactiveErr) debug(`Inactive objects lookup after cancelled activation failed: ${inactiveErr.message}`);
+
+    return results.map((result, index) => {
+        if (result.status === 'error') return result;
+        if (entries && !isInactive(references[index]!, entries)) return result;
+        return { ...result, status: 'error' as const, messages: [...result.messages, { severity: 'error' as const, text: CANCELLED_TEXT }] };
+    });
+}
+
+function isInactive(ref: ActivationReference, entries: InactiveEntry[]): boolean {
+    const uri = ref.uri.toLowerCase();
+    return entries.some(entry => {
+        const object = entry.object;
+        if (!object || object.deleted) return false;
+        if (object.ref.uri.toLowerCase() === uri) return true;
+        return object.ref.name.toUpperCase() === ref.name.toUpperCase() && object.ref.type === ref.type;
+    });
 }
 
 // Read a finished run's results, retrying the transient exception SAP sometimes answers
@@ -209,14 +275,24 @@ async function fetchActivationResults(client: AdtRequestor, runId: string): Asyn
     return err(new Error(`Failed to fetch activation results after ${MAX_RESULTS_ATTEMPTS} attempts: ${lastDetail}`));
 }
 
+interface ParsedActivation {
+    results: ActivationResult[];
+    /** Checked but not activated: SAP cancelled the whole run (an object in it failed) */
+    cancelled: boolean;
+}
+
 // Parse activation response XML for errors
 function extractActivationErrors(
     objects: ActivationReference[],
     xml: string,
-): Result<ActivationResult[], Error> {
+): Result<ParsedActivation, Error> {
     // Parse XML response.
     const [doc, parseErr] = safeParseXml(xml);
     if (parseErr) { return err(parseErr); }
+
+    // checkExecuted=false + activationExecuted=false means everything was already active.
+    const properties = doc.getElementsByTagNameNS(CHECKLIST_NS, 'properties')[0];
+    const cancelled = properties?.getAttribute('checkExecuted') === 'true' && properties.getAttribute('activationExecuted') === 'false';
 
     // Initialize error map with empty arrays for each object.
     const errorMap: Map<string, ActivationMessage[]> = new Map();
@@ -283,7 +359,7 @@ function extractActivationErrors(
         };
     });
 
-    return ok(results);
+    return ok({ results, cancelled });
 }
 
 const START_REGEX = /#start=(\d+),(\d+)/;

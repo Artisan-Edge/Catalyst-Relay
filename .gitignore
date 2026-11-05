@@ -39,6 +39,7 @@ bun.lockb
 # Misc
 errors/
 *.xml
+!src/__tests__/fixtures/**/*.xml
 *.html
 *.tgz
 test.output

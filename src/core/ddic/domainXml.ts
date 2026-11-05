@@ -10,7 +10,7 @@ import { ok, err } from '../../types/result';
 import { escapeXml, safeParseXml } from '../utils/xml';
 import type { DdicObjectMeta, DomainDef, FixedValue } from './types';
 import { abapTypeFromAdt } from './abapTypes';
-import { ADTCORE_NS, childNumber, childText, padNumber, requireChild, serializeXml, setChildText, setText } from './xmlDom';
+import { ADTCORE_NS, childNumber, childText, padNumber, requireChild, serializeXml, setChildText, setText } from '../utils/xmlDom';
 
 const DOMA_NS = 'http://www.sap.com/dictionary/domain';
 const NUMBER_WIDTH = 6;

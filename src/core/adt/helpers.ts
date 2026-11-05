@@ -9,22 +9,30 @@ import type { AsyncResult, Result } from '../../types/result';
 import { ok, err } from '../../types/result';
 import type { ObjectContent, ObjectRef } from '../../types/requests';
 import { extractError } from '../utils/xml';
-import { getFormHandler } from '../ddic';
-import type { FormHandler } from '../ddic';
-import { getConfigByExtension } from './types';
-import type { ObjectConfig } from './types';
+import { getFormHandler } from '../forms';
+import type { FormHandler } from '../forms';
+import { getConfigByExtension, SOURCE_FORMAT_MEDIA_TYPES } from './types';
+import type { LockTarget, ObjectConfig } from './types';
 
 const ADT_ROOT = '/sap/bc/adt';
 const CONTAINER_PLACEHOLDER = '{container}';
-const FUNCTION_MODULE_URI = /\/functions\/groups\/([^/]+)\/fmodules\//i;
+const NOT_ACCEPTABLE = 406;
+const UNSUPPORTED_MEDIA_TYPE = 415;
+const NOT_ACCEPTABLE_EXCEPTION = 'ExceptionResourceNotAcceptable';
+const NO_MESSAGE = ['No message found', 'No error message found', 'Failed to parse error XML'];
+const PLAIN_TEXT = 'text/plain';
 
 /**
  * Check response for errors and return text content
+ *
+ * @param mediaType - Vendor media type the request sent or asked for; a 406/415 naming it
+ *   is reported as unsupported by the SAP release
  */
 export async function checkResponse(
     response: Response | null,
     requestErr: Error | null,
-    operation: string
+    operation: string,
+    mediaType?: string
 ): AsyncResult<string, Error> {
     // Handle request errors.
     if (requestErr) return [null, requestErr];
@@ -33,9 +41,11 @@ export async function checkResponse(
     // Handle HTTP errors.
     if (!response.ok) {
         const text = await response.text();
+        const unsupported = mediaType ? mediaTypeError(response.status, text, mediaType, operation) : null;
+        if (unsupported) return [null, unsupported];
         const errorMsg = extractError(text);
         // Include status and raw text if no message found for debugging
-        if (errorMsg === 'No message found' || errorMsg === 'Failed to parse error XML') {
+        if (NO_MESSAGE.includes(errorMsg)) {
             return [null, new Error(`${operation}: HTTP ${response.status} - ${text.substring(0, 500)}`)];
         }
         return [null, new Error(`${operation}: ${errorMsg}`)];
@@ -43,6 +53,29 @@ export async function checkResponse(
 
     // Return successful response text.
     return [await response.text(), null];
+}
+
+/**
+ * Error for a 406/415 that means the SAP release does not know a media type, else null
+ *
+ * 415 always means the request body's type is unknown. 406 means so only when SAP says the
+ * content is not acceptable (or says nothing): ADT also answers 406 for invalid content.
+ */
+export function mediaTypeError(status: number, body: string, mediaType: string, operation: string): Error | null {
+    if (status !== NOT_ACCEPTABLE && status !== UNSUPPORTED_MEDIA_TYPE) return null;
+    const message = extractError(body);
+    const hasMessage = !NO_MESSAGE.includes(message);
+    if (status === NOT_ACCEPTABLE && hasMessage && !body.includes(NOT_ACCEPTABLE_EXCEPTION)) return null;
+
+    const detail = hasMessage ? ` (SAP: ${message})` : '';
+    return new Error(`${operation}: not supported on this SAP release — it does not accept ${mediaType} (HTTP ${status})${detail}`);
+}
+
+/**
+ * Media type of a source object's /source/main (plain text unless the type declares a format)
+ */
+export function sourceMediaType(config: ObjectConfig): string {
+    return config.sourceFormat ? SOURCE_FORMAT_MEDIA_TYPES[config.sourceFormat] : PLAIN_TEXT;
 }
 
 /**
@@ -95,6 +128,17 @@ export function lockUri(config: ObjectConfig, object: ObjectRef): Result<string,
 }
 
 /**
+ * Lock target of an object (its lock URI and "<Label> <NAME>")
+ */
+export function objectLockTarget(object: ObjectRef): Result<LockTarget, Error> {
+    const [config, configErr] = requireConfig(object.extension);
+    if (configErr) return err(configErr);
+    const [uri, uriErr] = lockUri(config, object);
+    if (uriErr) return err(uriErr);
+    return ok({ uri, label: `${config.label} ${object.name}` });
+}
+
+/**
  * Copy of an object reference with only its addressing fields (drops content etc.)
  */
 export function toRef(object: ObjectRef): ObjectRef {
@@ -104,7 +148,7 @@ export function toRef(object: ObjectRef): ObjectRef {
 }
 
 /**
- * Form handler for a form object's DSL, checking the declared name matches the object name
+ * Form handler for a form object's source, checking any declared name matches the object name
  */
 export function requireFormHandler(object: ObjectContent): Result<FormHandler, Error> {
     const handler = getFormHandler(object.extension);
@@ -112,16 +156,8 @@ export function requireFormHandler(object: ObjectContent): Result<FormHandler, E
 
     const [declared, nameErr] = handler.declaredName(object.content);
     if (nameErr) return err(new Error(`${object.name}.${object.extension}: ${nameErr.message}`));
-    if (declared.toUpperCase() !== object.name.toUpperCase()) {
+    if (declared !== null && declared.toUpperCase() !== object.name.toUpperCase()) {
         return err(new Error(`${object.name}.${object.extension} declares '${declared}'; the name must match the object name`));
     }
     return ok(handler);
-}
-
-/**
- * Function group name from a function module URI, e.g. …/functions/groups/zfyp7/fmodules/… → ZFYP7
- */
-export function containerFromUri(uri: string): string | null {
-    const match = FUNCTION_MODULE_URI.exec(uri);
-    return match?.[1] ? decodeURIComponent(match[1]).toUpperCase() : null;
 }
