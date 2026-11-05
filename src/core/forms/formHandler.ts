@@ -123,7 +123,7 @@ function createHandler<T>(codec: Codec<T>): FormHandler {
             const [local, localErr] = parse(localSource);
             if (localErr) return err(localErr);
             const [remote, remoteErr] = parse(remoteSource);
-            if (remoteErr) return err(remoteErr);
+            if (remoteErr) return err(new Error(`server content: ${remoteErr.message}`));
             return ok(codec.equivalent(local, remote));
         },
         declaredName(source) {

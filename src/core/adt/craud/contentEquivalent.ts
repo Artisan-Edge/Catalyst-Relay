@@ -4,15 +4,20 @@
 
 import type { Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
-import { getConfigByExtension } from '../types';
+import { getConfigByExtension, OBJECT_CONFIG_MAP } from '../types';
 import { getFormHandler } from '../../forms';
 import { affJsonEquivalent } from '../aff';
-import { normalizeContent, normalizeCdsContent } from '../../utils/content';
+import { moduleSourcesEquivalent } from '../functionGroup/moduleSourcesEquivalent';
+import { normalizeCdsContent, normalizeSourceLines } from '../../utils/content';
+
+const FUNCTION_MODULE_EXTENSION = OBJECT_CONFIG_MAP.asfunc.extension;
 
 /**
- * Compare local source with the server's for an object type: form objects semantically,
- * AFF JSON as parsed values, CDS sources ignoring whitespace next to separators, other sources
- * (ABAP, where spacing is significant) as whitespace-normalized text; a BOM is ignored
+ * Compare local source with the server's for an object type:
+ * - form objects semantically, AFF JSON as parsed values
+ * - CDS sources ignoring whitespace next to separators (strictly, line by line, if either has a backslash)
+ * - ABAP line by line (line ends and trailing blanks ignored); a function module's signature, which
+ *   ADT lays out itself, ignoring whitespace
  *
  * @param extension - Object extension
  * @param local - Local source
@@ -26,6 +31,13 @@ export function contentEquivalent(extension: string, local: string, remote: stri
     if (config.sourceFormat === 'aff-json') return ok(affJsonEquivalent(local, remote));
     const handler = config.kind === 'form' ? getFormHandler(extension) : null;
     if (handler) return handler.equivalent(local, remote);
-    if (config.cdsSource) return ok(normalizeCdsContent(local) === normalizeCdsContent(remote));
-    return ok(normalizeContent(local) === normalizeContent(remote));
+    if (config.cdsSource) return ok(cdsSourcesEquivalent(local, remote));
+    if (extension === FUNCTION_MODULE_EXTENSION) return ok(moduleSourcesEquivalent(local, remote));
+    return ok(normalizeSourceLines(local) === normalizeSourceLines(remote));
+}
+
+// Whether a backslash escapes a quote in a CDS literal is unclear, so literals can't be found safely
+function cdsSourcesEquivalent(local: string, remote: string): boolean {
+    if (local.includes('\\') || remote.includes('\\')) return normalizeSourceLines(local) === normalizeSourceLines(remote);
+    return normalizeCdsContent(local) === normalizeCdsContent(remote);
 }

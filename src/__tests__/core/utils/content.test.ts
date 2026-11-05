@@ -4,11 +4,12 @@
  * Tests content normalization used to compare server vs local content:
  * - Whitespace normalization (spaces, tabs, newlines, carriage returns)
  * - Edge cases (empty strings, single characters)
- * - CDS sources: whitespace next to separators ignored, literals verbatim
+ * - CDS sources: whitespace next to separators ignored, literals verbatim, linear time
+ * - ABAP sources: only line ends and trailing blanks ignored
  */
 
 import { describe, it, expect } from 'bun:test';
-import { normalizeContent, normalizeCdsContent } from '../../../core/utils/content';
+import { normalizeContent, normalizeCdsContent, normalizeSourceLines } from '../../../core/utils/content';
 
 describe('normalizeContent', () => {
     describe('whitespace normalization', () => {
@@ -118,7 +119,7 @@ describe('normalizeCdsContent', () => {
     const same = (a: string, b: string) => expect(normalizeCdsContent(a)).toBe(normalizeCdsContent(b));
     const differs = (a: string, b: string) => expect(normalizeCdsContent(a)).not.toBe(normalizeCdsContent(b));
 
-    it('treats a table SAP pretty-printed on save as unchanged', () => {
+    it('treats a table SAP re-laid out on activation as unchanged', () => {
         const local = "@EndUserText.label: 'Valid CDS to Table mapping'\n@AbapCatalog.enhancement.category: #NOT_EXTENSIBLE\ndefine table zsnap_c2t_map {\n\tkey mandt: mandt not null;\n\tkey cds_name: ddlname not null;\n\ttab_name: abap.char(30);\n}\n";
         const sap = "@EndUserText.label : 'Valid CDS to Table mapping'\r\n@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE\r\ndefine table zsnap_c2t_map {\r\n\r\n  key mandt      : mandt not null;\r\n  key cds_name   : ddlname not null;\r\n  tab_name       : abap.char( 30 );\r\n\r\n}";
         same(`﻿${local}`, sap);
@@ -128,7 +129,8 @@ describe('normalizeCdsContent', () => {
         differs("@EndUserText.label: 'a : b'", "@EndUserText.label: 'a: b'");
         differs("label: 'a  b'", "label: 'a b'");
         differs("label: '// x : y'", "label: '// x: y'");
-        same("label : 'it\\'s ; x'", "label: 'it\\'s ; x'");
+        same("label : 'it''s ; x'", "label: 'it''s ; x'");
+        differs("label: 'it''s ; x'", "label: 'it''s; x'");
     });
 
     it('detects a real token change', () => {
@@ -146,6 +148,17 @@ describe('normalizeCdsContent', () => {
         same('a<=b', 'a <= b');
         differs('a < = b', 'a <= b');
         differs('a ! = b', 'a != b');
+        differs('a = > b', 'a => b');
+        differs('a = < b', 'a =< b');
+        differs('a - > b', 'a -> b');
+    });
+
+    it('runs in linear time', () => {
+        const line = "  key field_name   : abap.char( 30 ) not null; // note\n  @EndUserText.label : 'Label : x'\n";
+        const source = line.repeat(Math.ceil(1_000_000 / line.length));
+        const started = performance.now();
+        normalizeCdsContent(source);
+        expect(performance.now() - started).toBeLessThan(1000);
     });
 
     it('does not let code move into a line comment', () => {
@@ -153,5 +166,38 @@ describe('normalizeCdsContent', () => {
         differs('// note\n}', '// note}');
         same('//  note  \n  }', '// note\r\n}');
         same('/*  a\n b */ key', '/* a b */\nkey');
+    });
+
+    it('reads abap.string(0) / abap.rawstring(0) as SAP stores the bare types', () => {
+        same('message: abap.string;', 'message : abap.string(0);');
+        same('data: abap.rawstring;', 'data : abap.rawstring( 0 );');
+        same('message: ABAP.String;', 'message : ABAP.String(0);');
+        same('message: abap.string(0) not null;', 'message: abap.string not null;');
+        differs('message: abap.string;', 'message: abap.string(256);');
+        differs('message: abap.string;', 'message: abap.string(00);');
+        differs('message: abap.char;', 'message: abap.char(0);');
+        differs('message: zabap.string;', 'message: zabap.string(0);');
+        differs("label: 'abap.string'", "label: 'abap.string(0)'");
+        differs('// abap.string\nx;', '// abap.string(0)\nx;');
+    });
+});
+
+describe('normalizeSourceLines', () => {
+    const same = (a: string, b: string) => expect(normalizeSourceLines(a)).toBe(normalizeSourceLines(b));
+    const differs = (a: string, b: string) => expect(normalizeSourceLines(a)).not.toBe(normalizeSourceLines(b));
+
+    it('ignores a BOM, line ends, trailing blanks and trailing blank lines', () => {
+        same('﻿REPORT z.\nWRITE 1.\n\n', 'REPORT z.   \r\nWRITE 1.\t\r\n');
+        same('a\rb', 'a\nb');
+    });
+
+    it('keeps everything else', () => {
+        differs('x = a-b.', 'x = a - b.');
+        differs('  WRITE 1.', 'WRITE 1.');
+        differs('a = 1. " c\nb = 2.', 'a = 1. " c b = 2.');
+        differs("x = 'a  b'.", "x = 'a b'.");
+        differs('x = |a  b|.', 'x = |a b|.');
+        differs('* note\nWRITE 1.', '* note WRITE 1.');
+        differs('\nWRITE 1.', 'WRITE 1.');
     });
 });

@@ -202,6 +202,13 @@ Array of upsert results:
 | `status`    | enum    | `created`, `updated`, or `unchanged` |
 | `transport` | string? | Transport ID used                    |
 
+`unchanged` means the local content already matches the server's, so nothing was written (`contentEquivalent()`). A leading BOM is always ignored. What else counts as a match depends on the type:
+
+- **CDS sources** (`asddls`, `asdcls`, `astabldt`, `astablds`, `asbdef`, `srvd`; `ObjectConfig.cdsSource`): whitespace next to a separator (`: ; , . { } ( ) [ ] = < >`) is ignored, so SAP's re-layout on activation is no change. Quoted literals are compared exactly. In code, `abap.string(0)` / `abap.rawstring(0)` match `abap.string` / `abap.rawstring` (SAP stores the bare types with length 0); any other length is a change. A source containing a backslash is compared like ABAP.
+- **ABAP sources** (`aclass`, `asprog`, `asinc`, `asfugr`, `asfinc`, `asfunc`): line by line. Only line ends, trailing blanks and trailing blank lines are ignored; an indentation change is a change. For a function module, whitespace in the signature (the `FUNCTION` statement, which ADT lays out itself on read) is ignored too, unless it contains a literal or comment.
+- **Form objects** (`asdtel`, `asdoma`, `asmsag`, `asenqu`): compared as parsed values.
+- **AFF JSON** (`asnrob`): compared as JSON values.
+
 ### Example
 
 **Request (to $TMP):**

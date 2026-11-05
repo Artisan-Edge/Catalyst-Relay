@@ -167,7 +167,7 @@ export { MOVE_ONLY_EXTENSIONS } from './core/adt';
 // Object types with a title/attributes in their metadata document
 export { ATTRIBUTE_EXTENSIONS } from './core/adt';
 
-// Object type registry (extension ↔ ADT type); ObjectConfig.hasAttributes / sourceFormat / kind describe each type
+// Object type registry (extension ↔ ADT type); ObjectConfig.hasAttributes / sourceFormat / kind / cdsSource describe each type
 export { OBJECT_CONFIG_MAP, getConfigByExtension, getConfigByType } from './core/adt';
 export type { ConfiguredExtension, SourceFormat } from './core/adt';
 

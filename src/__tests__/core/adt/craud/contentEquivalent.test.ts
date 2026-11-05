@@ -3,7 +3,8 @@
  *
  * - AFF JSON compares as values: key order, 1 vs 1.0, whitespace and a BOM are no change
  * - Non-JSON falls back to normalized text
- * - CDS sources ignore whitespace next to separators; ABAP spacing stays significant
+ * - CDS sources ignore whitespace next to separators (strict with a backslash); ABAP compares
+ *   line by line, except whitespace in a function module signature
  * - header.description is read past a BOM, and the create POST carries it
  */
 
@@ -33,11 +34,49 @@ describe('contentEquivalent (.asnrob)', () => {
 });
 
 describe('contentEquivalent (other types)', () => {
-    it('compares ABAP source as normalized text, BOM ignored', () => {
+    it('compares ABAP source line by line, BOM, line ends and trailing blanks ignored', () => {
         expect(contentEquivalent('asprog', '﻿REPORT z.\n', 'REPORT z.\r\n')).toEqual([true, null]);
+        expect(contentEquivalent('asprog', 'REPORT z.  \nWRITE 1.\n\n', 'REPORT z.\r\nWRITE 1.')).toEqual([true, null]);
     });
 
-    it('ignores SAP pretty-printing of CDS sources', () => {
+    it('has no false equivalents in ABAP sources', () => {
+        const pairs: [string, string][] = [
+            ['a = 1. " c\nb = 2.', 'a = 1. " c b = 2.'],
+            ['* c\nb = 2.', '* c b = 2.'],
+            ["x = 'a  b'.", "x = 'a b'."],
+            ['x = |a  b|.', 'x = |a b|.'],
+            ['IF a = 1.\n  b = 2.\nENDIF.', 'IF a = 1.\nb = 2.\nENDIF.'],
+        ];
+        for (const extension of ['asprog', 'asinc', 'aclass', 'asfugr', 'asfinc']) {
+            for (const [local, remote] of pairs) expect(contentEquivalent(extension, local, remote)).toEqual([false, null]);
+        }
+    });
+
+    it("ignores ADT's layout of a function module signature only", () => {
+        const sap = 'FUNCTION z_hello\r\n  IMPORTING\r\n    VALUE(name) TYPE string\r\n  EXPORTING\r\n    VALUE(result) TYPE string.\r\n\r\n  result = name.\r\nENDFUNCTION.';
+        const local = 'FUNCTION z_hello IMPORTING VALUE(name) TYPE string\n    EXPORTING VALUE(result) TYPE string.\n\n  result = name.\nENDFUNCTION.\n';
+        expect(contentEquivalent('asfunc', local, sap)).toEqual([true, null]);
+        expect(contentEquivalent('asfunc', local.replace('  result', 'result'), sap)).toEqual([false, null]);
+        expect(contentEquivalent('asfunc', local.replace('VALUE(name) TYPE string', 'VALUE(name) TYPE i'), sap)).toEqual([false, null]);
+        // Literals and comments in the signature are compared strictly
+        const withDefault = sap.replace('TYPE string\r\n  EXPORTING', "TYPE string DEFAULT 'a  b'\r\n  EXPORTING");
+        expect(contentEquivalent('asfunc', withDefault.replace("'a  b'", "'a b'"), withDefault)).toEqual([false, null]);
+        expect(contentEquivalent('asfunc', withDefault.replace('\r\n  EXPORTING', ' EXPORTING'), withDefault)).toEqual([false, null]);
+    });
+
+    it('compares CDS sources with a backslash strictly', () => {
+        const sap = "@A.x : 'C:\\', @B.y : 'a : b'\r\ndefine table z {\r\n}";
+        expect(contentEquivalent('astabldt', "@A.x : 'C:\\', @B.y : 'a: b'\ndefine table z {\n}", sap)).toEqual([false, null]);
+        expect(contentEquivalent('astabldt', "@A.x: 'C:\\', @B.y: 'a : b'\ndefine table z {\n}", sap)).toEqual([false, null]);
+        expect(contentEquivalent('astabldt', "@A.x : 'C:\\', @B.y : 'a : b'\ndefine table z {\n}\n", sap)).toEqual([true, null]);
+    });
+
+    it('says when the server side of a form object does not parse', () => {
+        const local = '{ "description": "D", "messages": [] }';
+        expect(contentEquivalent('asmsag', local, '{ not json')[1]?.message).toStartWith('server content: ');
+    });
+
+    it('ignores the re-layout SAP applies to CDS sources on activation', () => {
         const local = "@EndUserText.label: 'Map'\ndefine table zmap {\n\tkey mandt: mandt not null;\n}";
         const sap = "@EndUserText.label : 'Map'\r\ndefine table zmap {\r\n\r\n  key mandt : mandt not null;\r\n\r\n}";
         for (const extension of ['astabldt', 'astablds', 'asddls', 'asdcls', 'asbdef', 'srvd']) {

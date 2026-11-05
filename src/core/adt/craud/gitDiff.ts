@@ -7,7 +7,7 @@
 import { diffArrays, type ChangeObject } from 'diff';
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
-import type { AdtRequestor } from '../types';
+import type { AdtRequestor, ObjectConfig } from '../types';
 import { toRef } from '../helpers';
 import { getFormHandler } from '../../forms';
 import { stripBom } from '../../utils/bom';
@@ -169,8 +169,9 @@ export async function gitDiff(
         localContent = canonical;
     }
 
-    // What upsert would leave unchanged has no diff (e.g. SAP's pretty-printing of CDS on save).
-    const [unchanged, compareErr] = contentEquivalent(object.extension, object.content, serverObj.content);
+    // CDS, form and AFF JSON sources upsert would leave unchanged have no diff (e.g. SAP's re-layout
+    // of CDS on activation). ABAP always gets its line diff.
+    const [unchanged, compareErr] = hidesEquivalent(config) ? contentEquivalent(object.extension, object.content, serverObj.content) : ok(false);
     if (compareErr) return err(new Error(`${object.name}: ${compareErr.message}`));
 
     // Split content into lines for comparison; SAP sends CRLF, and a trailing newline is not a change.
@@ -186,6 +187,11 @@ export async function gitDiff(
         label,
         diffs,
     });
+}
+
+function hidesEquivalent(config: ObjectConfig | null): boolean {
+    if (!config) return false;
+    return Boolean(config.cdsSource) || config.kind === 'form' || config.sourceFormat === 'aff-json';
 }
 
 function toLines(content: string): string[] {

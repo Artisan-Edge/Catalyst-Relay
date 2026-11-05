@@ -13,7 +13,7 @@ Compare local content with server content using Myers diff algorithm.
 
 Compare local object content with server content. Uses the Myers diff algorithm to compute line-by-line differences.
 
-`diffs` is empty when upsert would report the object `unchanged` (same comparison as `contentEquivalent`), so layout-only differences such as SAP's pretty-printing of CDS sources produce no hunks. Any real change returns the full line diff, layout lines included.
+Line-ending (CRLF) and trailing-newline differences are never hunks. For CDS sources, form objects and AFF JSON (`asnrob`), `diffs` is also empty when upsert would report the object `unchanged` (same comparison as `contentEquivalent`), so SAP's re-layout of a CDS source on activation produces no hunks. Any real change returns the full line diff, layout lines included. ABAP sources always return their line diff, indentation changes included.
 
 ### Request
 
@@ -276,4 +276,4 @@ console.log(`Successfully compared ${diffs.length} object(s)`);
 
 ---
 
-_Last updated: v0.5.13_
+_Last updated: v0.9.1_

@@ -5,7 +5,7 @@
  * - A number range object is created as blue:blueSource with header.description from its JSON
  *   and read/written as application/json
  * - CRLF from SAP and a trailing newline are not diffs
- * - gitDiff reports no hunks where upsert would report unchanged
+ * - gitDiff reports no hunks for CDS sources upsert would report unchanged; ABAP always gets its line diff
  */
 
 import { describe, it, expect } from 'bun:test';
@@ -122,5 +122,13 @@ describe('gitDiff agrees with upsert', () => {
         expect(error).toBeNull();
         expect(result!.diffs.length).toBeGreaterThan(0);
         expect(result!.diffs.flatMap(hunk => hunk.changes.flat()).some(line => line.includes('char(40)'))).toBe(true);
+    });
+
+    it('always reports the line diff of ABAP sources', async () => {
+        const { requestor } = recorder(() => new Response('REPORT zfoo.\r\nWRITE 1.', { status: 200 }));
+        const [result, error] = await gitDiff(requestor, { name: 'ZFOO', extension: 'asprog', content: 'REPORT zfoo.\n  WRITE 1.\n' });
+
+        expect(error).toBeNull();
+        expect(result!.diffs).toHaveLength(1);
     });
 });
