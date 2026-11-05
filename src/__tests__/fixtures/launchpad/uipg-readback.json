@@ -1,0 +1,33 @@
+{
+  "formatVersion": "1",
+  "header": {
+    "description": "SNAP BC Test Page",
+    "originalLanguage": "en",
+    "abapLanguageVersion": "cloudDevelopment"
+  },
+  "generalInformation": {
+    "title": "SNAP BC Test Page"
+  },
+  "sections": [
+    {
+      "id": "SNAP_SECTION_1",
+      "title": "SNAP Analytics",
+      "visualizations": [
+        {
+          "id": "SNAP_VIZ_1",
+          "ladiAssignment": {
+            "ladiId": "ZSNAP_BC_UIAD_TEST",
+            "tileId": "ZSNAP_BC_UIAD_TEST"
+          }
+        },
+        {
+          "id": "SNAP_VIZ_2",
+          "ladiAssignment": {
+            "ladiId": "ZSNAP_BC_UIAD_MDA",
+            "tileId": "ZSNAP_BC_UIAD_MDA"
+          }
+        }
+      ]
+    }
+  ]
+}

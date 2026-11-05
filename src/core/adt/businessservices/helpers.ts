@@ -8,11 +8,14 @@
 import type { AsyncResult, Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import type { ServiceBindingCategory, ServiceBindingVersion } from './types';
+import type { ServiceBindingCategory, ServiceBindingType, ServiceBindingVersion } from './types';
 import { extractLockHandle, extractTagText } from '../../utils/xml';
 import { checkResponse } from '../helpers';
 
 export const BINDINGS_BASE_PATH = '/sap/bc/adt/businessservices/bindings';
+export const ODATA_BINDING_TYPE: ServiceBindingType = 'ODATA';
+// InA bindings have no OData service: an OData publish job on one dumps (500) and ends the session
+export const INA_BINDING_TYPE: ServiceBindingType = 'INA';
 
 const LOCK_ACCEPT_HEADER =
     'application/*,application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result';
@@ -29,6 +32,11 @@ const CATEGORY_CODES: Record<ServiceBindingCategory, string> = { UI: '0', WEB_AP
 // Severities that let the operation proceed; INFO is advice (e.g. "V4 without draft is primarily read-only").
 const PASSING_SEVERITIES = new Set(['OK', 'INFO']);
 const WARNING_SEVERITY = 'WARNING';
+
+/** Category when none is given: InA is always a UI binding, OData defaults to Web API. */
+export function defaultBindingCategory(bindingType: ServiceBindingType): ServiceBindingCategory {
+    return bindingType === INA_BINDING_TYPE ? 'UI' : 'WEB_API';
+}
 
 /** srvb:category code for a binding category. */
 export function bindingCategoryCode(category: ServiceBindingCategory): string {

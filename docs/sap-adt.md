@@ -11,6 +11,8 @@ SAP-specific concepts and behaviors for working with ADT (ABAP Development Tools
 - [ABAP Unit](#abap-unit)
 - [Activation results](#activation-results)
 - [Object attributes (titles)](#object-attributes-titles)
+- [Fiori launchpad sources](#fiori-launchpad-sources)
+- [InA service bindings](#ina-service-bindings)
 
 ---
 
@@ -45,6 +47,7 @@ Data elements, domains and message classes have no `/source/main`: the object UR
 | Function grp. | `/sap/bc/adt/functions/groups/{group}`                | main program at `{uri}/source/main` (text)    |
 | FUGR include  | `/sap/bc/adt/functions/groups/{group}/includes/{inc}` | source at `{uri}/source/main` (text)          |
 | Number range  | `/sap/bc/adt/numberranges/objects/{name}`             | source at `{uri}/source/main` (JSON)          |
+| Launchpad     | `/sap/bc/adt/fiori/{uiad,uipgtyp,uisttop}/{name}`     | source at `{uri}/source/main` (JSON)          |
 
 - **Create:** one POST of the full document to the collection (201, inactive). Function groups and modules: POST a shell with `Content-Type: application/*`; a module carries `adtcore:containerRef` instead of `packageRef`.
 - **Update / delete:** lock `{objectUri}?_action=LOCK`, then PUT (vendor type) or DELETE `{objectUri}?lockHandle=…`. Function modules lock the object URI and PUT the source URI.
@@ -137,6 +140,41 @@ A program's, class's or function group's text pool (SE38 text elements). Library
 - Saved inactive. Class (SEOCLASSTX) and function group (TLIBT) titles are stored at once; program/include titles (TRDIRT) and TRDIR-SECU change on activation.
 - `adtcore:descriptionTextLimit` gives the title limit (70 programs/includes, 60 classes, 40 function groups).
 - SAP stores an authorization group that is not in TPGP without complaint; relay checks `{program}/valuehelp/authorizationgroup?name=…` and returns a warning.
+
+---
+
+## Fiori launchpad sources
+
+App descriptor items (UIAD/TYP, `asuiad`), page templates (UIPG/TYP, `asuipg`) and space templates (UIST/TOP, `asuist`). Verified on Madiba-Cloud-Dev (ABAP Cloud, package `ZSNAP_BC`).
+
+| Type | Collection                  | Saved    |
+| ---- | --------------------------- | -------- |
+| UIAD | `/sap/bc/adt/fiori/uiad`    | active   |
+| UIPG | `/sap/bc/adt/fiori/uipgtyp` | inactive |
+| UIST | `/sap/bc/adt/fiori/uisttop` | inactive |
+
+- **Create:** POST `blue:blueSource` with `Content-Type: application/vnd.sap.adt.blues.v2+xml` (NROB uses v1). The description is `header.description`, else `generalInformation.title`, else the name.
+- **Content:** abap-file-formats JSON at `{uri}/source/main` (`application/json`; lock the object URI, `corrNr` outside `$TMP`).
+- **Header:** SAP always returns `header` (`description`, `originalLanguage`, `abapLanguageVersion`). A PUT without `header` stores `description: ""`. A space PUT without `header.description` and `header.originalLanguage` is a 500 (dump), so relay refuses it before creating anything (`AffJsonRules.requiredPaths`).
+- **Empty sources:** for every launchpad type, an empty source or one that is not a JSON object is refused before the create POST, so no empty shell is left (UIAD saves active). `requireAffJsonPaths(content, getConfigByExtension(ext)?.affJson, label)` runs the same check without HTTP.
+- **Dropped values:** SAP stores every `false` boolean as absent (`desktop`, `phone`, `isDefault`, …), and on pages drops `visualizations[].type` / `displayFormat` when they are `ladiAssignment` / `standard`. The page schema also defaults `tileAssignment.tileKey.catalogType` and `targetMappingKey.catalogType` to `standard`. Upsert treats all of these as no change (`ObjectConfig.affJson`: `serverOmitsFalse`, `serverDefaults`). Empty strings and other defaults (`appType: "ui5"`, `tileType: "static"`) are kept.
+- **Activation:** UIAD is skipped (`alwaysActive`). Pages and spaces go through the activation run; a space without `generalInformation.sortPriority` may warn (`/UI2/UIST_CHECK` 111), which counts as success. A space whose title is empty fails ("Space template title is initial").
+- **Order:** upsert writes them after every other type, items before pages before spaces (a space references pages, a page references items).
+- **Move:** not supported (`ObjectConfig.moveUnsupported`).
+
+---
+
+## InA service bindings
+
+`createServiceBinding({ bindingType: 'INA', … })` creates an InA (analytical query) binding: `<srvb:binding srvb:category="0" srvb:type="INA">` without `srvb:version` or `bindingTypeData`.
+
+- **Options:** always a UI binding. `bindingVersion`, `bindingCategory: 'WEB_API'` and `publish: true` are rejected.
+- **Validation:** `serviceBindingVersion=INA`. `INA\V4` dumps (500).
+- **Activation** creates the `INA1/INA` runtime object; nothing else is needed.
+- **Never published:** `odatav4/publishjobs` on an InA binding dumps (500) and ends the stateful session. The binding reads back `published="false"` with `allowedAction="PUBLISH"` even when complete, so a re-run skips publish.
+- **Read:** `bindingType: 'INA'`, `category: 'UI'`, `odataVersion: ''`. A re-run compares the binding type, not the OData version.
+- **Delete:** `deleteServiceBinding` reads the binding first and runs unpublish jobs only when the read succeeds and the type is `ODATA`; InA, SQL or an unreadable binding is just locked, deleted and unlocked. Unpublish version: the caller's `version`, else the one read back, else V4 then V2. Every binding is unlocked after the DELETE: SAP keeps the lock otherwise, and re-creating the name fails ("currently editing").
+- **IAM apps:** deleting an InA binding also removes its INA1 service row from every IAM app that lists it, without warning.
 
 ---
 

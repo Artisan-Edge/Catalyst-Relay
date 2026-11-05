@@ -14,7 +14,7 @@ const FUNCTION_MODULE_EXTENSION = OBJECT_CONFIG_MAP.asfunc.extension;
 
 /**
  * Compare local source with the server's for an object type:
- * - form objects semantically, AFF JSON as parsed values
+ * - form objects semantically, AFF JSON as parsed values (keys SAP adds or drops on save ignored)
  * - DDIC DDL (tables, structures) ignoring whitespace next to separators, which SAP re-lays out on activation
  * - other sources (ABAP, and CDS views, access controls, behavior and service definitions, which SAP
  *   keeps as written) line by line, line ends and trailing blanks ignored; a function module's
@@ -29,7 +29,7 @@ export function contentEquivalent(extension: string, local: string, remote: stri
     const config = getConfigByExtension(extension);
     if (!config) return err(new Error(`Unsupported extension: ${extension}`));
 
-    if (config.sourceFormat === 'aff-json') return ok(affJsonEquivalent(local, remote));
+    if (config.sourceFormat === 'aff-json') return ok(affJsonEquivalent(local, remote, config.affJson));
     const handler = config.kind === 'form' ? getFormHandler(extension) : null;
     if (handler) return handler.equivalent(local, remote);
     if (config.cdsSource) return ok(cdsSourcesEquivalent(local, remote));

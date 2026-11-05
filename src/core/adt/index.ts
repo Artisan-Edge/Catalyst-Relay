@@ -11,7 +11,7 @@
  */
 
 // Types and configuration (shared across module)
-export type { AdtRequestor, ObjectConfig, ConfiguredExtension, UpsertResult, ObjectKind, ContainerConfig, SourceFormat, LockTarget } from './types';
+export type { AdtRequestor, ObjectConfig, ConfiguredExtension, UpsertResult, ObjectKind, ContainerConfig, SourceFormat, AffJsonRules, AffJsonDefault, LockTarget } from './types';
 export {
     OBJECT_CONFIG_MAP,
     FUNCTION_GROUP_CONFIG,
@@ -90,7 +90,7 @@ export type { ObjectAttributes, ObjectAttributesInfo, ObjectAttributesWriteResul
 
 // Content comparison (form objects semantically, AFF JSON as values, DDIC DDL ignoring re-layout, other sources line by line)
 export { contentEquivalent } from './craud/contentEquivalent';
-export { affJsonDescription, affJsonEquivalent } from './aff';
+export { affJsonDescription, affJsonEquivalent, requireAffJsonPaths } from './aff';
 
 // Write operations
 export { createObject } from './craud/create';
@@ -164,6 +164,7 @@ export { createServiceBindingObject } from './businessservices/create';
 export { activateServiceBinding } from './businessservices/activate';
 export { publishServiceBinding, unpublishServiceBinding } from './businessservices/publish';
 export { deleteServiceBinding } from './businessservices/delete';
+export { defaultBindingCategory, INA_BINDING_TYPE } from './businessservices/helpers';
 export { readServiceBinding, parseServiceBinding } from './businessservices/read';
 export type {
     CreateServiceBindingOptions,

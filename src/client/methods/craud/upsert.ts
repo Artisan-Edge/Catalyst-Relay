@@ -17,6 +17,8 @@ const FUNCTION_GROUP_EXTENSION = adt.OBJECT_CONFIG_MAP.asfugr.extension;
 // the domains that use them as conversion routines; domains before data elements, data elements
 // before everything else.
 const WAVE_ORDER: readonly string[] = [...adt.FUNCTION_GROUP_UPSERT_ORDER, adt.OBJECT_CONFIG_MAP.asdoma.extension, adt.OBJECT_CONFIG_MAP.asdtel.extension];
+// After everything else: launchpad pages reference app descriptor items, spaces reference pages.
+const LAST_WAVE_ORDER: readonly string[] = [adt.OBJECT_CONFIG_MAP.asuiad.extension, adt.OBJECT_CONFIG_MAP.asuipg.extension, adt.OBJECT_CONFIG_MAP.asuist.extension];
 
 export async function upsertSingle(
     state: ClientState,
@@ -95,8 +97,11 @@ export async function upsert(
 }
 
 function buildWaves(objects: ObjectContent[]): ObjectContent[][] {
-    const waves = WAVE_ORDER.map(extension => objects.filter(obj => obj.extension === extension));
-    waves.push(objects.filter(obj => !WAVE_ORDER.includes(obj.extension)));
+    const ofType = (extension: string) => objects.filter(obj => obj.extension === extension);
+    const ordered = [...WAVE_ORDER, ...LAST_WAVE_ORDER];
+    const waves = WAVE_ORDER.map(ofType);
+    waves.push(objects.filter(obj => !ordered.includes(obj.extension)));
+    waves.push(...LAST_WAVE_ORDER.map(ofType));
     return waves.filter(wave => wave.length > 0);
 }
 

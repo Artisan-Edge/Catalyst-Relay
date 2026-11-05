@@ -2,8 +2,11 @@
 
 import type { ActivationResult } from '../craud/activation';
 
-/** Binding protocol. Only OData is supported today. */
-export type ServiceBindingType = 'ODATA';
+/**
+ * Binding protocol: OData, or InA (analytical queries for the launchpad). An InA binding is
+ * always a UI binding, has no OData version and is never published: activation creates its service.
+ */
+export type ServiceBindingType = 'ODATA' | 'INA';
 
 /** Binding version: OData V4 or OData V2. */
 export type ServiceBindingVersion = 'V4' | 'V2';
@@ -27,15 +30,15 @@ export interface CreateServiceBindingOptions {
     packageName: string;
     /** Optional description */
     description?: string;
-    /** Binding protocol (default: 'ODATA') */
+    /** Binding protocol (default: 'ODATA'). 'INA' rejects bindingVersion, WEB_API and publish: true */
     bindingType?: ServiceBindingType;
-    /** Binding version (default: 'V4') */
+    /** OData version (default: 'V4'; OData only) */
     bindingVersion?: ServiceBindingVersion;
-    /** Binding category (default: 'WEB_API') */
+    /** Binding category (default: 'WEB_API'; 'UI' for INA) */
     bindingCategory?: ServiceBindingCategory;
-    /** Transport request (required for non-$TMP packages) */
+    /** Transport request (needed only when the package records changes) */
     transport?: string;
-    /** Whether to publish the binding after activation (default: true) */
+    /** Whether to publish the binding after activation (default: true for OData; INA is never published) */
     publish?: boolean;
     /** Accept a WARNING from the pre-create validation instead of aborting (default: false) */
     allowWarnings?: boolean;
@@ -57,6 +60,7 @@ export interface ServiceBindingSteps {
 export interface ServiceBindingResult {
     name: string;
     serviceDefinition: string;
+    bindingType: ServiceBindingType;
     category: ServiceBindingCategory;
     /** False when the binding already existed and creation was skipped */
     created: boolean;
@@ -80,9 +84,12 @@ export interface ServiceBindingInfo {
     serviceDefinition: string;
     /** Service version, e.g. '0001' */
     serviceVersion: string;
+    /** Binding protocol as SAP reports it, e.g. 'ODATA' or 'INA' */
     bindingType: string;
+    /** 'V4' / 'V2'; '' for InA */
     odataVersion: string;
     category: ServiceBindingCategory;
+    /** Always false for InA, which is never published (SAP still offers PUBLISH) */
     published: boolean;
     /** True when the read returned the active version */
     active: boolean;

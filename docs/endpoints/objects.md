@@ -41,7 +41,7 @@ Array of object references:
 | `extension` | string | Yes      | File extension (e.g., `asddls`, `clas.abap`)                                                                                |
 | `container` | string | No       | Function group of a function module (`asfunc`) or include (`asfinc`); taken from the include name or looked up when omitted |
 
-Data elements (`asdtel`), domains (`asdoma`) and lock objects (`asenqu`) are read as canonical DSL, and message classes (`asmsag`) as canonical JSON, translated from SAP's XML definition. Function groups (`asfugr`) read as their main program, number range objects (`asnrob`) as SAP's JSON. See [SAP ADT: form-based objects](../sap-adt.md#form-based-objects-and-function-modules).
+Data elements (`asdtel`), domains (`asdoma`) and lock objects (`asenqu`) are read as canonical DSL, and message classes (`asmsag`) as canonical JSON, translated from SAP's XML definition. Function groups (`asfugr`) read as their main program, number range objects (`asnrob`) and Fiori launchpad app descriptor items, page templates and space templates (`asuiad`, `asuipg`, `asuist`) as SAP's JSON. See [SAP ADT: form-based objects](../sap-adt.md#form-based-objects-and-function-modules).
 
 ### Response
 
@@ -208,7 +208,7 @@ Array of upsert results:
 - **Other sources** (`aclass`, `asprog`, `asinc`, `asfugr`, `asfinc`, `asfunc`, and `asddls`, `asdcls`, `asbdef`, `srvd`, which SAP keeps as written): line by line. Only a BOM, line ends (CRLF, CR), trailing spaces and tabs, and trailing blank lines are ignored; an indentation or other formatting change is a change. For a function module, whitespace in the signature (the `FUNCTION` statement, which ADT lays out itself on read) is ignored too, unless it contains a literal or a comment (`"`, or `*` in column 1), and so are the blank lines between the signature and the body.
 - **Whitespace** means ASCII whitespace only: a no-break space, a BOM after the first character, U+2028 or U+3000 is content.
 - **Form objects** (`asdtel`, `asdoma`, `asmsag`, `asenqu`): compared as parsed values.
-- **AFF JSON** (`asnrob`): compared as JSON values.
+- **AFF JSON** (`asnrob`, `asuiad`, `asuipg`, `asuist`): compared as JSON values. For the launchpad types (`ObjectConfig.affJson`), the `header` keys SAP adds are ignored where the file leaves them out, `false` booleans count as absent (SAP drops them), and on pages `visualizations[].type: "ladiAssignment"`, `displayFormat: "standard"` and the tile assignment `catalogType: "standard"` count as absent. An empty source or one that is not a JSON object is refused before anything is created.
 
 ### Example
 
@@ -900,7 +900,7 @@ A transport is needed when the move leaves or enters a transportable package. Mo
 
 On ABAP Cloud systems (S/4HANA Cloud, BTP ABAP) SAP refuses moves from a transportable package into a local one (e.g. `ZCUSTOM_DEVELOPMENT` into `ZLOCAL`) with `No authorization for changing the package`; moving from local to transportable is allowed. When a move is rejected and the source records changes but the target does not, the relay appends a hint saying so to the error message.
 
-Accepts every configured extension, plus move-only ones that no other operation supports: `dtel` (data element), `doma` (domain), `fugr` (function group) and `srvb` (service binding). The library exports these as `MOVE_ONLY_EXTENSIONS`. Find such objects under `unsupportedObjects` in [`POST /tree`](./discovery.md#post-tree).
+Accepts every configured extension except the launchpad types (`asuiad`, `asuipg`, `asuist`, `ObjectConfig.moveUnsupported`), plus move-only ones that no other operation supports: `dtel` (data element), `doma` (domain), `fugr` (function group) and `srvb` (service binding). The library exports these as `MOVE_ONLY_EXTENSIONS`. Find such objects under `unsupportedObjects` in [`POST /tree`](./discovery.md#post-tree).
 
 ### Request
 

@@ -2,6 +2,7 @@
  * Unit Tests for upsert (client method) against a fake SAP
  *
  * - Wave order: function group includes → main program → modules → domains → data elements → rest
+ *   → launchpad app descriptor items → pages → spaces
  * - Generated L<group>UXX is refused; an .asinc named like a group include gets a hint
  * - A group created for the batch is reported created (with the .asfugr file's description)
  * - populateAfterCreate: stateless POST → lock → PUT(s) → unlock, unlocking on PUT failure
@@ -63,6 +64,25 @@ describe('upsert wave order', () => {
 
         expect(results!.map(r => [r.name, r.extension, r.status])).toEqual([['ZNEW', 'asfugr', 'created'], ['LZNEWF01', 'asfinc', 'created']]);
         expect(sap.calls.find(isCreate)!.body).toContain('adtcore:description="Function group ZNEW"');
+    });
+    it('writes launchpad app descriptor items, then pages, then spaces, after everything else', async () => {
+        const sap = fakeSap();
+        const header = { description: 'd', originalLanguage: 'en' };
+        const [, error] = await upsert(loggedIn(), sap.requestor, [
+            { name: 'ZSPACE', extension: 'asuist', content: JSON.stringify({ formatVersion: '1', header, generalInformation: { title: 's' }, pages: [{ name: 'ZPAGE' }] }) },
+            { name: 'ZPAGE', extension: 'asuipg', content: JSON.stringify({ formatVersion: '1', header, generalInformation: { title: 'p' } }) },
+            { name: 'ZCL_FIRST', extension: 'aclass', content: 'CLASS zcl_first DEFINITION. ENDCLASS.' },
+            { name: 'ZUIAD', extension: 'asuiad', content: JSON.stringify({ formatVersion: '2', header }) },
+        ], '$TMP');
+
+        expect(error).toBeNull();
+        expect(sap.calls.filter(isCreate).map(createdName)).toEqual(['ZCL_FIRST', 'ZUIAD', 'ZPAGE', 'ZSPACE']);
+        expect(sap.calls.filter(call => call.method === 'PUT').map(call => call.path)).toEqual([
+            '/sap/bc/adt/oo/classes/zcl_first/source/main',
+            '/sap/bc/adt/fiori/uiad/zuiad/source/main',
+            '/sap/bc/adt/fiori/uipgtyp/zpage/source/main',
+            '/sap/bc/adt/fiori/uisttop/zspace/source/main',
+        ]);
     });
 });
 

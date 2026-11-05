@@ -167,9 +167,12 @@ export { MOVE_ONLY_EXTENSIONS } from './core/adt';
 // Object types with a title/attributes in their metadata document
 export { ATTRIBUTE_EXTENSIONS } from './core/adt';
 
-// Object type registry (extension ↔ ADT type); ObjectConfig.hasAttributes / sourceFormat / kind / cdsSource describe each type
+// Object type registry (extension ↔ ADT type); ObjectConfig.hasAttributes / sourceFormat / affJson / kind / cdsSource describe each type
 export { OBJECT_CONFIG_MAP, getConfigByExtension, getConfigByType } from './core/adt';
-export type { ConfiguredExtension, SourceFormat } from './core/adt';
+export type { ConfiguredExtension, SourceFormat, AffJsonRules, AffJsonDefault } from './core/adt';
+
+// Pre-write check of an AFF JSON source against its type's rules (getConfigByExtension(ext)?.affJson; no HTTP)
+export { requireAffJsonPaths } from './core/adt';
 
 // Function group rules (no HTTP): include name → group, generated includes, URIs
 export { containerFromIncludeName, containerFromUri, groupFromUri, isGeneratedInclude } from './core/adt';

@@ -17,7 +17,7 @@ export const createServiceBindingRequestSchema = z.object({
     serviceDefinition: z.string().min(1, 'Service definition is required'),
     package: z.string().min(1, 'Package name is required'),
     description: z.string().optional(),
-    bindingType: z.literal('ODATA').optional(),
+    bindingType: z.enum(['ODATA', 'INA']).optional(),
     bindingVersion: z.enum(['V4', 'V2']).optional(),
     bindingCategory: z.enum(['UI', 'WEB_API']).optional(),
     transport: z.string().optional(),
@@ -49,15 +49,6 @@ export async function createServiceBindingHandler(c: RouteContext) {
     }
 
     const data = validation.data;
-
-    // Transport required for non-temporary packages.
-    if (data.package !== '$TMP' && !data.transport) {
-        throw new ApiError(
-            'TRANSPORT_REQUIRED',
-            `Transport required for non-temporary package ${data.package}`,
-            400
-        );
-    }
 
     // Build options (conditional assignment to satisfy exactOptionalPropertyTypes).
     const options: CreateServiceBindingOptions = {

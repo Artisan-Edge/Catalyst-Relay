@@ -312,7 +312,7 @@ describe('getAllExtensions', () => {
     it('should return array of extensions', () => {
         const extensions = getAllExtensions();
         expect(Array.isArray(extensions)).toBe(true);
-        expect(extensions.length).toBe(17);
+        expect(extensions.length).toBe(20);
     });
 
     it('should include all configured extensions', () => {
@@ -323,6 +323,9 @@ describe('getAllExtensions', () => {
         expect(extensions).toContain('astablds');
         expect(extensions).toContain('aclass');
         expect(extensions).toContain('asprog');
+        expect(extensions).toContain('asuiad');
+        expect(extensions).toContain('asuipg');
+        expect(extensions).toContain('asuist');
     });
 });
 
@@ -330,7 +333,7 @@ describe('getAllTypes', () => {
     it('should return array of ADT types', () => {
         const types = getAllTypes();
         expect(Array.isArray(types)).toBe(true);
-        expect(types.length).toBe(17);
+        expect(types.length).toBe(20);
     });
 
     it('should include all configured types', () => {
@@ -341,6 +344,9 @@ describe('getAllTypes', () => {
         expect(types).toContain('STRU/D');
         expect(types).toContain('CLAS/OC');
         expect(types).toContain('PROG/P');
+        expect(types).toContain('UIAD/TYP');
+        expect(types).toContain('UIPG/TYP');
+        expect(types).toContain('UIST/TOP');
     });
 });
 

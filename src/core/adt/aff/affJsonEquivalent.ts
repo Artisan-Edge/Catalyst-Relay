@@ -5,16 +5,22 @@
 import { safeJsonParse } from '../../utils/json';
 import { normalizeContent } from '../../utils/content';
 import { stripBom } from '../../utils/bom';
+import type { AffJsonRules } from '../types';
+import { applyAffJsonRules } from './applyAffJsonRules';
 
 /**
  * Same JSON value: key order, number formatting (1 vs 1.0), whitespace and a BOM are ignored.
+ * With rules, keys SAP adds or drops on save are not differences (see AffJsonRules).
  * When either side is not JSON, falls back to whitespace-normalized text.
  */
-export function affJsonEquivalent(local: string, remote: string): boolean {
+export function affJsonEquivalent(local: string, remote: string, rules?: AffJsonRules): boolean {
     const [left, leftErr] = safeJsonParse(local);
     const [right, rightErr] = safeJsonParse(remote);
     if (leftErr || rightErr) return normalizeContent(stripBom(local)) === normalizeContent(stripBom(remote));
-    return canonicalJson(left) === canonicalJson(right);
+    if (!rules) return canonicalJson(left) === canonicalJson(right);
+
+    const [ownedLocal, ownedRemote] = applyAffJsonRules(left, right, rules);
+    return canonicalJson(ownedLocal) === canonicalJson(ownedRemote);
 }
 
 function canonicalJson(value: unknown): string {

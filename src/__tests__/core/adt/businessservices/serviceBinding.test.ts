@@ -3,17 +3,20 @@
  *
  * Covers the core sub-functions (validate, create, publish) and the client
  * orchestration (validate → create → activate → publish), all against a mocked
- * AdtRequestor.
+ * AdtRequestor. InA bindings: no OData version, validated as INA, never published,
+ * deleted without unpublish jobs.
  */
 
 import { describe, it, expect } from 'bun:test';
+import * as fs from 'fs';
+import * as path from 'path';
 import { validateServiceBinding } from '../../../../core/adt/businessservices/validate';
 import { createServiceBindingObject } from '../../../../core/adt/businessservices/create';
 import { publishServiceBinding, unpublishServiceBinding } from '../../../../core/adt/businessservices/publish';
 import { deleteServiceBinding } from '../../../../core/adt/businessservices/delete';
 import { readServiceBinding } from '../../../../core/adt/businessservices/read';
 import { createServiceBinding } from '../../../../client/methods/craud/specialcases/businessservices/createServiceBinding';
-import type { AdtRequestor } from '../../../../core/adt';
+import type { AdtRequestor, CreateServiceBindingOptions } from '../../../../core/adt';
 import type { ClientState } from '../../../../client/types';
 
 interface RecordedRequest {
@@ -55,6 +58,7 @@ function bindingDocument(options: { name?: string; published?: boolean; category
 
 const BINDINGS_PATH = '/sap/bc/adt/businessservices/bindings';
 const isBindingRead = (req: RecordedRequest) => req.method === 'GET' && req.path.startsWith(`${BINDINGS_PATH}/`);
+const isJob = (req: RecordedRequest) => req.path.endsWith('publishjobs');
 
 function severityXml(severity: string, shortText = ''): string {
     return `<?xml version="1.0" encoding="UTF-8"?><asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0"><asx:values><DATA><SEVERITY>${severity}</SEVERITY><SHORT_TEXT>${shortText}</SHORT_TEXT><LONG_TEXT/></DATA></asx:values></asx:abap>`;
@@ -184,6 +188,7 @@ describe('unpublishServiceBinding', () => {
 describe('deleteServiceBinding', () => {
     it('unpublishes then deletes the binding', async () => {
         const { requestor, calls } = mockRequestor((req) => {
+            if (isBindingRead(req)) return new Response(bindingDocument(), { status: 200 });
             if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
             if (req.path.endsWith('/unpublishjobs')) return new Response(severityXml('OK', 'un-published'), { status: 200 });
             return new Response('', { status: 200 });
@@ -388,8 +393,10 @@ describe('OData V2 bindings', () => {
     const V2_PUBLISH_PATH = '/sap/bc/adt/businessservices/odatav2/publishjobs';
     const V2_UNPUBLISH_PATH = '/sap/bc/adt/businessservices/odatav2/unpublishjobs';
 
-    function v2Responder(unpublishOk: (path: string) => boolean): Responder {
+    // The binding reads back as OData with the given version ('' = unknown).
+    function v2Responder(unpublishOk: (path: string) => boolean, readVersion = ''): Responder {
         return (req) => {
+            if (isBindingRead(req)) return new Response(bindingDocument({ version: readVersion }), { status: 200 });
             if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
             if (req.path.endsWith('/unpublishjobs')) {
                 return new Response(unpublishOk(req.path) ? severityXml('OK', 'un-published') : severityXml('ERROR', 'not published'), { status: 200 });
@@ -729,5 +736,169 @@ describe('createServiceBinding (publish request failure)', () => {
         expect(error).toBeNull();
         expect(result?.notes).toEqual(['INFO: primarily READ-ONLY']);
         expect(result?.steps).toEqual({ validate: 'DONE', create: 'DONE', activate: 'DONE', publish: 'DONE' });
+    });
+});
+
+describe('InA bindings', () => {
+    // GET of ZSNAP_BC_INA_TEST on Madiba-Cloud-Dev: active, published="false", allowedAction="PUBLISH", no srvb:version
+    const INA_XML = fs.readFileSync(path.join(import.meta.dir, '../../../fixtures/launchpad/srvb-ina.xml'), 'utf8');
+    const INA_OPTIONS = { bindingName: 'ZSNAP_BC_INA_TEST', serviceDefinition: 'ZSNAP_BC_SD_TEST', packageName: 'ZSNAP_BC', bindingType: 'INA' as const };
+
+    // Lifecycle where the binding reads back as the captured InA document from the given read on.
+    function inaResponder(existsFrom = 0): Responder {
+        let reads = 0;
+        return (req) => {
+            if (isBindingRead(req)) return reads++ >= existsFrom ? new Response(INA_XML, { status: 200 }) : new Response('', { status: 404 });
+            return lifecycleResponder()(req);
+        };
+    }
+
+    it('creates the binding element without an OData version', async () => {
+        const { requestor, calls } = mockRequestor(() => new Response('', { status: 201 }));
+
+        const [, error] = await createServiceBindingObject(requestor, INA_OPTIONS, 'me');
+
+        expect(error).toBeNull();
+        expect(calls[0]!.body).toContain('<srvb:binding srvb:category="0" srvb:type="INA">');
+        expect(calls[0]!.body).not.toContain('srvb:version="V');
+        expect(calls[0]!.body).toContain('srvb:services srvb:name="ZSNAP_BC_SD_TEST"');
+        expect(calls[0]!.body).not.toContain('bindingTypeData');
+    });
+
+    it('validates as INA (INA\\V4 dumps)', async () => {
+        const { requestor, calls } = mockRequestor(() => new Response(severityXml('OK'), { status: 200 }));
+
+        const [, error] = await validateServiceBinding(requestor, INA_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(calls[0]!.params).toMatchObject({ serviceBindingVersion: 'INA' });
+    });
+
+    it('reads type INA, category UI and no OData version', async () => {
+        const { requestor } = mockRequestor(() => new Response(INA_XML, { status: 200 }));
+
+        const [binding, error] = await readServiceBinding(requestor, 'ZSNAP_BC_INA_TEST');
+
+        expect(error).toBeNull();
+        expect(binding).toMatchObject({ bindingType: 'INA', category: 'UI', odataVersion: '', published: false, active: true, serviceDefinition: 'ZSNAP_BC_SD_TEST' });
+    });
+
+    it('validates, creates and activates but never publishes', async () => {
+        const { requestor, calls } = mockRequestor(inaResponder(1));
+
+        const [result, error] = await createServiceBinding(STATE, requestor, INA_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(result).toMatchObject({ bindingType: 'INA', category: 'UI', created: true, published: false });
+        expect(result!.steps).toEqual({ validate: 'DONE', create: 'DONE', activate: 'DONE', publish: 'SKIPPED' });
+        expect(calls.some(isJob)).toBe(false);
+        expect(calls.find(c => c.path === BINDINGS_PATH)!.body).toContain('srvb:category="0" srvb:type="INA">');
+    });
+
+    it('re-runs on an existing unpublished InA binding without publishing', async () => {
+        const { requestor, calls } = mockRequestor(inaResponder());
+
+        const [result, error] = await createServiceBinding(STATE, requestor, INA_OPTIONS);
+
+        expect(error).toBeNull();
+        expect(result!.steps).toEqual({ validate: 'SKIPPED', create: 'SKIPPED', activate: 'SKIPPED', publish: 'SKIPPED' });
+        expect(calls.filter(c => c.method !== 'GET')).toHaveLength(0);
+    });
+
+    it('refuses an existing InA binding requested as OData', async () => {
+        const { requestor } = mockRequestor(inaResponder());
+
+        const [, error] = await createServiceBinding(STATE, requestor, { ...INA_OPTIONS, bindingType: 'ODATA', bindingCategory: 'UI' });
+
+        expect(error?.message).toContain('already exists with binding type INA');
+    });
+
+    it('rejects an OData version, Web API or publish for InA before any request', async () => {
+        const cases: [Partial<CreateServiceBindingOptions>, string][] = [
+            [{ bindingVersion: 'V4' }, 'has no OData version'],
+            [{ bindingCategory: 'WEB_API' }, 'must be a UI binding'],
+            [{ publish: true }, 'is never published'],
+        ];
+        for (const [extra, message] of cases) {
+            const { requestor, calls } = mockRequestor(inaResponder());
+            const [, error] = await createServiceBinding(STATE, requestor, { ...INA_OPTIONS, ...extra });
+            expect(error?.message).toContain(message);
+            expect(calls).toHaveLength(0);
+        }
+    });
+
+    it('deletes with lock, DELETE and unlock only', async () => {
+        const { requestor, calls } = mockRequestor((req) => {
+            if (isBindingRead(req)) return new Response(INA_XML, { status: 200 });
+            if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('H1'), { status: 200 });
+            return new Response('', { status: 200 });
+        });
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZSNAP_BC_INA_TEST', undefined, 'V4');
+
+        expect(error).toBeNull();
+        expect(calls.some(isJob)).toBe(false);
+        expect(calls.map(c => c.params?.['_action'] ?? c.method)).toEqual(['GET', 'LOCK', 'DELETE', 'UNLOCK']);
+        expect(calls[3]!.params).toMatchObject({ lockHandle: 'H1' });
+    });
+
+});
+
+describe('deleteServiceBinding (lock release)', () => {
+    it('unlocks after a successful DELETE so the name can be re-created', async () => {
+        const { requestor, calls } = mockRequestor((req) => {
+            if (isBindingRead(req)) return new Response(bindingDocument({ version: 'V2' }), { status: 200 });
+            if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('H1'), { status: 200 });
+            if (isJob(req)) return new Response(severityXml('OK'), { status: 200 });
+            return new Response('', { status: 200 });
+        });
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_O5', undefined);
+
+        expect(error).toBeNull();
+        // The version read back picks the unpublish job
+        expect(calls.filter(isJob).map(c => c.path)).toEqual(['/sap/bc/adt/businessservices/odatav2/unpublishjobs']);
+        expect(calls.at(-1)!.params).toMatchObject({ _action: 'UNLOCK', lockHandle: 'H1' });
+    });
+});
+
+describe('deleteServiceBinding (unpublish only for OData)', () => {
+    function deleteSap(read: () => Response): { requestor: AdtRequestor; calls: RecordedRequest[] } {
+        return mockRequestor((req) => {
+            if (isBindingRead(req)) return read();
+            if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('H1'), { status: 200 });
+            if (isJob(req)) return new Response(severityXml('OK'), { status: 200 });
+            return new Response('', { status: 200 });
+        });
+    }
+
+    it('runs no unpublish job when the binding cannot be read', async () => {
+        const { requestor, calls } = deleteSap(() => new Response('<html>dump</html>', { status: 500 }));
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_O5', undefined);
+
+        expect(error).toBeNull();
+        expect(calls.some(isJob)).toBe(false);
+        expect(calls.map(c => c.params?.['_action'] ?? c.method)).toEqual(['GET', 'LOCK', 'DELETE', 'UNLOCK']);
+    });
+
+    it('runs no unpublish job for a SQL binding', async () => {
+        const sql = bindingDocument().replace('srvb:type="ODATA" srvb:version="V4"', 'srvb:type="SQL"');
+        const { requestor, calls } = deleteSap(() => new Response(sql, { status: 200 }));
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_O5', undefined, 'V4');
+
+        expect(error).toBeNull();
+        expect(calls.some(isJob)).toBe(false);
+        expect(calls.some(c => c.method === 'DELETE')).toBe(true);
+    });
+
+    it("prefers the caller's version over the one read back", async () => {
+        const { requestor, calls } = deleteSap(() => new Response(bindingDocument({ version: 'V4' }), { status: 200 }));
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_O5', undefined, 'V2');
+
+        expect(error).toBeNull();
+        expect(calls.filter(isJob).map(c => c.path)).toEqual(['/sap/bc/adt/businessservices/odatav2/unpublishjobs']);
     });
 });

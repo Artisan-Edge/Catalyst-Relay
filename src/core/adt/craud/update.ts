@@ -11,6 +11,7 @@ import { checkResponse, contentUri, requireConfig, requireFormHandler, sourceMed
 import { debug } from '../../utils/logging';
 import { stripBom } from '../../utils/bom';
 import { readFormDocument } from './formDocument';
+import { requireAffJsonPaths } from '../aff';
 
 const SOURCE_LABEL = 'source';
 
@@ -37,6 +38,8 @@ export async function updateObject(
     if (configErr) return err(configErr);
     const [uri, uriErr] = contentUri(config, object);
     if (uriErr) return err(uriErr);
+    const [, requiredErr] = requireAffJsonPaths(object.content, config.affJson, `${config.label} ${object.name}`);
+    if (requiredErr) return err(requiredErr);
 
     // Build request parameters with lock handle.
     const params: Record<string, string> = {

@@ -1,0 +1,57 @@
+{
+  "formatVersion": "2",
+  "header": {
+    "description": "SNAP BC Test",
+    "originalLanguage": "en",
+    "abapLanguageVersion": "cloudDevelopment"
+  },
+  "generalInformation": {
+    "appType": "ui5",
+    "catalogId": "SAP_TC_UI5_REPO_UIAD",
+    "targetMappingTitle": "SNAP BC Test"
+  },
+  "ui5AppDetails": {
+    "appId": "customer.ZSNAP_BC_MDA_AV",
+    "icfPath": "/sap/bc/ui5_ui5/sap/nw_aps_ana_mda"
+  },
+  "navigation": {
+    "targetMappingId": "ZSNAP_BC_UIAD_TEST_TM",
+    "semanticObject": "ZSNAPBC",
+    "action": "displayTest",
+    "desktop": true,
+    "tablet": true,
+    "parameters": [
+      {
+        "name": "query",
+        "filterValue": "ZSNAP_F70S_Q01"
+      },
+      {
+        "name": "queryType",
+        "filterValue": "CDSProjectionView"
+      }
+    ],
+    "additionalParameterHandling": "ignored"
+  },
+  "tiles": [
+    {
+      "id": "ZSNAP_BC_UIAD_TEST",
+      "tileType": "static",
+      "isDefault": true,
+      "standard": {
+        "title": "SNAP BC Test",
+        "subtitle": "Manual UIAD probe",
+        "icon": "sap-icon://line-charts",
+        "tileNavigationParameters": [
+          {
+            "name": "query",
+            "value": "ZSNAP_F70S_Q01"
+          },
+          {
+            "name": "queryType",
+            "value": "CDSProjectionView"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -8,7 +8,7 @@ import type { AdtRequestor } from '../types';
 import type { CreateServiceBindingOptions, ServiceBindingCategory, ServiceBindingType, ServiceBindingVersion } from './types';
 import { escapeXml } from '../../utils/xml';
 import { checkResponse } from '../helpers';
-import { bindingCategoryCode } from './helpers';
+import { bindingCategoryCode, defaultBindingCategory, INA_BINDING_TYPE } from './helpers';
 
 const SERVICE_BINDING_TYPE_CODE = 'SRVB/SVB';
 const CONTENT_VERSION = '0001';
@@ -17,7 +17,7 @@ const CONTENT_VERSION = '0001';
  * Create a service binding shell in SAP.
  *
  * Unlike source-based objects, a binding has no source/main — its definition is
- * the structured XML body posted here.
+ * the structured XML body posted here. An InA binding carries no srvb:version.
  *
  * @param client - ADT client
  * @param options - Service binding options
@@ -30,14 +30,16 @@ export async function createServiceBindingObject(
     username: string
 ): AsyncResult<void, Error> {
     const bindingType: ServiceBindingType = options.bindingType ?? 'ODATA';
+    const isIna = bindingType === INA_BINDING_TYPE;
     const bindingVersion: ServiceBindingVersion = options.bindingVersion ?? 'V4';
-    const bindingCategory: ServiceBindingCategory = options.bindingCategory ?? 'WEB_API';
+    const bindingCategory: ServiceBindingCategory = options.bindingCategory ?? defaultBindingCategory(bindingType);
     const description = options.description ?? '';
     const bindingName = options.bindingName.toUpperCase();
     const serviceDefinition = options.serviceDefinition.toUpperCase();
     const packageName = options.packageName.toUpperCase();
-    // V4 names the service after its definition; V2 names it after the binding, which the V2 publish job registers
-    const serviceName = bindingVersion === 'V2' ? bindingName : serviceDefinition;
+    // V4 and InA name the service after its definition; V2 names it after the binding, which the V2 publish job registers
+    const serviceName = !isIna && bindingVersion === 'V2' ? bindingName : serviceDefinition;
+    const versionAttr = isIna ? '' : ` srvb:version="${bindingVersion}"`;
 
     // Build the service binding XML body.
     const body = `<?xml version="1.0" encoding="UTF-8"?>
@@ -48,7 +50,7 @@ export async function createServiceBindingObject(
       <srvb:serviceDefinition adtcore:name="${serviceDefinition}"/>
     </srvb:content>
   </srvb:services>
-  <srvb:binding srvb:category="${bindingCategoryCode(bindingCategory)}" srvb:type="${bindingType}" srvb:version="${bindingVersion}">
+  <srvb:binding srvb:category="${bindingCategoryCode(bindingCategory)}" srvb:type="${bindingType}"${versionAttr}>
     <srvb:implementation adtcore:name=""/>
   </srvb:binding>
 </srvb:serviceBinding>`;

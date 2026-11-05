@@ -43,6 +43,30 @@ export const SOURCE_FORMAT_MEDIA_TYPES: Record<SourceFormat, string> = {
 };
 
 /**
+ * A value SAP drops from an AFF JSON source because it equals the default.
+ * path: dot-separated keys, `[]` after a key for each array item (e.g. 'sections[].visualizations[].type')
+ */
+export interface AffJsonDefault {
+    path: string;
+    value: string | number | boolean;
+}
+
+/**
+ * How SAP rewrites an AFF JSON source on save, so a re-run of the same file compares unchanged.
+ * A type with rules also refuses an empty source or one that is not a JSON object before any write.
+ */
+export interface AffJsonRules {
+    /** Paths SAP fills in itself; ignored on the server side where the local source omits them */
+    serverAdded?: string[];
+    /** Default values SAP drops; stripped on both sides before comparing */
+    serverDefaults?: AffJsonDefault[];
+    /** SAP stores false booleans as absent; compared as absent on both sides */
+    serverOmitsFalse?: boolean;
+    /** Paths the source must set before it is sent (SAP dumps on a PUT without them) */
+    requiredPaths?: string[];
+}
+
+/**
  * Parent object type for nested objects (function modules → function group)
  */
 export interface ContainerConfig {
@@ -93,6 +117,10 @@ export interface ObjectConfig {
     createContentType?: string;
     /** Format of /source/main when it isn't ABAP text (default: plain text) */
     sourceFormat?: SourceFormat;
+    /** Server rewrites of an aff-json source that are not changes */
+    affJson?: AffJsonRules;
+    /** The change-package refactoring is not supported for this type */
+    moveUnsupported?: boolean;
     /** DDIC DDL that SAP re-lays out on activation (tables, structures): whitespace next to separators is insignificant */
     cdsSource?: boolean;
     /** Title (and, for programs, authorization group) readable/writable via read/writeObjectAttributes */
@@ -112,7 +140,7 @@ export interface UpsertResult {
 /**
  * Supported object types
  */
-export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog' | 'asinc' | 'srvd' | 'asbdef' | 'asdtel' | 'asdoma' | 'asfunc' | 'asmsag' | 'asfugr' | 'asfinc' | 'asenqu' | 'asnrob';
+export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog' | 'asinc' | 'srvd' | 'asbdef' | 'asdtel' | 'asdoma' | 'asfunc' | 'asmsag' | 'asfugr' | 'asfinc' | 'asenqu' | 'asnrob' | 'asuiad' | 'asuipg' | 'asuist';
 
 /**
  * Object type labels
@@ -135,7 +163,15 @@ export enum ObjectTypeLabel {
     FUNCTION_GROUP_INCLUDE = 'Function Group Include',
     LOCK_OBJECT = 'Lock Object',
     NUMBER_RANGE_OBJECT = 'Number Range Object',
+    LAUNCHPAD_APP_DESCRIPTOR = 'Launchpad App Descriptor Item',
+    LAUNCHPAD_PAGE_TEMPLATE = 'Launchpad Page Template',
+    LAUNCHPAD_SPACE_TEMPLATE = 'Launchpad Space Template',
 }
+
+// Fiori launchpad objects: blues v2 shell, AFF JSON at /source/main
+const BLUES_V2_MEDIA_TYPE = 'application/vnd.sap.adt.blues.v2+xml';
+const LAUNCHPAD_SERVER_ADDED = ['header.description', 'header.originalLanguage', 'header.abapLanguageVersion', 'header'];
+const LAUNCHPAD_HEADER = ['header.description', 'header.originalLanguage'];
 
 /**
  * Function group: the container of function modules
@@ -336,6 +372,58 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         lockOnObject: true,
         createContentType: 'application/vnd.sap.adt.blues.v1+xml',
         sourceFormat: 'aff-json',
+    },
+    // Launchpad app descriptor item (tiles, target mapping); saved active
+    'asuiad': {
+        endpoint: 'fiori/uiad',
+        nameSpace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
+        rootName: 'blue:blueSource',
+        type: 'UIAD/TYP',
+        label: ObjectTypeLabel.LAUNCHPAD_APP_DESCRIPTOR,
+        extension: 'asuiad',
+        lockOnObject: true,
+        createContentType: BLUES_V2_MEDIA_TYPE,
+        sourceFormat: 'aff-json',
+        affJson: { serverAdded: LAUNCHPAD_SERVER_ADDED, serverOmitsFalse: true },
+        alwaysActive: true,
+        moveUnsupported: true,
+    },
+    // Launchpad page template; saved inactive
+    'asuipg': {
+        endpoint: 'fiori/uipgtyp',
+        nameSpace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
+        rootName: 'blue:blueSource',
+        type: 'UIPG/TYP',
+        label: ObjectTypeLabel.LAUNCHPAD_PAGE_TEMPLATE,
+        extension: 'asuipg',
+        lockOnObject: true,
+        createContentType: BLUES_V2_MEDIA_TYPE,
+        sourceFormat: 'aff-json',
+        affJson: {
+            serverAdded: LAUNCHPAD_SERVER_ADDED,
+            serverOmitsFalse: true,
+            serverDefaults: [
+                { path: 'sections[].visualizations[].type', value: 'ladiAssignment' },
+                { path: 'sections[].visualizations[].displayFormat', value: 'standard' },
+                { path: 'sections[].visualizations[].tileAssignment.tileKey.catalogType', value: 'standard' },
+                { path: 'sections[].visualizations[].tileAssignment.targetMappingKey.catalogType', value: 'standard' },
+            ],
+        },
+        moveUnsupported: true,
+    },
+    // Launchpad space template (references page templates); saved inactive
+    'asuist': {
+        endpoint: 'fiori/uisttop',
+        nameSpace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
+        rootName: 'blue:blueSource',
+        type: 'UIST/TOP',
+        label: ObjectTypeLabel.LAUNCHPAD_SPACE_TEMPLATE,
+        extension: 'asuist',
+        lockOnObject: true,
+        createContentType: BLUES_V2_MEDIA_TYPE,
+        sourceFormat: 'aff-json',
+        affJson: { serverAdded: LAUNCHPAD_SERVER_ADDED, serverOmitsFalse: true, requiredPaths: LAUNCHPAD_HEADER },
+        moveUnsupported: true,
     },
 };
 

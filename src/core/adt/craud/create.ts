@@ -9,7 +9,7 @@ import { BehaviorImplementationType } from '../../../types/requests';
 import type { AdtRequestor } from '../types';
 import { escapeXml } from '../../utils/xml';
 import { checkResponse, collectionUri, requireConfig, requireFormHandler } from '../helpers';
-import { affJsonDescription } from '../aff';
+import { affJsonDescription, requireAffJsonPaths } from '../aff';
 
 /**
  * Create a new object in SAP
@@ -61,8 +61,13 @@ export async function createObject(
         return ok(undefined);
     }
 
-    // JSON sources (abap-file-formats) carry the description in header.description. Without one the
-    // object name is used: SAP refuses some creates (includes, tables) without a title.
+    // Refuse a JSON source SAP can't save before creating an empty shell for it.
+    const [, requiredErr] = requireAffJsonPaths(object.content, config.affJson, `${config.label} ${object.name}`);
+    if (requiredErr) return err(requiredErr);
+
+    // JSON sources (abap-file-formats) carry the description in header.description (launchpad pages and
+    // spaces: generalInformation.title). Without one the object name is used: SAP refuses some creates
+    // (includes, tables) without a title.
     const description = object.description || (config.sourceFormat === 'aff-json' ? affJsonDescription(object.content) : '') || object.name.toUpperCase();
 
     // Extra root attributes for types that need them (e.g. srvd:srvdSourceType).

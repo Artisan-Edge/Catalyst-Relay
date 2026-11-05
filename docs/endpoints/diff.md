@@ -13,7 +13,7 @@ Compare local content with server content using Myers diff algorithm.
 
 Compare local object content with server content. Uses the Myers diff algorithm to compute line-by-line differences.
 
-`diffs` agrees with upsert: it is empty when upsert would report the object `unchanged` (same comparison as `contentEquivalent`, see [upsert](./objects.md)). So SAP's re-layout of a table or structure on activation and ADT's layout of a function module signature produce no hunks. Otherwise the diff runs over lines as upsert compares them: line ends (CRLF, CR), trailing spaces and tabs and trailing blank lines are never hunks, while indentation and other formatting changes (in ABAP, CDS views, access controls, behavior and service definitions) are. A real change in a table returns the full line diff, layout lines included.
+`diffs` agrees with upsert: it is empty when upsert would report the object `unchanged` (same comparison as `contentEquivalent`, see [upsert](./objects.md)). So SAP's re-layout of a table or structure on activation and ADT's layout of a function module signature produce no hunks, and neither do keys SAP adds or drops in AFF JSON (`asnrob`, `asuiad`, `asuipg`, `asuist`). Otherwise the diff runs over lines as upsert compares them: line ends (CRLF, CR), trailing spaces and tabs and trailing blank lines are never hunks, while indentation and other formatting changes (in ABAP, CDS views, access controls, behavior and service definitions) are. A real change in a table returns the full line diff, layout lines included.
 
 ### Request
 

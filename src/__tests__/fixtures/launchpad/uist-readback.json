@@ -1,0 +1,16 @@
+{
+  "formatVersion": "1",
+  "header": {
+    "description": "SNAP BC Test Space",
+    "originalLanguage": "en",
+    "abapLanguageVersion": "cloudDevelopment"
+  },
+  "generalInformation": {
+    "title": "SNAP BC Test Space"
+  },
+  "pages": [
+    {
+      "name": "ZSNAP_BC_PAGE_TEST"
+    }
+  ]
+}

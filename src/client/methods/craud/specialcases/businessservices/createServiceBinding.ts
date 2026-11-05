@@ -4,10 +4,12 @@
  * Sequences the full lifecycle: validate → create → activate → publish.
  * Re-running on an existing binding is safe: steps whose outcome is already in
  * place report SKIPPED, so only what is missing (activation, publish) runs.
+ * An InA binding (bindingType 'INA') is a UI binding that is never published.
  */
 
 import type { AsyncResult } from '../../../../../types/result';
-import type { AdtRequestor, CreateServiceBindingOptions, ServiceBindingInfo, ServiceBindingResult } from '../../../../../core/adt';
+import type { Result } from '../../../../../types/result';
+import type { AdtRequestor, CreateServiceBindingOptions, ServiceBindingCategory, ServiceBindingInfo, ServiceBindingResult, ServiceBindingType } from '../../../../../core/adt';
 import type { ClientState } from '../../../../types';
 import { ok, err } from '../../../../../types/result';
 import * as adt from '../../../../../core/adt';
@@ -20,11 +22,15 @@ export async function createServiceBinding(
     if (!state.session) return err(new Error('Not logged in'));
 
     const bindingName = options.bindingName.toUpperCase();
+    const [request, requestErr] = resolveRequest(options, bindingName);
+    if (requestErr) return err(requestErr);
+    const isIna = request.bindingType === adt.INA_BINDING_TYPE;
     const bindingVersion = options.bindingVersion ?? 'V4';
     const result: ServiceBindingResult = {
         name: bindingName,
         serviceDefinition: options.serviceDefinition.toUpperCase(),
-        category: options.bindingCategory ?? 'WEB_API',
+        bindingType: request.bindingType,
+        category: request.category,
         created: false,
         activation: [],
         published: false,
@@ -36,7 +42,7 @@ export async function createServiceBinding(
     const [existing, readErr] = await adt.readServiceBinding(requestor, bindingName);
     if (readErr) return err(readErr);
     if (existing) {
-        const mismatch = describeMismatch(existing, result, bindingVersion);
+        const mismatch = describeMismatch(existing, result, isIna ? null : bindingVersion);
         if (mismatch) return err(new Error(`Service binding ${bindingName} already exists with ${mismatch}; delete it first or choose another name`));
     }
 
@@ -67,7 +73,9 @@ export async function createServiceBinding(
         }
     }
 
-    // Step 4: Publish (unless disabled or already published).
+    // Step 4: Publish (unless disabled or already published). InA reads back unpublished
+    // with allowedAction PUBLISH even when complete: it is never published.
+    if (isIna) return ok(result);
     if (existing?.published) {
         result.published = true;
         return ok(result);
@@ -83,11 +91,30 @@ export async function createServiceBinding(
     return ok(result);
 }
 
+interface BindingRequest {
+    bindingType: ServiceBindingType;
+    category: ServiceBindingCategory;
+}
+
+// InA has no OData version, is always a UI binding and is never published: reject options that say otherwise.
+function resolveRequest(options: CreateServiceBindingOptions, bindingName: string): Result<BindingRequest, Error> {
+    const bindingType = options.bindingType ?? 'ODATA';
+    const category = options.bindingCategory ?? adt.defaultBindingCategory(bindingType);
+    if (bindingType !== adt.INA_BINDING_TYPE) return ok({ bindingType, category });
+
+    if (options.bindingVersion) return err(new Error(`InA service binding ${bindingName} has no OData version; omit bindingVersion`));
+    if (options.bindingCategory === 'WEB_API') return err(new Error(`InA service binding ${bindingName} must be a UI binding`));
+    if (options.publish === true) return err(new Error(`InA service binding ${bindingName} is never published (activation creates its service); omit publish`));
+    return ok({ bindingType, category });
+}
+
 // The binding that exists must be the one requested; anything else would be silently reported as done.
-function describeMismatch(existing: ServiceBindingInfo, requested: ServiceBindingResult, bindingVersion: string): string | null {
+// bindingVersion is null for InA, which has none.
+function describeMismatch(existing: ServiceBindingInfo, requested: ServiceBindingResult, bindingVersion: string | null): string | null {
     if (existing.serviceDefinition.toUpperCase() !== requested.serviceDefinition) return `service definition ${existing.serviceDefinition}`;
+    if (existing.bindingType.toUpperCase() !== requested.bindingType) return `binding type ${existing.bindingType}`;
     if (existing.category !== requested.category) return `category ${existing.category}`;
-    if (existing.odataVersion.toUpperCase() !== bindingVersion) return `OData version ${existing.odataVersion}`;
+    if (bindingVersion && existing.odataVersion.toUpperCase() !== bindingVersion) return `OData version ${existing.odataVersion}`;
     return null;
 }
 
