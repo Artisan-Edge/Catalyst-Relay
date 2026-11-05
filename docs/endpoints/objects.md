@@ -202,6 +202,14 @@ Array of upsert results:
 | `status`    | enum    | `created`, `updated`, or `unchanged` |
 | `transport` | string? | Transport ID used                    |
 
+`unchanged` means the local content already matches the server's, so nothing was written (`contentEquivalent()`). A leading BOM is always ignored. What else counts as a match depends on the type:
+
+- **Tables and structures** (`astabldt`, `astablds`; `ObjectConfig.cdsSource`): SAP rebuilds their DDL on activation, so whitespace next to a separator (`: ; , . { } ( ) [ ] = < >`) is ignored. Quoted literals are compared exactly. In code, one `(0)` after `abap.string` / `abap.rawstring` is ignored (SAP stores the bare types with length 0); any other length is a change. If either side contains a backslash, the sources must match both with the backslash read as an escape and as a plain character.
+- **Other sources** (`aclass`, `asprog`, `asinc`, `asfugr`, `asfinc`, `asfunc`, and `asddls`, `asdcls`, `asbdef`, `srvd`, which SAP keeps as written): line by line. Only a BOM, line ends (CRLF, CR), trailing spaces and tabs, and trailing blank lines are ignored; an indentation or other formatting change is a change. For a function module, whitespace in the signature (the `FUNCTION` statement, which ADT lays out itself on read) is ignored too, unless it contains a literal or a comment (`"`, or `*` in column 1), and so are the blank lines between the signature and the body.
+- **Whitespace** means ASCII whitespace only: a no-break space, a BOM after the first character, U+2028 or U+3000 is content.
+- **Form objects** (`asdtel`, `asdoma`, `asmsag`, `asenqu`): compared as parsed values.
+- **AFF JSON** (`asnrob`): compared as JSON values.
+
 ### Example
 
 **Request (to $TMP):**

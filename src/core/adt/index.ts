@@ -88,7 +88,7 @@ export type { FunctionGroupParts, FunctionGroupPart } from './discovery/function
 export { readObjectAttributes, writeObjectAttributes, ATTRIBUTE_EXTENSIONS } from './attributes';
 export type { ObjectAttributes, ObjectAttributesInfo, ObjectAttributesWriteResult } from './attributes';
 
-// Content comparison (form objects semantically, AFF JSON as values, text normalized)
+// Content comparison (form objects semantically, AFF JSON as values, DDIC DDL ignoring re-layout, other sources line by line)
 export { contentEquivalent } from './craud/contentEquivalent';
 export { affJsonDescription, affJsonEquivalent } from './aff';
 

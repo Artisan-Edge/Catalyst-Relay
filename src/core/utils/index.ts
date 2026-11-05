@@ -37,7 +37,7 @@ export {
     debugError
 } from './logging';
 
-export { normalizeContent } from './content';
+export { normalizeContent, normalizeCdsContent, normalizeSourceLines } from './content';
 
 export { ADT_CONCURRENCY, mapLimited } from './concurrency';
 

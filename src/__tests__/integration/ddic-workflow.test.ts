@@ -101,7 +101,7 @@ describe('DDIC Workflow', () => {
         created = true;
 
         expect(results!.map(r => `${r.name}.${r.extension}:${r.status}`)).toEqual([
-            `${ROUTINE}.fugr:created`,
+            `${ROUTINE}.asfugr:created`,
             `${FM_INPUT}.asfunc:created`,
             `${FM_OUTPUT}.asfunc:created`,
             `${DOMAIN}.asdoma:created`,

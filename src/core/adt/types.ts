@@ -93,6 +93,8 @@ export interface ObjectConfig {
     createContentType?: string;
     /** Format of /source/main when it isn't ABAP text (default: plain text) */
     sourceFormat?: SourceFormat;
+    /** DDIC DDL that SAP re-lays out on activation (tables, structures): whitespace next to separators is insignificant */
+    cdsSource?: boolean;
     /** Title (and, for programs, authorization group) readable/writable via read/writeObjectAttributes */
     hasAttributes?: boolean;
 }
@@ -187,6 +189,7 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'TABL/DT',
         label: ObjectTypeLabel.TABLE,
         extension: 'astabldt',
+        cdsSource: true,
         dpEndpoint: 'ddic',
         dpParam: 'ddicEntityName',
     },
@@ -197,6 +200,7 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         type: 'STRU/D',
         label: ObjectTypeLabel.STRUCTURE,
         extension: 'astablds',
+        cdsSource: true,
     },
     'asprog': {
         endpoint: 'programs/programs',

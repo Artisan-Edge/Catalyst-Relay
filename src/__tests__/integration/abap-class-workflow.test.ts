@@ -94,7 +94,7 @@ describe('ABAP Class Workflow', () => {
         expect(createErr).toBeNull();
         objectCreated = true;
         console.log(`Created ABAP class: ${TEST_NAME}`);
-    });
+    }, 30000);
 
     it('should syntax check the ABAP class (clean)', async () => {
         if (shouldSkip(client) || !objectCreated) {

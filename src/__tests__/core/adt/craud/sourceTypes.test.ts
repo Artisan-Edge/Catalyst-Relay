@@ -5,6 +5,8 @@
  * - A number range object is created as blue:blueSource with header.description from its JSON
  *   and read/written as application/json
  * - CRLF from SAP and a trailing newline are not diffs
+ * - gitDiff agrees with upsert: no hunks where it would report unchanged (table re-layout, trailing
+ *   blanks, a function module signature's layout); indentation and CDS view formatting are hunks
  */
 
 import { describe, it, expect } from 'bun:test';
@@ -99,5 +101,78 @@ describe('gitDiff line endings', () => {
 
         expect(error).toBeNull();
         expect(result!.diffs).toEqual([]);
+    });
+});
+
+describe('gitDiff agrees with upsert', () => {
+    const SAP_TABLE = "@EndUserText.label : 'Map'\r\ndefine table zmap {\r\n\r\n  key mandt : mandt not null;\r\n  name      : abap.char( 30 );\r\n\r\n}";
+    const LOCAL_TABLE = "@EndUserText.label: 'Map'\ndefine table zmap {\n\tkey mandt: mandt not null;\n\tname: abap.char(30);\n}\n";
+
+    it('reports no diff for a CDS table SAP only re-laid out', async () => {
+        const { requestor } = recorder(() => new Response(SAP_TABLE, { status: 200 }));
+        const [result, error] = await gitDiff(requestor, { name: 'ZMAP', extension: 'astabldt', content: LOCAL_TABLE });
+
+        expect(error).toBeNull();
+        expect(result!.diffs).toEqual([]);
+    });
+
+    it('reports the full line diff for a real change', async () => {
+        const { requestor } = recorder(() => new Response(SAP_TABLE, { status: 200 }));
+        const [result, error] = await gitDiff(requestor, { name: 'ZMAP', extension: 'astabldt', content: LOCAL_TABLE.replace('char(30)', 'char(40)') });
+
+        expect(error).toBeNull();
+        expect(result!.diffs.length).toBeGreaterThan(0);
+        expect(result!.diffs.flatMap(hunk => hunk.changes.flat()).some(line => line.includes('char(40)'))).toBe(true);
+    });
+
+    it('reports an ABAP indentation change', async () => {
+        const { requestor } = recorder(() => new Response('REPORT zfoo.\r\nWRITE 1.', { status: 200 }));
+        const [result, error] = await gitDiff(requestor, { name: 'ZFOO', extension: 'asprog', content: 'REPORT zfoo.\n  WRITE 1.\n' });
+
+        expect(error).toBeNull();
+        expect(result!.diffs).toHaveLength(1);
+    });
+
+    it('ignores in ABAP what upsert ignores: trailing blanks, indented blank lines, a trailing blank line, a bare CR', async () => {
+        const { requestor } = recorder(() => new Response('REPORT zfoo.\r\n\r\nWRITE 1.', { status: 200 }));
+        const [result, error] = await gitDiff(requestor, { name: 'ZFOO', extension: 'asprog', content: 'REPORT zfoo.  \r    \nWRITE 1.\t\n   \n' });
+
+        expect(error).toBeNull();
+        expect(result!.diffs).toEqual([]);
+    });
+
+    it("reports no diff for ADT's layout of a function module signature", async () => {
+        const sap = 'FUNCTION z_hello\r\n  IMPORTING\r\n    VALUE(name) TYPE string.\r\n\r\n  WRITE name.\r\nENDFUNCTION.';
+        const { requestor } = recorder(() => new Response(sap, { status: 200 }));
+        const fm = { name: 'Z_HELLO', extension: 'asfunc', container: 'ZGRP' };
+        const [same] = await gitDiff(requestor, { ...fm, content: 'FUNCTION z_hello IMPORTING VALUE(name) TYPE string.\n\n  WRITE name.\nENDFUNCTION.\n' });
+        const [changed] = await gitDiff(requestor, { ...fm, content: 'FUNCTION z_hello IMPORTING VALUE(name) TYPE string.\n\nWRITE name.\nENDFUNCTION.\n' });
+
+        expect(same!.diffs).toEqual([]);
+        expect(changed!.diffs.length).toBeGreaterThan(0);
+    });
+
+    it('reports no diff for the blank lines SAP stores after a function module signature', async () => {
+        const remote = 'FUNCTION z_x\r\n  EXPORTING\r\n    VALUE(result) TYPE string.\r\n\r\n\r\n\r\n  PERFORM increment.\r\n  result = |Hello { gv_counter }|.\r\nENDFUNCTION.';
+        const local = 'FUNCTION z_x\n  EXPORTING\n    VALUE(result) TYPE string.\n\n  PERFORM increment.\n  result = |Hello { gv_counter }|.\nENDFUNCTION.';
+        const { requestor } = recorder(() => new Response(remote, { status: 200 }));
+        const [result, error] = await gitDiff(requestor, { name: 'Z_X', extension: 'asfunc', container: 'ZGRP', content: local });
+
+        expect(error).toBeNull();
+        expect(result!.diffs).toEqual([]);
+    });
+
+    it('reports a formatting-only change to a CDS view', async () => {
+        const { requestor } = recorder(() => new Response("@EndUserText.label: 'V'\r\ndefine view entity zv as select from t000 {\r\n  key mandt\r\n}", { status: 200 }));
+        const [result] = await gitDiff(requestor, { name: 'ZV', extension: 'asddls', content: "@EndUserText.label : 'V'\ndefine view entity zv as select from t000 {\n  key mandt\n}" });
+
+        expect(result!.diffs).toHaveLength(1);
+    });
+
+    it('passes the read error through', async () => {
+        const { requestor } = recorder(() => new Response('Forbidden', { status: 403 }));
+        const [, error] = await gitDiff(requestor, { name: 'ZFOO', extension: 'asprog', content: 'REPORT zfoo.' });
+
+        expect(error!.message).not.toContain('does not exist on server');
     });
 });

@@ -11,8 +11,10 @@ import type { AdtRequestor } from '../types';
 import { toRef } from '../helpers';
 import { getFormHandler } from '../../forms';
 import { stripBom } from '../../utils/bom';
+import { normalizeSourceLines } from '../../utils/content';
 import type { ObjectContent } from '../../../types/requests';
 import { readObject } from './read';
+import { contentEquivalent } from './contentEquivalent';
 import { getConfigByExtension } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,9 +153,7 @@ export async function gitDiff(
     // Read current server content.
     const [serverObj, readErr] = await readObject(client, toRef(object));
 
-    if (readErr) {
-        return err(new Error(`${object.name} does not exist on server`));
-    }
+    if (readErr) return err(readErr);
 
     // Get label from config.
     const config = getConfigByExtension(object.extension);
@@ -168,12 +168,17 @@ export async function gitDiff(
         localContent = canonical;
     }
 
-    // Split content into lines for comparison; SAP sends CRLF, and a trailing newline is not a change.
-    const serverLines = toLines(serverObj.content);
-    const localLines = toLines(localContent);
+    // What upsert would leave unchanged has no diff (e.g. SAP's re-layout of a table on activation,
+    // ADT's layout of a function module signature).
+    const [unchanged, compareErr] = contentEquivalent(object.extension, object.content, serverObj.content);
+    if (compareErr) return err(new Error(`${object.name}: ${compareErr.message}`));
+
+    // Lines as upsert compares them: line ends, trailing blanks and trailing blank lines are no change.
+    const serverLines = normalizeSourceLines(serverObj.content).split('\n');
+    const localLines = normalizeSourceLines(localContent).split('\n');
 
     // Compute diff.
-    const diffs = computeDiff(serverLines, localLines);
+    const diffs = unchanged ? [] : computeDiff(serverLines, localLines);
 
     return ok({
         name: serverObj.name,
@@ -181,8 +186,4 @@ export async function gitDiff(
         label,
         diffs,
     });
-}
-
-function toLines(content: string): string[] {
-    return content.replace(/(\r?\n)+$/, '').split(/\r?\n/);
 }

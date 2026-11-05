@@ -12,3 +12,4 @@ export { FUNCTION_GROUP_UPSERT_ORDER, refuseGeneratedInclude, withIncludeHint } 
 export { splitGroupParts, isOwnGroupReference, owningGroupInSet } from './deleteRules';
 export { rollUpGroupParts } from './rollUpGroupParts';
 export { oneAtATimePerGroup } from './oneAtATimePerGroup';
+export { moduleSourcesEquivalent } from './moduleSourcesEquivalent';
