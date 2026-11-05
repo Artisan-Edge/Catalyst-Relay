@@ -16,6 +16,8 @@ export async function update(
     transport?: string
 ): AsyncResult<void> {
     if (!state.session) return err(new Error('Not logged in'));
+    const [, sourceErr] = adt.refuseInvalidAffSource(object);
+    if (sourceErr) return err(sourceErr);
 
     // Lock → update → unlock (unlocked on every path)
     const [target, targetErr] = adt.objectLockTarget(object);

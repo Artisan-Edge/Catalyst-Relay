@@ -6,7 +6,7 @@ import type { Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import { getConfigByExtension, OBJECT_CONFIG_MAP } from '../types';
 import { getFormHandler } from '../../forms';
-import { affJsonEquivalent } from '../aff';
+import { affJsonEquivalent, requireAffJsonPaths } from '../aff';
 import { moduleSourcesEquivalent } from '../functionGroup/moduleSourcesEquivalent';
 import { normalizeCdsContent, normalizeSourceLines } from '../../utils/content';
 
@@ -29,7 +29,11 @@ export function contentEquivalent(extension: string, local: string, remote: stri
     const config = getConfigByExtension(extension);
     if (!config) return err(new Error(`Unsupported extension: ${extension}`));
 
-    if (config.sourceFormat === 'aff-json') return ok(affJsonEquivalent(local, remote, config.affJson));
+    if (config.sourceFormat === 'aff-json') {
+        // A local source a write would refuse is never "unchanged".
+        if (config.affJson && requireAffJsonPaths(local, config.affJson, extension)[1]) return ok(false);
+        return ok(affJsonEquivalent(local, remote, config.affJson));
+    }
     const handler = config.kind === 'form' ? getFormHandler(extension) : null;
     if (handler) return handler.equivalent(local, remote);
     if (config.cdsSource) return ok(cdsSourcesEquivalent(local, remote));

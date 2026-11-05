@@ -205,6 +205,7 @@ describe('deleteServiceBinding', () => {
 
     it('still deletes when the binding was not published', async () => {
         const { requestor, calls } = mockRequestor((req) => {
+            if (isBindingRead(req)) return new Response(bindingDocument(), { status: 200 });
             if (req.params?.['_action'] === 'LOCK') return new Response(lockXml('HANDLE123'), { status: 200 });
             if (req.path.endsWith('/unpublishjobs')) return new Response(severityXml('ERROR', 'not published'), { status: 200 });
             return new Response('', { status: 200 });
@@ -872,14 +873,41 @@ describe('deleteServiceBinding (unpublish only for OData)', () => {
         });
     }
 
-    it('runs no unpublish job when the binding cannot be read', async () => {
+    it('refuses to delete when the read fails and no version is given (it may be a published OData binding)', async () => {
         const { requestor, calls } = deleteSap(() => new Response('<html>dump</html>', { status: 500 }));
 
         const [, error] = await deleteServiceBinding(requestor, 'ZB_O5', undefined);
 
+        expect(error?.message).toContain('Cannot delete service binding ZB_O5: reading it failed');
+        expect(error?.message).toContain('HTTP 500');
+        expect(calls.map(c => c.params?.['_action'] ?? c.method)).toEqual(['GET']);
+    });
+
+    it("unpublishes with the caller's version and deletes when the read fails", async () => {
+        const { requestor, calls } = deleteSap(() => new Response('<html>dump</html>', { status: 500 }));
+
+        const [, error] = await deleteServiceBinding(requestor, 'ZB_O5', undefined, 'V2');
+
         expect(error).toBeNull();
-        expect(calls.some(isJob)).toBe(false);
-        expect(calls.map(c => c.params?.['_action'] ?? c.method)).toEqual(['GET', 'LOCK', 'DELETE', 'UNLOCK']);
+        expect(calls.filter(isJob).map(c => c.path)).toEqual(['/sap/bc/adt/businessservices/odatav2/unpublishjobs']);
+        expect(calls.map(c => c.params?.['_action'] ?? c.method)).toEqual(['GET', 'LOCK', 'POST', 'DELETE', 'UNLOCK']);
+    });
+
+    it('reports a binding that does not exist without locking', async () => {
+        const { requestor, calls } = deleteSap(() => new Response('', { status: 404 }));
+
+        const [, error] = await deleteServiceBinding(requestor, 'zb_o5', undefined);
+
+        expect(error?.message).toBe('Service binding ZB_O5 does not exist');
+        expect(calls.map(c => c.params?.['_action'] ?? c.method)).toEqual(['GET']);
+    });
+
+    it("honours the caller's version for an OData binding read back with another", async () => {
+        const { requestor, calls } = deleteSap(() => new Response(bindingDocument({ version: 'V4' }), { status: 200 }));
+
+        await deleteServiceBinding(requestor, 'ZB_O5', undefined, 'V2');
+
+        expect(calls.filter(isJob).map(c => c.path)).toEqual(['/sap/bc/adt/businessservices/odatav2/unpublishjobs']);
     });
 
     it('runs no unpublish job for a SQL binding', async () => {

@@ -5,17 +5,17 @@
 import type { AsyncResult, Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import type { BusinessCatalogInfo, CatalogAppAssignment } from './types';
+import type { BusinessCatalogInfo, CatalogAppAssignment, IamPublishOptions } from './types';
 import { escapeXml, safeParseXml } from '../../utils/xml';
 import { checkResponse } from '../helpers';
-import { ADTCORE_NS, IAM_BASE_PATH, createIamDocument, isPublished, readIamDocument, submitIamPublish } from './helpers';
+import { ADTCORE_NS, IAM_BASE_PATH, PUBLISHING_CONTENT_TYPE, createIamDocument, iamDescription, isPublished, readIamDocument } from './helpers';
+import { publishAndWait } from './publish';
 
 const SIA1_NS = 'http://www.sap.com/iam/sia1';
 const SIA7_NS = 'http://www.sap.com/iam/sia7';
 const ASSIGNMENTS_PATH = `${IAM_BASE_PATH}/sia1/$bucapps`;
 const PUBLISH_PATH = `${IAM_BASE_PATH}/sia1/$publish`;
-// Assignments are named <catalog>_<NNNN>, numbered from 0001.
-const ASSIGNMENT_NUMBER_WIDTH = 4;
+const PUBLISHED_STATUS = 'p';
 
 /**
  * Create an empty business catalog.
@@ -142,6 +142,7 @@ export async function readCatalogAssignments(
  * @param assignmentName - Assignment object name (<catalog>_<NNNN>)
  * @param packageName - Target package
  * @param transport - Transport request
+ * @param description - Assignment description (default "<app> in <catalog>"; SAP rejects an assignment without one)
  * @returns void or error
  */
 export async function createCatalogAssignment(
@@ -150,16 +151,16 @@ export async function createCatalogAssignment(
     appName: string,
     assignmentName: string,
     packageName: string,
-    transport?: string
+    transport?: string,
+    description?: string
 ): AsyncResult<void, Error> {
     const catalog = catalogName.toUpperCase();
     const app = appName.toUpperCase();
     const assignment = assignmentName.toUpperCase();
-    // SAP rejects an assignment without a description.
-    const description = `${app} in ${catalog}`;
+    const text = iamDescription(description || `${app} in ${catalog}`);
 
     const body = `<?xml version="1.0" encoding="UTF-8"?>
-<sia7:sia7 xmlns:sia7="${SIA7_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:description="${escapeXml(description)}" adtcore:language="EN" adtcore:name="${assignment}" adtcore:type="SIA7" adtcore:masterLanguage="EN">
+<sia7:sia7 xmlns:sia7="${SIA7_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:description="${escapeXml(text)}" adtcore:language="EN" adtcore:name="${assignment}" adtcore:type="SIA7" adtcore:masterLanguage="EN">
   <adtcore:packageRef adtcore:name="${packageName.toUpperCase()}"/>
   <sia7:content>
     <sia7:businessCatalogAppAssignmentID>${assignment}</sia7:businessCatalogAppAssignmentID>
@@ -174,34 +175,23 @@ export async function createCatalogAssignment(
 }
 
 /**
- * The next free assignment name of a catalog, after the highest existing number.
- *
- * @param catalogName - Business catalog name
- * @param existing - Current assignments
- * @returns <catalog>_<NNNN>
- */
-export function nextAssignmentName(catalogName: string, existing: CatalogAppAssignment[]): string {
-    const catalog = catalogName.toUpperCase();
-    const prefix = `${catalog}_`;
-    const numbers = existing
-        .map(entry => entry.assignment.toUpperCase())
-        .filter(assignment => assignment.startsWith(prefix))
-        .map(assignment => Number.parseInt(assignment.slice(prefix.length), 10))
-        .filter(number => Number.isFinite(number));
-    const next = numbers.length === 0 ? 1 : Math.max(...numbers) + 1;
-    return `${prefix}${String(next).padStart(ASSIGNMENT_NUMBER_WIDTH, '0')}`;
-}
-
-/**
- * Publish a business catalog locally.
+ * Publish a business catalog locally and wait until SAP reports it published ('p').
  *
  * @param client - ADT client
  * @param name - Business catalog name
- * @returns Publishing status code ('p' when published) or error
+ * @param options - Publish timing
+ * @returns Publishing status code ('p') or error
  */
 export async function publishBusinessCatalog(
     client: AdtRequestor,
-    name: string
+    name: string,
+    options?: IamPublishOptions
 ): AsyncResult<string, Error> {
-    return submitIamPublish(client, PUBLISH_PATH, { businessCatalogID: name.toUpperCase() }, `business catalog ${name}`);
+    return publishAndWait(client, {
+        path: PUBLISH_PATH,
+        params: { businessCatalogID: name.toUpperCase() },
+        accept: PUBLISHING_CONTENT_TYPE,
+        label: `business catalog ${name.toUpperCase()}`,
+        doneStatuses: [PUBLISHED_STATUS],
+    }, options);
 }

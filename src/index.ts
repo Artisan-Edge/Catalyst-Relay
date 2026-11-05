@@ -99,6 +99,18 @@ export type {
     BusinessCatalogInfo,
     CreateBusinessCatalogOptions,
     BusinessCatalogResult,
+    IamObjectKind,
+    IamPublishOptions,
+    RoleTemplateCatalogAssignment,
+    RoleTemplateInfo,
+    CreateRoleTemplateOptions,
+    RoleTemplateResult,
+    IamAppBindingUsage,
+    IamBindingUsageScan,
+    FindIamAppsUsingBindingsOptions,
+    DeletionCheckResult,
+    DeletionResult,
+    DeletionMessage,
     CreatePackageOptions,
     CreatePackageResult,
     PackageSettings,
@@ -170,6 +182,9 @@ export { ATTRIBUTE_EXTENSIONS } from './core/adt';
 // Object type registry (extension ↔ ADT type); ObjectConfig.hasAttributes / sourceFormat / affJson / kind / cdsSource describe each type
 export { OBJECT_CONFIG_MAP, getConfigByExtension, getConfigByType } from './core/adt';
 export type { ConfiguredExtension, SourceFormat, AffJsonRules, AffJsonDefault } from './core/adt';
+
+// URI of a Fiori app variant (ADVC/LRP) for checkDeletion / deleteByUri (no HTTP)
+export { appVariantUri } from './core/adt';
 
 // Pre-write check of an AFF JSON source against its type's rules (getConfigByExtension(ext)?.affJson; no HTTP)
 export { requireAffJsonPaths } from './core/adt';

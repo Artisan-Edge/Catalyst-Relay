@@ -19,6 +19,9 @@ export const BASE_HEADERS = {
 // Default request timeout in milliseconds
 export const DEFAULT_TIMEOUT = 30000;
 
+// Error message of a request that ran past its timeout (no response)
+export const REQUEST_TIMEOUT_MESSAGE = 'Request timeout';
+
 /**
  * Build request headers with auth and CSRF token
  *

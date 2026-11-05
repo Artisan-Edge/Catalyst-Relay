@@ -1,9 +1,9 @@
 /**
- * Read IAM app / business catalog methods
+ * Read IAM app / business catalog / role template methods
  */
 
 import type { AsyncResult } from '../../../types/result';
-import type { AdtRequestor, BusinessCatalogInfo, IamAppInfo } from '../../../core/adt';
+import type { AdtRequestor, BusinessCatalogInfo, IamAppInfo, RoleTemplateInfo } from '../../../core/adt';
 import type { ClientState } from '../../types';
 import { ok, err } from '../../../types/result';
 import * as adt from '../../../core/adt';
@@ -32,4 +32,17 @@ export async function readBusinessCatalog(
     if (readErr) return err(readErr);
     if (!catalog) return err(new Error(`Business catalog ${catalogName.toUpperCase()} does not exist`));
     return ok(catalog);
+}
+
+export async function readRoleTemplate(
+    state: ClientState,
+    requestor: AdtRequestor,
+    templateName: string
+): AsyncResult<RoleTemplateInfo> {
+    if (!state.session) return err(new Error('Not logged in'));
+
+    const [template, readErr] = await adt.readRoleTemplate(requestor, templateName);
+    if (readErr) return err(readErr);
+    if (!template) return err(new Error(`Business role template ${templateName.toUpperCase()} does not exist`));
+    return ok(template);
 }

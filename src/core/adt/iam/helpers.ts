@@ -9,26 +9,28 @@
 import type { AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
-import { extractLockHandle, extractTagText } from '../../utils/xml';
+import type { IamObjectKind } from './types';
+import { extractLockHandle } from '../../utils/xml';
 import { checkResponse } from '../helpers';
 
 export const IAM_BASE_PATH = '/sap/bc/adt/aps/cloud/iam';
 export const BLUES_CONTENT_TYPE = 'application/vnd.sap.adt.blues.v1+xml';
 export const PUBLISHING_CONTENT_TYPE = 'application/vnd.sap.adt.iam.publishing+xml';
 export const ADTCORE_NS = 'http://www.sap.com/adt/core';
+// adtcore:description limit of IAM objects
+const DESCRIPTION_MAX_LENGTH = 60;
 
 const LOCK_ACCEPT_HEADER =
     'application/*,application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result';
 const NOT_FOUND_STATUS = 404;
 const PUBLISHED_STATUS = 'p';
 
-/** IAM object kinds and their ADT collection segment. */
-export type IamObjectKind = 'sia6' | 'sia1' | 'sia7';
-
-const KIND_LABELS: Record<IamObjectKind, string> = {
+export const KIND_LABELS: Record<IamObjectKind, string> = {
     sia6: 'IAM app',
     sia1: 'business catalog',
     sia7: 'business catalog app assignment',
+    sia8: 'business role template',
+    sia9: 'business role template catalog assignment',
 };
 
 /** ADT collection path for an IAM object kind. */
@@ -39,6 +41,11 @@ export function iamCollectionPath(kind: IamObjectKind): string {
 /** ADT resource path for an IAM object. */
 export function iamObjectPath(kind: IamObjectKind, name: string): string {
     return `${iamCollectionPath(kind)}/${name.toLowerCase()}`;
+}
+
+/** A description cut to the IAM limit (SAP rejects a create without one). */
+export function iamDescription(text: string): string {
+    return text.slice(0, DESCRIPTION_MAX_LENGTH);
 }
 
 /** Whether a publishStatus / publishingStatusText code means published. */
@@ -154,38 +161,4 @@ export async function unlockIamObject(
     const [, checkErr] = await checkResponse(response, requestErr, `Failed to unlock ${KIND_LABELS[kind]} ${name}`);
     if (checkErr) return err(checkErr);
     return ok(undefined);
-}
-
-/**
- * Submit a "Publish Locally" request and return the resulting status code.
- *
- * @param client - ADT client
- * @param path - Publish resource path
- * @param params - Query parameters naming the object
- * @param label - Object label for error messages
- * @returns publishingStatusText ('p' when published) or error
- */
-export async function submitIamPublish(
-    client: AdtRequestor,
-    path: string,
-    params: Record<string, string>,
-    label: string
-): AsyncResult<string, Error> {
-    const [response, requestErr] = await client.request({
-        method: 'POST',
-        path,
-        params,
-        headers: { 'Accept': PUBLISHING_CONTENT_TYPE },
-    });
-
-    const [text, checkErr] = await checkResponse(response, requestErr, `Failed to publish ${label}`);
-    if (checkErr) return err(checkErr);
-
-    return ok(extractTagText(text, 'publishingStatusText') ?? extractLocalTagText(text, 'publishingStatusText'));
-}
-
-// The status element is namespaced (sia6:/sia1:); fall back to a prefix-agnostic match.
-function extractLocalTagText(xml: string, localName: string): string {
-    const match = xml.match(new RegExp(`<(?:[\\w-]+:)?${localName}>([^<]*)<`));
-    return match?.[1]?.trim() ?? '';
 }

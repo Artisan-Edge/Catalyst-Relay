@@ -11,6 +11,8 @@ const ARRAY_SUFFIX = '[]';
  * - serverOmitsFalse: object keys holding false are removed from both
  * - serverAdded paths the local value lacks are removed from remote
  * - serverDefaults are removed from both where the value equals the default
+ * - serverOwned paths are removed from both
+ * - caseInsensitive strings are lower-cased, stringValued numbers become strings, on both
  */
 export function applyAffJsonRules(local: unknown, remote: unknown, rules: AffJsonRules): [unknown, unknown] {
     const ownedLocal = structuredClone(local);
@@ -25,7 +27,33 @@ export function applyAffJsonRules(local: unknown, remote: unknown, rules: AffJso
         dropDefault(ownedLocal, segments, value);
         dropDefault(ownedRemote, segments, value);
     }
+    for (const side of [ownedLocal, ownedRemote]) {
+        for (const path of rules.serverOwned ?? []) updateAt(side, path.split('.'), () => undefined);
+        for (const path of rules.caseInsensitive ?? []) updateAt(side, path.split('.'), entry => typeof entry === 'string' ? entry.toLowerCase() : entry);
+        for (const path of rules.stringValued ?? []) updateAt(side, path.split('.'), entry => typeof entry === 'number' ? String(entry) : entry);
+    }
     return [ownedLocal, ownedRemote];
+}
+
+// Replace the value at a path (array items by `[]`); undefined deletes the key.
+function updateAt(value: unknown, segments: string[], update: (entry: unknown) => unknown): void {
+    const [segment, ...rest] = segments;
+    if (segment === undefined || !isRecord(value)) return;
+    const key = keyOf(segment);
+    if (!(key in value)) return;
+
+    if (segment.endsWith(ARRAY_SUFFIX)) {
+        const items = value[key];
+        if (Array.isArray(items)) items.forEach(item => updateAt(item, rest, update));
+        return;
+    }
+    if (rest.length > 0) {
+        updateAt(value[key], rest, update);
+        return;
+    }
+    const next = update(value[key]);
+    if (next === undefined) delete value[key];
+    else value[key] = next;
 }
 
 // Walk both values in step (array items by index); delete the last key from remote where local lacks it.

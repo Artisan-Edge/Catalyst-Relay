@@ -1,0 +1,12 @@
+{
+  "formatVersion": "1",
+  "header": {
+    "description": "ZSNAP_BC_SPACE_TEST",
+    "originalLanguage": "en",
+    "abapLanguageVersion": "cloudDevelopment"
+  },
+  "generalInformation": {
+    "businessRoleTemplate": "ZSNAP_BC_BRT_TEST",
+    "launchpadSpaceTemplate": "ZSNAP_BC_SPACE_TEST"
+  }
+}

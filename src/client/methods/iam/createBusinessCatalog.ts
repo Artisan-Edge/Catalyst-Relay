@@ -3,7 +3,8 @@
  *
  * Sequences create → assign IAM apps → publish locally. Re-running is safe: an
  * existing catalog is reused, apps already assigned are skipped, and the publish
- * runs only when something changed or the catalog is not yet published.
+ * runs only when something changed or the catalog is not yet published. An app with
+ * an empty migrationStatus is migrated before it is assigned.
  */
 
 import type { AsyncResult } from '../../../types/result';
@@ -11,8 +12,6 @@ import type { AdtRequestor, BusinessCatalogResult, CatalogAppAssignment, CreateB
 import type { ClientState } from '../../types';
 import { ok, err } from '../../../types/result';
 import * as adt from '../../../core/adt';
-
-const PUBLISHED_STATUS = 'p';
 
 export async function createBusinessCatalog(
     state: ClientState,
@@ -26,6 +25,7 @@ export async function createBusinessCatalog(
         name,
         created: false,
         assignmentsAdded: [],
+        appsMigrated: [],
         published: false,
         publishStatus: '',
         steps: { create: 'SKIPPED', assign: 'SKIPPED', publish: 'SKIPPED' },
@@ -41,18 +41,26 @@ export async function createBusinessCatalog(
         result.steps.create = 'DONE';
     }
 
-    // Step 2: Assign the apps that are not in the catalog yet.
+    // Step 2: Assign the apps that are not in the catalog yet. Check them all first (a clear message
+    // rather than SAP's on a typo'd name), and migrate an unmigrated one (SIA7 refuses it otherwise).
     const assignments: CatalogAppAssignment[] = [...(existing?.apps ?? [])];
     const assigned = new Set(assignments.map(entry => entry.app.toUpperCase()));
     const missing = [...new Set(options.apps.map(app => app.toUpperCase()))].filter(app => !assigned.has(app));
+    const toMigrate: string[] = [];
     for (const app of missing) {
-        // Fail early with a clear message rather than SAP's on a typo'd app name.
         const [appInfo, appErr] = await adt.readIamApp(requestor, app);
         if (appErr) return err(appErr);
         if (!appInfo) return err(new Error(`IAM app ${app} does not exist`));
-
-        const assignment = adt.nextAssignmentName(name, assignments);
-        const [, assignErr] = await adt.createCatalogAssignment(requestor, name, app, assignment, options.packageName, options.transport);
+        if (adt.needsMigration(appInfo)) toMigrate.push(app);
+    }
+    for (const app of toMigrate) {
+        const [, migrateErr] = await adt.saveIamAppChanges(requestor, app, { migrationStatus: adt.MIGRATED_STATUS }, options.transport);
+        if (migrateErr) return err(migrateErr);
+        result.appsMigrated.push(app);
+    }
+    for (const app of missing) {
+        const [assignment, assignErr] = await adt.createNumberedAssignment(name, assignments, candidate =>
+            adt.createCatalogAssignment(requestor, name, app, candidate, options.packageName, options.transport));
         if (assignErr) return err(assignErr);
 
         const entry = { assignment, app };
@@ -72,7 +80,7 @@ export async function createBusinessCatalog(
     const [status, publishErr] = await adt.publishBusinessCatalog(requestor, name);
     if (publishErr) return err(publishErr);
     result.publishStatus = status;
-    result.published = status === PUBLISHED_STATUS;
+    result.published = true;
     result.steps.publish = 'DONE';
     return ok(result);
 }

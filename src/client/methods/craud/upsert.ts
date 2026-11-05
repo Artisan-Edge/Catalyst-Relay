@@ -17,8 +17,9 @@ const FUNCTION_GROUP_EXTENSION = adt.OBJECT_CONFIG_MAP.asfugr.extension;
 // the domains that use them as conversion routines; domains before data elements, data elements
 // before everything else.
 const WAVE_ORDER: readonly string[] = [...adt.FUNCTION_GROUP_UPSERT_ORDER, adt.OBJECT_CONFIG_MAP.asdoma.extension, adt.OBJECT_CONFIG_MAP.asdtel.extension];
-// After everything else: launchpad pages reference app descriptor items, spaces reference pages.
-const LAST_WAVE_ORDER: readonly string[] = [adt.OBJECT_CONFIG_MAP.asuiad.extension, adt.OBJECT_CONFIG_MAP.asuipg.extension, adt.OBJECT_CONFIG_MAP.asuist.extension];
+// After everything else: launchpad pages reference app descriptor items, spaces reference pages,
+// role template space assignments reference spaces.
+const LAST_WAVE_ORDER: readonly string[] = [adt.OBJECT_CONFIG_MAP.asuiad.extension, adt.OBJECT_CONFIG_MAP.asuipg.extension, adt.OBJECT_CONFIG_MAP.asuist.extension, adt.OBJECT_CONFIG_MAP.assiad.extension];
 
 export async function upsertSingle(
     state: ClientState,
@@ -30,6 +31,8 @@ export async function upsertSingle(
     if (!state.session) return err(new Error('Not logged in'));
     const [, generatedErr] = adt.refuseGeneratedInclude(object);
     if (generatedErr) return err(generatedErr);
+    const [, sourceErr] = adt.refuseInvalidAffSource(object);
+    if (sourceErr) return err(sourceErr);
 
     // Try to read existing object
     const objRef: ObjectRef = { name: object.name, extension: object.extension };
@@ -65,9 +68,12 @@ export async function upsert(
     if (!state.session) return err(new Error('Not logged in'));
     const valid = objects.filter(obj => obj.name && obj.extension);
     if (valid.length === 0) return ok([]);
+    // Refuse the whole batch up front, before any wave writes, when one object can't be sent.
     for (const obj of valid) {
         const [, generatedErr] = adt.refuseGeneratedInclude(obj);
         if (generatedErr) return err(generatedErr);
+        const [, sourceErr] = adt.refuseInvalidAffSource(obj);
+        if (sourceErr) return err(sourceErr);
     }
 
     // Existing function modules may be addressed by name only.

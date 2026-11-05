@@ -1,14 +1,16 @@
 /**
- * Unit Tests for Fiori launchpad sources (.asuiad, .asuipg, .asuist)
+ * Unit Tests for Fiori launchpad sources (.asuiad, .asuipg, .asuist) and role template space
+ * assignments (.assiad, SIAD)
  *
  * - Registry: ADT types map to the extensions; the tree lists them as supported objects
  * - Create: blues v2 shell at the fiori collection, description from header / title / name
- * - An empty or non-object source (every type), and a space without header.description and
- *   header.originalLanguage, are refused before any request
+ * - An empty or non-object source, and one without a non-empty header.description and
+ *   header.originalLanguage (every type), are refused before any request
  * - Read and write /source/main as JSON with lock handle and corrNr
  * - Equivalence (fixtures captured on Madiba-Cloud-Dev): the header SAP adds, the visualization
  *   defaults it drops on pages (type, displayFormat, tile assignment catalogType) and the false
- *   booleans it drops are no change
+ *   booleans it drops are no change; abapLanguageVersion is SAP's, the language compares ignoring
+ *   case and formatVersion as a string; a source that is not JSON never compares equal
  * - Activation: UIAD is saved active; pages and spaces go through the activation run, warnings pass
  * - Move is refused
  */
@@ -129,13 +131,23 @@ describe('launchpad create', () => {
         expect(affJsonDescription('{"formatVersion":"2"}')).toBe('');
     });
 
-    it('falls back to the object name without header and title', async () => {
-        const { requestor, calls } = recorder(() => new Response('', { status: 201 }));
-        const uiad = withoutKey(fixture('uiad-readback.json'), 'header');
+    it('refuses an app descriptor item or page without a header before any request (SAP would blank the description)', async () => {
+        for (const [extension, file] of [['asuiad', 'uiad-readback.json'], ['asuipg', 'uipg-put.json']] as const) {
+            const { requestor, calls } = recorder(() => new Response('', { status: 201 }));
+            const [, error] = await createObject(requestor, { name: 'ZX', extension, content: withoutKey(fixture(file), 'header') }, 'ZSNAP_BC', undefined, 'me');
+            expect(calls).toHaveLength(0);
+            expect(error?.message).toEndWith('ZX: header.description and header.originalLanguage are required and must not be empty (SAP fails or blanks the save without them)');
+        }
+    });
 
-        await createObject(requestor, { name: 'ZSNAP_BC_CLI_UIAD', extension: 'asuiad', content: uiad }, 'ZSNAP_BC', undefined, 'me');
+    it('refuses an empty or null required header value', () => {
+        const rules = OBJECT_CONFIG_MAP.asuipg.affJson;
+        const page = (header: Record<string, unknown>) => JSON.stringify({ formatVersion: '1', header, generalInformation: { title: 'P' } });
 
-        expect(calls[0]!.body).toContain('adtcore:description="ZSNAP_BC_CLI_UIAD"');
+        expect(requireAffJsonPaths(page({ description: '', originalLanguage: 'en' }), rules, 'P')[1]?.message).toContain('header.description is required');
+        expect(requireAffJsonPaths(page({ description: 'D', originalLanguage: null }), rules, 'P')[1]?.message).toContain('header.originalLanguage is required');
+        expect(requireAffJsonPaths(page({ description: '   ', originalLanguage: 'en' }), rules, 'P')[1]?.message).toContain('header.description is required');
+        expect(requireAffJsonPaths(page({ description: 'D', originalLanguage: 'en' }), rules, 'P')).toEqual([undefined, null]);
     });
 
     it('refuses an empty source or one that is not a JSON object for every launchpad type before any request', async () => {
@@ -156,7 +168,7 @@ describe('launchpad create', () => {
         const [, error] = await createObject(requestor, { name: 'ZS', extension: 'asuist', content: space }, 'ZSNAP_BC', undefined, 'me');
 
         expect(calls).toHaveLength(0);
-        expect(error?.message).toBe('Launchpad Space Template ZS: header.description and header.originalLanguage are required (SAP fails the save without them)');
+        expect(error?.message).toBe('Launchpad Space Template ZS: header.description and header.originalLanguage are required and must not be empty (SAP fails or blanks the save without them)');
     });
 });
 
@@ -215,14 +227,18 @@ describe('launchpad equivalence', () => {
         expect(contentEquivalent('asuist', fixture('uist-put.json'), fixture('uist-readback.json'))).toEqual([true, null]);
     });
 
-    it('does not own the header SAP adds when the source has none', () => {
+    it('reports a source without the required header as changed (write refuses it)', () => {
         const local = withoutKey(fixture('uiad-readback.json'), 'header');
-        expect(contentEquivalent('asuiad', local, fixture('uiad-readback.json'))).toEqual([true, null]);
-    });
+        expect(contentEquivalent('asuiad', local, fixture('uiad-readback.json'))).toEqual([false, null]);
 
-    it('does not own header keys the source leaves out', () => {
         const page = JSON.parse(fixture('uipg-put.json')) as { header: Record<string, string> };
         page.header = { description: 'SNAP BC Test Page' };
+        expect(contentEquivalent('asuipg', JSON.stringify(page), fixture('uipg-readback.json'))).toEqual([false, null]);
+    });
+
+    it('does not own the header keys SAP adds beyond the required ones', () => {
+        const page = JSON.parse(fixture('uipg-put.json')) as { header: Record<string, string> };
+        page.header = { description: 'SNAP BC Test Page', originalLanguage: 'en' };
         expect(contentEquivalent('asuipg', JSON.stringify(page), fixture('uipg-readback.json'))).toEqual([true, null]);
     });
 
@@ -273,6 +289,37 @@ describe('launchpad equivalence', () => {
         expect(contentEquivalent('asuipg', page('custom'), page())).toEqual([false, null]);
     });
 
+    it("treats abapLanguageVersion as SAP's, the language case-insensitively and formatVersion as a string", () => {
+        const remote = fixture('uist-readback.json');
+        const local = (edit: (space: { formatVersion: unknown; header: Record<string, unknown> }) => void): string => {
+            const space = JSON.parse(fixture('uist-put.json')) as { formatVersion: unknown; header: Record<string, unknown> };
+            edit(space);
+            return JSON.stringify(space);
+        };
+
+        expect(contentEquivalent('asuist', local(s => { s.header['abapLanguageVersion'] = 'standard'; }), remote)).toEqual([true, null]);
+        expect(contentEquivalent('asuist', local(s => { s.header['originalLanguage'] = 'EN'; }), remote)).toEqual([true, null]);
+        expect(contentEquivalent('asuist', local(s => { s.formatVersion = 1; }), remote)).toEqual([true, null]);
+
+        expect(contentEquivalent('asuist', local(s => { s.header['originalLanguage'] = 'DE'; }), remote)).toEqual([false, null]);
+        expect(contentEquivalent('asuist', local(s => { s.formatVersion = 2; }), remote)).toEqual([false, null]);
+        expect(contentEquivalent('asuist', local(s => { s.header['description'] = 'Other'; }), remote)).toEqual([false, null]);
+    });
+
+    it('never treats a source a write would refuse as unchanged', () => {
+        const remote = fixture('uist-readback.json');
+        const blanked = JSON.parse(remote) as { header: Record<string, string> };
+        blanked.header['description'] = '';
+
+        expect(contentEquivalent('asuist', JSON.stringify(blanked), JSON.stringify(blanked))).toEqual([false, null]);
+        expect(contentEquivalent('asuist', withoutKey(remote, 'header'), remote)).toEqual([false, null]);
+    });
+
+    it('never treats a source that is not JSON as unchanged', () => {
+        expect(contentEquivalent('asuipg', '{ broken', '{ broken')).toEqual([false, null]);
+        expect(contentEquivalent('asuipg', '{ broken', fixture('uipg-readback.json'))).toEqual([false, null]);
+    });
+
     it('checks nothing for a type without rules', () => {
         expect(requireAffJsonPaths('', OBJECT_CONFIG_MAP.asnrob.affJson, 'x')).toEqual([undefined, null]);
     });
@@ -314,5 +361,67 @@ describe('launchpad activation', () => {
         expect(run.body).toContain('adtcore:uri="/sap/bc/adt/fiori/uipgtyp/zsnap_bc_page_test" adtcore:type="UIPG/TYP" adtcore:name="ZSNAP_BC_PAGE_TEST"');
         expect(run.body).toContain('adtcore:uri="/sap/bc/adt/fiori/uisttop/zsnap_bc_space_test" adtcore:type="UIST/TOP" adtcore:name="ZSNAP_BC_SPACE_TEST"');
         expect(results!.map(r => r.status)).toEqual(['success', 'success']);
+    });
+});
+
+describe('role template space assignment (.assiad)', () => {
+    const iamFixture = (name: string): string => fs.readFileSync(path.join(FIXTURES, '../iam', name), 'utf8');
+
+    it('is registered as SIAD, saved active, locked on the object and not movable', () => {
+        expect(getConfigByType('SIAD')?.extension).toBe('assiad');
+        expect(OBJECT_CONFIG_MAP.assiad.alwaysActive).toBe(true);
+        expect(OBJECT_CONFIG_MAP.assiad.lockOnObject).toBe(true);
+        expect(resolveMoveTarget('assiad')[1]?.message).toContain('not supported');
+    });
+
+    it('posts a blues v1 shell to the IAM siad collection', async () => {
+        const { requestor, calls } = recorder(() => new Response('', { status: 201 }));
+
+        const [, error] = await createObject(requestor, { name: 'zsnap_bc_brt_test_0001', extension: 'assiad', content: iamFixture('siad-readback.json') }, 'ZSNAP_BC', undefined, 'me');
+
+        expect(error).toBeNull();
+        expect(calls[0]!.path).toBe('/sap/bc/adt/aps/cloud/iam/siad');
+        expect(calls[0]!.headers!['Content-Type']).toBe('application/vnd.sap.adt.blues.v1+xml');
+        expect(calls[0]!.body).toContain('adtcore:type="SIAD"');
+        expect(calls[0]!.body).toContain('adtcore:name="ZSNAP_BC_BRT_TEST_0001"');
+        expect(calls[0]!.body).toContain('adtcore:description="ZSNAP_BC_SPACE_TEST"');
+    });
+
+    it('refuses a source without the template or space before any request', async () => {
+        const { requestor, calls } = recorder(() => new Response('', { status: 201 }));
+        const source = JSON.stringify({ formatVersion: '1', header: { description: 'D', originalLanguage: 'en' }, generalInformation: { businessRoleTemplate: 'ZBRT', launchpadSpaceTemplate: '' } });
+
+        const [, error] = await createObject(requestor, { name: 'ZBRT_0001', extension: 'assiad', content: source }, 'ZSNAP_BC', undefined, 'me');
+
+        expect(calls).toHaveLength(0);
+        expect(error?.message).toContain('generalInformation.launchpadSpaceTemplate is required');
+    });
+
+    it('reads and writes /source/main as JSON', async () => {
+        const { requestor, calls } = recorder();
+
+        await updateObject(requestor, { name: 'ZSNAP_BC_BRT_TEST_0001', extension: 'assiad', content: iamFixture('siad-readback.json') }, 'H1', undefined);
+
+        expect(calls[0]!.path).toBe('/sap/bc/adt/aps/cloud/iam/siad/zsnap_bc_brt_test_0001/source/main');
+        expect(calls[0]!.headers!['Content-Type']).toBe('application/json');
+    });
+
+    it('compares a source without abapLanguageVersion, or with EN, as unchanged', () => {
+        const remote = iamFixture('siad-readback.json');
+        const local = JSON.stringify({ formatVersion: 1, header: { description: 'ZSNAP_BC_SPACE_TEST', originalLanguage: 'EN' }, generalInformation: { businessRoleTemplate: 'ZSNAP_BC_BRT_TEST', launchpadSpaceTemplate: 'ZSNAP_BC_SPACE_TEST' } });
+
+        expect(contentEquivalent('assiad', local, remote)).toEqual([true, null]);
+        expect(contentEquivalent('assiad', local.replace('"launchpadSpaceTemplate":"ZSNAP_BC_SPACE_TEST"', '"launchpadSpaceTemplate":"ZOTHER"'), remote)).toEqual([false, null]);
+        expect(contentEquivalent('assiad', iamFixture('siad-sap-employee.json'), iamFixture('siad-sap-employee.json'))).toEqual([true, null]);
+    });
+
+    it('is skipped by activation (saved active)', async () => {
+        const { requestor, calls } = recorder();
+
+        const [results, error] = await activateObjects(requestor, [{ name: 'ZSNAP_BC_BRT_TEST_0001', extension: 'assiad' }]);
+
+        expect(error).toBeNull();
+        expect(calls).toHaveLength(0);
+        expect(results?.[0]?.status).toBe('success');
     });
 });

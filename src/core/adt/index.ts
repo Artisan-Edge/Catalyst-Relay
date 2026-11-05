@@ -90,7 +90,7 @@ export type { ObjectAttributes, ObjectAttributesInfo, ObjectAttributesWriteResul
 
 // Content comparison (form objects semantically, AFF JSON as values, DDIC DDL ignoring re-layout, other sources line by line)
 export { contentEquivalent } from './craud/contentEquivalent';
-export { affJsonDescription, affJsonEquivalent, requireAffJsonPaths } from './aff';
+export { affJsonDescription, affJsonEquivalent, requireAffJsonPaths, refuseInvalidAffSource } from './aff';
 
 // Write operations
 export { createObject } from './craud/create';
@@ -177,23 +177,49 @@ export type {
     ServiceBindingStepStatus,
 } from './businessservices/types';
 
-// Cloud IAM (IAM apps, business catalogs)
-export { createIamAppObject, readIamApp, parseIamApp, addIamAppServices, appendServices, publishIamApp } from './iam/app';
+// Cloud IAM (IAM apps, business catalogs, role templates)
+export {
+    createIamAppObject,
+    readIamApp,
+    parseIamApp,
+    resolveIamServices,
+    saveIamAppChanges,
+    ensureIamAppMigrated,
+    needsMigration,
+    applyIamAppChanges,
+    publishIamApp,
+    MIGRATED_STATUS,
+} from './iam/app';
+export type { IamAppChanges } from './iam/app';
 export {
     createBusinessCatalogObject,
     readBusinessCatalog,
     parseBusinessCatalog,
     readCatalogAssignments,
     createCatalogAssignment,
-    nextAssignmentName,
     publishBusinessCatalog,
 } from './iam/catalog';
+export { nextAssignmentName, createNumberedAssignment } from './iam/assignmentName';
+export { splitServiceName, isServiceListed } from './iam/serviceName';
+export {
+    createRoleTemplateObject,
+    readRoleTemplate,
+    parseRoleTemplate,
+    readRoleTemplateCatalogs,
+    createRoleTemplateCatalogAssignment,
+    publishRoleTemplate,
+} from './iam/roleTemplate';
+export { publishAndWait, publishingStatusText } from './iam/publish';
+export { deleteIamObject } from './iam/delete';
+export { findIamAppsUsingBindings } from './iam/bindingUsage';
 export type {
     IamServiceType,
+    IamObjectKind,
     IamServiceRef,
     IamAppService,
     IamAppInfo,
     IamPublishStatus,
+    IamPublishOptions,
     CreateIamAppOptions,
     IamStepStatus,
     IamAppResult,
@@ -201,7 +227,20 @@ export type {
     BusinessCatalogInfo,
     CreateBusinessCatalogOptions,
     BusinessCatalogResult,
+    RoleTemplateCatalogAssignment,
+    RoleTemplateInfo,
+    CreateRoleTemplateOptions,
+    RoleTemplateResult,
+    IamAppBindingUsage,
+    IamBindingUsageScan,
+    FindIamAppsUsingBindingsOptions,
 } from './iam/types';
+
+// Generic deletion service (objects without a lockable URI, e.g. app variants)
+export { checkDeletion, parseDeletionCheck } from './deletion/checkDeletion';
+export { deleteByUri, parseDeletionResult } from './deletion/deleteByUri';
+export { appVariantUri } from './deletion/appVariant';
+export type { DeletionCheckResult, DeletionResult, DeletionMessage } from './deletion/types';
 
 // Packages
 export { createPackage, readPackageSettings, parsePackageSettings } from './packages/createPackage';

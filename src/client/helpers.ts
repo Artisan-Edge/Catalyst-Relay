@@ -5,6 +5,7 @@
 import * as http from 'http';
 import * as https from 'https';
 import type { HttpRequestOptions } from './types';
+import { REQUEST_TIMEOUT_MESSAGE } from '../core/utils/headers';
 
 export const MAX_REDIRECTS = 5;
 export const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -84,7 +85,7 @@ export async function httpRequest(
         req.on('error', reject);
         req.on('timeout', () => {
             req.destroy();
-            reject(new Error('Request timeout'));
+            reject(new Error(REQUEST_TIMEOUT_MESSAGE));
         });
 
         if (options.body) {

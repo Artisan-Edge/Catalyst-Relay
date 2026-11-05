@@ -2,7 +2,9 @@
  * Unit Tests for upsert (client method) against a fake SAP
  *
  * - Wave order: function group includes → main program → modules → domains → data elements → rest
- *   → launchpad app descriptor items → pages → spaces
+ *   → launchpad app descriptor items → pages → spaces → role template space assignments
+ * - A batch with an AFF source SAP can't save is refused before anything is written; an invalid
+ *   source on an existing object is refused before the lock
  * - Generated L<group>UXX is refused; an .asinc named like a group include gets a hint
  * - A group created for the batch is reported created (with the .asfugr file's description)
  * - populateAfterCreate: stateless POST → lock → PUT(s) → unlock, unlocking on PUT failure
@@ -13,7 +15,8 @@
 import { describe, it, expect } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
-import { upsert } from '../../client/methods/craud/upsert';
+import { upsert, upsertSingle } from '../../client/methods/craud/upsert';
+import { update } from '../../client/methods/craud/update';
 import { getFormHandler } from '../../core/forms';
 import { fakeSap, isCreate, isLock, isUnlock, loggedIn } from './fakeSap';
 import type { Call } from './fakeSap';
@@ -83,6 +86,47 @@ describe('upsert wave order', () => {
             '/sap/bc/adt/fiori/uipgtyp/zpage/source/main',
             '/sap/bc/adt/fiori/uisttop/zspace/source/main',
         ]);
+    });
+});
+
+describe('upsert AFF source guards', () => {
+    const header = { description: 'd', originalLanguage: 'en' };
+
+    it('refuses the whole batch, naming the object, before any request when one AFF source is invalid', async () => {
+        const sap = fakeSap();
+        const [, error] = await upsert(loggedIn(), sap.requestor, [
+            { name: 'ZCL_FIRST', extension: 'aclass', content: 'CLASS zcl_first DEFINITION. ENDCLASS.' },
+            { name: 'ZPAGE', extension: 'asuipg', content: JSON.stringify({ formatVersion: '1', header, generalInformation: { title: 'p' } }) },
+            { name: 'ZSPACE', extension: 'asuist', content: JSON.stringify({ formatVersion: '1', generalInformation: { title: 's' } }) },
+        ], '$TMP');
+
+        expect(error?.message).toContain('Launchpad Space Template ZSPACE: header.description and header.originalLanguage are required');
+        expect(sap.calls.filter(call => call.method === 'POST' || call.method === 'PUT')).toHaveLength(0);
+        expect(sap.calls).toHaveLength(0);
+    });
+
+    it('refuses an invalid source on an existing object before locking it', async () => {
+        const sap = fakeSap();
+        sap.objects.set('/sap/bc/adt/fiori/uipgtyp/zpage/source/main', JSON.stringify({ formatVersion: '1', header, generalInformation: { title: 'p' } }));
+
+        const [, singleError] = await upsertSingle(loggedIn(), sap.requestor, { name: 'ZPAGE', extension: 'asuipg', content: '{ broken' }, '$TMP');
+        const [, updateError] = await update(loggedIn(), sap.requestor, { name: 'ZPAGE', extension: 'asuipg', content: '{ broken' });
+
+        expect(singleError?.message).toBe('Launchpad Page Template ZPAGE: the source is empty or not a JSON object');
+        expect(updateError?.message).toBe('Launchpad Page Template ZPAGE: the source is empty or not a JSON object');
+        expect(sap.calls.some(isLock)).toBe(false);
+        expect(sap.calls).toHaveLength(0);
+    });
+
+    it('writes a role template space assignment after the space', async () => {
+        const sap = fakeSap();
+        const [, error] = await upsert(loggedIn(), sap.requestor, [
+            { name: 'ZBRT_0001', extension: 'assiad', content: JSON.stringify({ formatVersion: '1', header, generalInformation: { businessRoleTemplate: 'ZBRT', launchpadSpaceTemplate: 'ZSPACE' } }) },
+            { name: 'ZSPACE', extension: 'asuist', content: JSON.stringify({ formatVersion: '1', header, generalInformation: { title: 's' } }) },
+        ], '$TMP');
+
+        expect(error).toBeNull();
+        expect(sap.calls.filter(isCreate).map(createdName)).toEqual(['ZSPACE', 'ZBRT_0001']);
     });
 });
 

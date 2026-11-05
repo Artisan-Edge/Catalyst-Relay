@@ -15,10 +15,12 @@ import { readServiceBinding } from './read';
  * Delete a service binding.
  *
  * Reads the binding, locks it, unpublishes it (best effort — it may not be published),
- * DELETEs the binding URI and unlocks. Unpublish jobs run only for a binding read back
- * as ODATA: a failed read, an InA binding or another type (SQL) is just locked, deleted
- * and unlocked, since an OData job on a non-OData binding dumps and ends the session.
- * Unpublish version: `version` when given, else the one read back, else V4 then V2.
+ * DELETEs the binding URI and unlocks. An OData job on a non-OData binding dumps and ends
+ * the session, so the type read back decides:
+ * - not found (404): error, nothing is locked;
+ * - read failed otherwise: error, unless the caller gave `version` — then that version is unpublished;
+ * - read as ODATA: unpublished with `version`, else the version read back, else V4 then V2;
+ * - read as INA or another type (SQL): no unpublish.
  * The lock is released after the DELETE too (SAP keeps it, blocking a re-create of the name).
  *
  * Deleting an InA binding also drops its INA1 service from every IAM app that lists it.
@@ -35,10 +37,13 @@ export async function deleteServiceBinding(
     transport: string | undefined,
     version?: ServiceBindingVersion
 ): AsyncResult<void, Error> {
-    // A failed read means the type is unknown: no unpublish jobs. A missing binding fails at the lock.
+    // The type decides the unpublish; an unknown type is only deleted when the caller names the version.
     const [binding, readErr] = await readServiceBinding(client, bindingName);
-    if (readErr) debug(`Reading service binding ${bindingName} before delete failed: ${readErr.message}`);
-    const isOData = binding?.bindingType.toUpperCase() === ODATA_BINDING_TYPE;
+    if (readErr && !version) {
+        return err(new Error(`Cannot delete service binding ${bindingName}: reading it failed, so its type is unknown and a published OData binding would stay published (${readErr.message}). Pass the OData version to unpublish and delete it anyway`));
+    }
+    if (!readErr && !binding) return err(new Error(`Service binding ${bindingName.toUpperCase()} does not exist`));
+    const isOData = binding ? binding.bindingType.toUpperCase() === ODATA_BINDING_TYPE : true;
 
     // Lock once for the unpublish + delete sequence.
     const [lockHandle, lockErr] = await lockServiceBinding(client, bindingName);

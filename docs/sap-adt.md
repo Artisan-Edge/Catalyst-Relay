@@ -13,6 +13,8 @@ SAP-specific concepts and behaviors for working with ADT (ABAP Development Tools
 - [Object attributes (titles)](#object-attributes-titles)
 - [Fiori launchpad sources](#fiori-launchpad-sources)
 - [InA service bindings](#ina-service-bindings)
+- [Cloud IAM](#cloud-iam)
+- [Deletion service](#deletion-service)
 
 ---
 
@@ -155,8 +157,9 @@ App descriptor items (UIAD/TYP, `asuiad`), page templates (UIPG/TYP, `asuipg`) a
 
 - **Create:** POST `blue:blueSource` with `Content-Type: application/vnd.sap.adt.blues.v2+xml` (NROB uses v1). The description is `header.description`, else `generalInformation.title`, else the name.
 - **Content:** abap-file-formats JSON at `{uri}/source/main` (`application/json`; lock the object URI, `corrNr` outside `$TMP`).
-- **Header:** SAP always returns `header` (`description`, `originalLanguage`, `abapLanguageVersion`). A PUT without `header` stores `description: ""`. A space PUT without `header.description` and `header.originalLanguage` is a 500 (dump), so relay refuses it before creating anything (`AffJsonRules.requiredPaths`).
-- **Empty sources:** for every launchpad type, an empty source or one that is not a JSON object is refused before the create POST, so no empty shell is left (UIAD saves active). `requireAffJsonPaths(content, getConfigByExtension(ext)?.affJson, label)` runs the same check without HTTP.
+- **Header:** SAP always returns `header` (`description`, `originalLanguage`, `abapLanguageVersion`). A PUT without `header` stores `description: ""`; a space PUT without `header.description` and `header.originalLanguage` is a 500 (dump). So every launchpad type (and SIAD) requires both, non-empty (`AffJsonRules.requiredPaths`).
+- **Refused up front:** an empty source, one that is not a JSON object, or one missing a required path is refused before any request: `upsert` checks the whole batch before its first wave, `update` before the lock (`refuseInvalidAffSource(object)`; `requireAffJsonPaths(content, getConfigByExtension(ext)?.affJson, label)` is the same check without HTTP).
+- **Compare normalisation:** `header.abapLanguageVersion` is SAP's (ignored), `header.originalLanguage` compares ignoring case, `formatVersion` compares as a string. A local source that is not JSON, or that a write would refuse (required path missing, empty or blank), never compares as unchanged.
 - **Dropped values:** SAP stores every `false` boolean as absent (`desktop`, `phone`, `isDefault`, …), and on pages drops `visualizations[].type` / `displayFormat` when they are `ladiAssignment` / `standard`. The page schema also defaults `tileAssignment.tileKey.catalogType` and `targetMappingKey.catalogType` to `standard`. Upsert treats all of these as no change (`ObjectConfig.affJson`: `serverOmitsFalse`, `serverDefaults`). Empty strings and other defaults (`appType: "ui5"`, `tileType: "static"`) are kept.
 - **Activation:** UIAD is skipped (`alwaysActive`). Pages and spaces go through the activation run; a space without `generalInformation.sortPriority` may warn (`/UI2/UIST_CHECK` 111), which counts as success. A space whose title is empty fails ("Space template title is initial").
 - **Order:** upsert writes them after every other type, items before pages before spaces (a space references pages, a page references items).
@@ -173,8 +176,29 @@ App descriptor items (UIAD/TYP, `asuiad`), page templates (UIPG/TYP, `asuipg`) a
 - **Activation** creates the `INA1/INA` runtime object; nothing else is needed.
 - **Never published:** `odatav4/publishjobs` on an InA binding dumps (500) and ends the stateful session. The binding reads back `published="false"` with `allowedAction="PUBLISH"` even when complete, so a re-run skips publish.
 - **Read:** `bindingType: 'INA'`, `category: 'UI'`, `odataVersion: ''`. A re-run compares the binding type, not the OData version.
-- **Delete:** `deleteServiceBinding` reads the binding first and runs unpublish jobs only when the read succeeds and the type is `ODATA`; InA, SQL or an unreadable binding is just locked, deleted and unlocked. Unpublish version: the caller's `version`, else the one read back, else V4 then V2. Every binding is unlocked after the DELETE: SAP keeps the lock otherwise, and re-creating the name fails ("currently editing").
-- **IAM apps:** deleting an InA binding also removes its INA1 service row from every IAM app that lists it, without warning.
+- **Delete:** `deleteServiceBinding` reads the binding first. Not found: error, nothing locked. Read failed otherwise: error, unless the caller passes `version` (then it unpublishes with it and deletes). Read as `ODATA`: unpublish with the caller's `version`, else the one read back, else V4 then V2. InA or SQL: lock, delete, unlock only. Every binding is unlocked after the DELETE: SAP keeps the lock otherwise, and re-creating the name fails ("currently editing").
+- **IAM apps:** deleting an InA binding also removes its INA1 service row from every IAM app that lists it, without warning. Neither where-used nor the deletion check reports those apps. `findIamAppsUsingBindings(bindings, { packages?, namePatterns? })` lists customer IAM apps (`Z*`, `Y*` by default) by quick search, reads each one once for all bindings, and returns `{ usages: { binding, app, packageName, serviceType }[], appsScanned }`. A search that reaches its 10,000-result limit is an error (the scan would be incomplete); `appsScanned: 0` means nothing was checked.
+
+---
+
+## Cloud IAM
+
+IAM apps (SIA6), business catalogs (SIA1) with app assignments (SIA7), business role templates (SIA8) with catalog assignments (SIA9). All are blues v1 documents under `/sap/bc/adt/aps/cloud/iam/<kind>`, saved active. Verified on Madiba-Cloud-Dev (2608).
+
+- **IAM app services:** G4BA and IWSV go through `sia6/service/values`, then `service/detail`. INA1 (an InA binding) goes to `service/detail?serviceType=INA1&serviceName=<binding>&appName=<app>` directly.
+- **IWSV names:** SAP stores an IWSV `relServiceName` padded with its version (`APJ_JOB_MANAGEMENT_SRV             0001`). Relay reads it as `name` plus `version`; "already listed" compares type, name and (for IWSV, default `0001`) version, so a re-run adds no duplicate row.
+- **IAM app save:** new services, `ui5AppId` (one value) and `migrationStatus` are written in one locked full-document PUT, only when something differs. `migrationStatus` is set to 3 only when its element exists and is empty; the element is never inserted. `createBusinessCatalog` applies the same guard to each app before assigning it (SIA7 otherwise fails with `CM_APS_IAM_WBI_SIA1`/021). The create response shows `migrationStatus` empty even when a read shows 3, so `createIamApp` reads the app after creating it.
+- **Publish:** the publish POST is synchronous (~2 min) and takes no lock, so it is sent stateless (no context cookie): the stateful session stays free and a re-post does not queue behind the first publish. Each request's timeout is 300 s, capped at the time left before the 10 min deadline. A client timeout re-posts at once; a 502/504 or dropped connection ("socket hang up") and status `u` wait 30 s and re-post (`IamPublishOptions`). Done: `p` for apps and catalogs; `p` or empty for role templates (`sia8/$publish?brtID=`, `Accept: */*`), but only inside a `publishingStatus` document (a 200 logon page is an error). `publishStatus` on the object is no signal (a never-published app reads `p`).
+- **Role templates:** `$getsia9?name=<brt>` lists the catalog assignments (add-only, like `$bucapps`). Assignments are named `<owner>_NNNN`; when SAP says a name already exists, the next number is tried (up to 3 more). Every catalog is checked to exist before anything is written. The launchpad space link is a SIAD source object (`.assiad`, `<BRT>_NNNN`, AFF JSON with `generalInformation.businessRoleTemplate` and `launchpadSpaceTemplate`; blues v1 shell; saved active).
+- **Delete:** `deleteIamObject(kind, name)` locks, DELETEs and unlocks. An IAM app still in a catalog fails with SWB_TOOL 029 ("Error while deleting object App from the database"); relay names the catalogs (from where-used) and says to remove the SIA7 assignments first. Order: SIAD → SIA9 → SIA8 → SIA7 → SIA6 → SIA1.
+
+---
+
+## Deletion service
+
+`/sap/bc/adt/deletion/check` (`application/vnd.sap.adt.deletion.check.request.v1+xml`) and `/sap/bc/adt/deletion/delete` (`application/vnd.sap.adt.deletion.request.v1+xml`) take object URIs of any type, including ones that cannot be locked. `checkDeletion(uris)` returns `isDeletable`, reference counts and the locking transport; `deleteByUri(uris, transport?)` returns `isDeleted` per object.
+
+- **App variants (ADVC/LRP):** their vit URI (`appVariantUri(name)`) rejects LOCK (405). `deleteAppVariant(name, transport?)` checks, then deletes through the service; a package that records changes needs the transport (refused up front without one).
 
 ---
 

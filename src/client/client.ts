@@ -60,6 +60,15 @@ import type {
     CreateBusinessCatalogOptions,
     BusinessCatalogResult,
     BusinessCatalogInfo,
+    CreateRoleTemplateOptions,
+    RoleTemplateResult,
+    RoleTemplateInfo,
+    IamPublishOptions,
+    IamObjectKind,
+    IamBindingUsageScan,
+    FindIamAppsUsingBindingsOptions,
+    DeletionCheckResult,
+    DeletionResult,
     CreatePackageOptions,
     CreatePackageResult,
     ApiReleaseState,
@@ -93,6 +102,7 @@ import * as diffMethods from './methods/diff';
 import * as configMethods from './methods/config';
 import * as businessServiceMethods from './methods/craud/specialcases/businessservices';
 import * as iamMethods from './methods/iam';
+import * as deletionMethods from './methods/deletion';
 import * as packageMethods from './methods/packages';
 import * as apiReleaseMethods from './methods/apirelease';
 import * as refactoringMethods from './methods/refactoring';
@@ -178,6 +188,20 @@ export interface ADTClient {
     readIamApp(appName: string): AsyncResult<IamAppInfo>;
     createBusinessCatalog(options: CreateBusinessCatalogOptions): AsyncResult<BusinessCatalogResult>;
     readBusinessCatalog(catalogName: string): AsyncResult<BusinessCatalogInfo>;
+    createRoleTemplate(options: CreateRoleTemplateOptions): AsyncResult<RoleTemplateResult>;
+    readRoleTemplate(templateName: string): AsyncResult<RoleTemplateInfo>;
+    // Publish locally; each waits for SAP's synchronous ~2 min publish (re-posts on timeout / 'u')
+    publishIamApp(appName: string, options?: IamPublishOptions): AsyncResult<string>;
+    publishBusinessCatalog(catalogName: string, options?: IamPublishOptions): AsyncResult<string>;
+    publishRoleTemplate(templateName: string, options?: IamPublishOptions): AsyncResult<string>;
+    deleteIamObject(kind: IamObjectKind, name: string, transport?: string): AsyncResult<void>;
+    // IAM apps listing any of the bindings (reads each customer app once; appsScanned 0 means nothing was checked)
+    findIamAppsUsingBindings(bindingNames: string[], options?: FindIamAppsUsingBindingsOptions): AsyncResult<IamBindingUsageScan>;
+
+    // Generic deletion service (any type by URI; app variants, which cannot be locked)
+    checkDeletion(uris: string[]): AsyncResult<DeletionCheckResult[]>;
+    deleteByUri(uris: string[], transport?: string): AsyncResult<DeletionResult[]>;
+    deleteAppVariant(name: string, transport?: string): AsyncResult<DeletionResult>;
 
     // Packages
     createPackage(options: CreatePackageOptions): AsyncResult<CreatePackageResult>;
@@ -478,6 +502,48 @@ export class ADTClientImpl implements ADTClient {
 
     async readBusinessCatalog(catalogName: string): AsyncResult<BusinessCatalogInfo> {
         return iamMethods.readBusinessCatalog(this.state, this.requestor, catalogName);
+    }
+
+    async createRoleTemplate(options: CreateRoleTemplateOptions): AsyncResult<RoleTemplateResult> {
+        return iamMethods.createRoleTemplate(this.state, this.requestor, options);
+    }
+
+    async readRoleTemplate(templateName: string): AsyncResult<RoleTemplateInfo> {
+        return iamMethods.readRoleTemplate(this.state, this.requestor, templateName);
+    }
+
+    async publishIamApp(appName: string, options?: IamPublishOptions): AsyncResult<string> {
+        return iamMethods.publishIamApp(this.state, this.requestor, appName, options);
+    }
+
+    async publishBusinessCatalog(catalogName: string, options?: IamPublishOptions): AsyncResult<string> {
+        return iamMethods.publishBusinessCatalog(this.state, this.requestor, catalogName, options);
+    }
+
+    async publishRoleTemplate(templateName: string, options?: IamPublishOptions): AsyncResult<string> {
+        return iamMethods.publishRoleTemplate(this.state, this.requestor, templateName, options);
+    }
+
+    async deleteIamObject(kind: IamObjectKind, name: string, transport?: string): AsyncResult<void> {
+        return iamMethods.deleteIamObject(this.state, this.requestor, kind, name, transport);
+    }
+
+    async findIamAppsUsingBindings(bindingNames: string[], options?: FindIamAppsUsingBindingsOptions): AsyncResult<IamBindingUsageScan> {
+        return iamMethods.findIamAppsUsingBindings(this.state, this.requestor, bindingNames, options);
+    }
+
+    // --- Generic deletion service ---
+
+    async checkDeletion(uris: string[]): AsyncResult<DeletionCheckResult[]> {
+        return deletionMethods.checkDeletion(this.state, this.requestor, uris);
+    }
+
+    async deleteByUri(uris: string[], transport?: string): AsyncResult<DeletionResult[]> {
+        return deletionMethods.deleteByUri(this.state, this.requestor, uris, transport);
+    }
+
+    async deleteAppVariant(name: string, transport?: string): AsyncResult<DeletionResult> {
+        return deletionMethods.deleteAppVariant(this.state, this.requestor, name, transport);
     }
 
     // --- Packages ---

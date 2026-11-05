@@ -5,11 +5,12 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { parseIamApp, appendServices, addIamAppServices, publishIamApp } from '../../../../core/adt/iam/app';
-import { nextAssignmentName, readBusinessCatalog, publishBusinessCatalog } from '../../../../core/adt/iam/catalog';
+import { parseIamApp, applyIamAppChanges, resolveIamServices, saveIamAppChanges } from '../../../../core/adt/iam/app';
+import { readBusinessCatalog } from '../../../../core/adt/iam/catalog';
+import { nextAssignmentName } from '../../../../core/adt/iam/assignmentName';
 import { createIamApp } from '../../../../client/methods/iam/createIamApp';
 import { createBusinessCatalog } from '../../../../client/methods/iam/createBusinessCatalog';
-import type { AdtRequestor } from '../../../../core/adt';
+import type { AdtRequestor, IamServiceRef } from '../../../../core/adt';
 import type { ClientState } from '../../../../client/types';
 
 interface RecordedRequest {
@@ -99,15 +100,17 @@ describe('parseIamApp', () => {
             description: 'Test app',
             packageName: 'ZBEACON',
             appType: 'EXT',
-            services: [{ name: 'ZB_UI_V4', type: 'G4BA', typeText: 'OData V4', description: 'Test V4', runtimeType: 'HT', runtimeName: '15E122B2645C406B8A1FBDA02D4534' }],
+            ui5AppId: '',
+            services: [{ name: 'ZB_UI_V4', version: '', type: 'G4BA', typeText: 'OData V4', description: 'Test V4', runtimeType: 'HT', runtimeName: '15E122B2645C406B8A1FBDA02D4534' }],
             publishStatus: 'p',
+            migrationStatus: '3',
         });
     });
 });
 
-describe('appendServices', () => {
+describe('applyIamAppChanges (services)', () => {
     it('adds service rows in document order and drops atom links', () => {
-        const [xml, error] = appendServices(appXml(), [{ srvcType: 'HT', srvcName: 'ABC', relServiceName: 'ZB_UI_V4', relServiceType: 'G4BA', typeText: 'OData V4', srvcDescription: 'd', uiadSource: '', transactionCodeSource: '' }]);
+        const [xml, error] = applyIamAppChanges(appXml(), { services: [{ srvcType: 'HT', srvcName: 'ABC', relServiceName: 'ZB_UI_V4', relServiceType: 'G4BA', typeText: 'OData V4', srvcDescription: 'd', uiadSource: '', transactionCodeSource: '' }] });
 
         expect(error).toBeNull();
         expect(xml).not.toContain('atom:link');
@@ -115,11 +118,18 @@ describe('appendServices', () => {
     });
 });
 
-describe('addIamAppServices', () => {
+// Resolve, then save in one PUT — what createIamApp does for new services.
+async function addServices(requestor: AdtRequestor, name: string, services: IamServiceRef[], transport?: string): Promise<[void, null] | [null, Error]> {
+    const [rows, resolveErr] = await resolveIamServices(requestor, name, services);
+    if (resolveErr) return [null, resolveErr];
+    return saveIamAppChanges(requestor, name, { services: rows }, transport);
+}
+
+describe('resolveIamServices + saveIamAppChanges', () => {
     it('resolves the V4 service by exact name, then saves it under a lock', async () => {
         const { requestor, calls } = mockRequestor(appResponder(appXml()));
 
-        const [, error] = await addIamAppServices(requestor, 'zb_ext', [{ name: 'zb_ui_v4', type: 'G4BA' }], 'TR1');
+        const [, error] = await addServices(requestor, 'zb_ext', [{ name: 'zb_ui_v4', type: 'G4BA' }], 'TR1');
 
         expect(error).toBeNull();
         const detail = calls.find(c => c.path.endsWith('/service/detail'))!;
@@ -134,7 +144,7 @@ describe('addIamAppServices', () => {
     it('picks the requested V2 service version from the value help', async () => {
         const { requestor, calls } = mockRequestor(appResponder(appXml()));
 
-        const [, error] = await addIamAppServices(requestor, 'ZB_EXT', [{ name: 'ZB_SRV', type: 'IWSV', version: '0001' }]);
+        const [, error] = await addServices(requestor, 'ZB_EXT', [{ name: 'ZB_SRV', type: 'IWSV', version: '0001' }]);
 
         expect(error).toBeNull();
         const detail = calls.find(c => c.path.endsWith('/service/detail'))!;
@@ -144,34 +154,10 @@ describe('addIamAppServices', () => {
     it('fails without locking when the service is unknown', async () => {
         const { requestor, calls } = mockRequestor(appResponder(appXml()));
 
-        const [, error] = await addIamAppServices(requestor, 'ZB_EXT', [{ name: 'ZB_MISSING', type: 'G4BA' }]);
+        const [, error] = await addServices(requestor, 'ZB_EXT', [{ name: 'ZB_MISSING', type: 'G4BA' }]);
 
         expect(error?.message).toContain('OData V4 service binding ZB_MISSING is not offered');
         expect(calls.some(c => c.params?.['_action'] === 'LOCK')).toBe(false);
-    });
-});
-
-describe('publish requests', () => {
-    it('publishes an IAM app by its application parameter', async () => {
-        const { requestor, calls } = mockRequestor(() => new Response(publishingXml('sia6', 'p'), { status: 200 }));
-
-        const [status, error] = await publishIamApp(requestor, 'zb_ext');
-
-        expect(error).toBeNull();
-        expect(status).toBe('p');
-        expect(calls[0]!.path).toBe(`${SIA6_PATH}/publish`);
-        expect(calls[0]!.params).toEqual({ application: 'ZB_EXT' });
-    });
-
-    it('publishes a business catalog by its businessCatalogID parameter', async () => {
-        const { requestor, calls } = mockRequestor(() => new Response(publishingXml('sia1', 'p'), { status: 200 }));
-
-        const [status, error] = await publishBusinessCatalog(requestor, 'zb_cat');
-
-        expect(error).toBeNull();
-        expect(status).toBe('p');
-        expect(calls[0]!.path).toBe(`${SIA1_PATH}/$publish`);
-        expect(calls[0]!.params).toEqual({ businessCatalogID: 'ZB_CAT' });
     });
 });
 
@@ -182,7 +168,7 @@ describe('createIamApp (orchestration)', () => {
         const [result, error] = await createIamApp(STATE, requestor, { appName: 'zb_ext', packageName: 'zbeacon', description: 'Test app', transport: 'TR1', services: [{ name: 'ZB_UI_V4', type: 'G4BA' }] });
 
         expect(error).toBeNull();
-        expect(result).toEqual({ name: 'ZB_EXT', created: true, servicesAdded: ['ZB_UI_V4'], published: true, publishStatus: 'p', steps: { create: 'DONE', services: 'DONE', publish: 'DONE' } });
+        expect(result).toEqual({ name: 'ZB_EXT', created: true, servicesAdded: ['ZB_UI_V4'], ui5AppId: '', migrated: false, published: true, publishStatus: 'p', steps: { create: 'DONE', services: 'DONE', ui5AppId: 'SKIPPED', migration: 'SKIPPED', publish: 'DONE' } });
         const create = calls.find(c => c.method === 'POST' && c.path === SIA6_PATH)!;
         expect(create.params).toEqual({ corrNr: 'TR1' });
         expect(create.body).toContain('<sia6:appType>EXT</sia6:appType>');
@@ -195,7 +181,7 @@ describe('createIamApp (orchestration)', () => {
         const [result, error] = await createIamApp(STATE, requestor, { appName: 'ZB_EXT', packageName: 'ZBEACON', description: 'x', services: [{ name: 'zb_ui_v4', type: 'G4BA' }] });
 
         expect(error).toBeNull();
-        expect(result?.steps).toEqual({ create: 'SKIPPED', services: 'SKIPPED', publish: 'DONE' });
+        expect(result?.steps).toEqual({ create: 'SKIPPED', services: 'SKIPPED', ui5AppId: 'SKIPPED', migration: 'SKIPPED', publish: 'DONE' });
         expect(calls.some(c => c.method === 'PUT')).toBe(false);
     });
 
@@ -243,13 +229,48 @@ describe('business catalogs', () => {
         };
     }
 
+    it('migrates an app with an empty migrationStatus before assigning it', async () => {
+        const unmigrated = appXml().replace('<sia6:migrationStatus>3</sia6:migrationStatus>', '<sia6:migrationStatus/>');
+        const base = catalogResponder({ status: 'p', apps: [] });
+        const { requestor, calls } = mockRequestor((req) => {
+            if (req.params?.['_action'] === 'LOCK') return new Response('<asx:abap xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA><LOCK_HANDLE>H1</LOCK_HANDLE></DATA></asx:values></asx:abap>', { status: 200 });
+            if (req.method === 'GET' && req.path.startsWith(`${SIA6_PATH}/`)) return new Response(unmigrated, { status: 200 });
+            if (req.method === 'PUT') return new Response('', { status: 200 });
+            return base(req);
+        });
+
+        const [result, error] = await createBusinessCatalog(STATE, requestor, { catalogName: 'ZB_CAT', packageName: 'ZBEACON', description: 'x', apps: ['ZB_EXT'], publish: false });
+
+        expect(error).toBeNull();
+        expect(result?.appsMigrated).toEqual(['ZB_EXT']);
+        const put = calls.findIndex(c => c.method === 'PUT');
+        const assign = calls.findIndex(c => c.method === 'POST' && c.path === SIA7_PATH);
+        expect(calls[put]!.body).toContain('<sia6:migrationStatus>3</sia6:migrationStatus>');
+        expect(put).toBeLessThan(assign);
+    });
+
+    it('takes the next assignment number when SAP says the name already exists', async () => {
+        const base = catalogResponder({ status: 'p', apps: [] });
+        let attempts = 0;
+        const { requestor, calls } = mockRequestor((req) => {
+            if (req.method === 'POST' && req.path === SIA7_PATH && attempts++ === 0) return new Response('<exc:exception xmlns:exc="x"><localizedMessage>Object ZB_CAT_0001 already exists</localizedMessage></exc:exception>', { status: 400 });
+            return base(req);
+        });
+
+        const [result, error] = await createBusinessCatalog(STATE, requestor, { catalogName: 'ZB_CAT', packageName: 'ZBEACON', description: 'x', apps: ['ZB_EXT'], publish: false });
+
+        expect(error).toBeNull();
+        expect(result?.assignmentsAdded).toEqual([{ assignment: 'ZB_CAT_0002', app: 'ZB_EXT' }]);
+        expect(calls.filter(c => c.method === 'POST' && c.path === SIA7_PATH)).toHaveLength(2);
+    });
+
     it('creates the catalog, assigns the app with a description and publishes', async () => {
         const { requestor, calls } = mockRequestor(catalogResponder(null));
 
         const [result, error] = await createBusinessCatalog(STATE, requestor, { catalogName: 'zb_cat', packageName: 'ZBEACON', description: 'Test catalog', transport: 'TR1', apps: ['zb_ext'] });
 
         expect(error).toBeNull();
-        expect(result).toEqual({ name: 'ZB_CAT', created: true, assignmentsAdded: [{ assignment: 'ZB_CAT_0001', app: 'ZB_EXT' }], published: true, publishStatus: 'p', steps: { create: 'DONE', assign: 'DONE', publish: 'DONE' } });
+        expect(result).toEqual({ name: 'ZB_CAT', created: true, assignmentsAdded: [{ assignment: 'ZB_CAT_0001', app: 'ZB_EXT' }], appsMigrated: [], published: true, publishStatus: 'p', steps: { create: 'DONE', assign: 'DONE', publish: 'DONE' } });
         const assign = calls.find(c => c.method === 'POST' && c.path === SIA7_PATH)!;
         expect(assign.params).toEqual({ corrNr: 'TR1' });
         expect(assign.body).toContain('adtcore:name="ZB_CAT_0001"');

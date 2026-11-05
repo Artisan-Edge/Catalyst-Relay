@@ -62,8 +62,14 @@ export interface AffJsonRules {
     serverDefaults?: AffJsonDefault[];
     /** SAP stores false booleans as absent; compared as absent on both sides */
     serverOmitsFalse?: boolean;
-    /** Paths the source must set before it is sent (SAP dumps on a PUT without them) */
+    /** Paths the source must set to a non-empty value before it is sent (SAP dumps or blanks the field without them) */
     requiredPaths?: string[];
+    /** Paths SAP owns (it may rewrite them); ignored on both sides */
+    serverOwned?: string[];
+    /** String values compared ignoring case (e.g. 'EN' vs 'en') */
+    caseInsensitive?: string[];
+    /** Values compared as strings (formatVersion 1 vs "1") */
+    stringValued?: string[];
 }
 
 /**
@@ -140,7 +146,7 @@ export interface UpsertResult {
 /**
  * Supported object types
  */
-export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog' | 'asinc' | 'srvd' | 'asbdef' | 'asdtel' | 'asdoma' | 'asfunc' | 'asmsag' | 'asfugr' | 'asfinc' | 'asenqu' | 'asnrob' | 'asuiad' | 'asuipg' | 'asuist';
+export type ConfiguredExtension = 'asddls' | 'asdcls' | 'astabldt' | 'astablds' | 'aclass' | 'asprog' | 'asinc' | 'srvd' | 'asbdef' | 'asdtel' | 'asdoma' | 'asfunc' | 'asmsag' | 'asfugr' | 'asfinc' | 'asenqu' | 'asnrob' | 'asuiad' | 'asuipg' | 'asuist' | 'assiad';
 
 /**
  * Object type labels
@@ -166,12 +172,21 @@ export enum ObjectTypeLabel {
     LAUNCHPAD_APP_DESCRIPTOR = 'Launchpad App Descriptor Item',
     LAUNCHPAD_PAGE_TEMPLATE = 'Launchpad Page Template',
     LAUNCHPAD_SPACE_TEMPLATE = 'Launchpad Space Template',
+    ROLE_TEMPLATE_SPACE_ASSIGNMENT = 'Role Template Space Assignment',
 }
 
 // Fiori launchpad objects: blues v2 shell, AFF JSON at /source/main
 const BLUES_V2_MEDIA_TYPE = 'application/vnd.sap.adt.blues.v2+xml';
-const LAUNCHPAD_SERVER_ADDED = ['header.description', 'header.originalLanguage', 'header.abapLanguageVersion', 'header'];
+const LAUNCHPAD_SERVER_ADDED = ['header.description', 'header.originalLanguage', 'header'];
 const LAUNCHPAD_HEADER = ['header.description', 'header.originalLanguage'];
+// Normalisations shared by the launchpad types and SIAD: SAP may rewrite abapLanguageVersion (standard →
+// cloudDevelopment), the language case, and a numeric formatVersion.
+const LAUNCHPAD_NORMALISED = {
+    serverOwned: ['header.abapLanguageVersion'],
+    caseInsensitive: ['header.originalLanguage'],
+    stringValued: ['formatVersion'],
+};
+const SIAD_REQUIRED = [...LAUNCHPAD_HEADER, 'generalInformation.businessRoleTemplate', 'generalInformation.launchpadSpaceTemplate'];
 
 /**
  * Function group: the container of function modules
@@ -384,7 +399,7 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         lockOnObject: true,
         createContentType: BLUES_V2_MEDIA_TYPE,
         sourceFormat: 'aff-json',
-        affJson: { serverAdded: LAUNCHPAD_SERVER_ADDED, serverOmitsFalse: true },
+        affJson: { serverAdded: LAUNCHPAD_SERVER_ADDED, serverOmitsFalse: true, requiredPaths: LAUNCHPAD_HEADER, ...LAUNCHPAD_NORMALISED },
         alwaysActive: true,
         moveUnsupported: true,
     },
@@ -402,6 +417,8 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         affJson: {
             serverAdded: LAUNCHPAD_SERVER_ADDED,
             serverOmitsFalse: true,
+            requiredPaths: LAUNCHPAD_HEADER,
+            ...LAUNCHPAD_NORMALISED,
             serverDefaults: [
                 { path: 'sections[].visualizations[].type', value: 'ladiAssignment' },
                 { path: 'sections[].visualizations[].displayFormat', value: 'standard' },
@@ -422,7 +439,22 @@ export const OBJECT_CONFIG_MAP: Record<ConfiguredExtension, ObjectConfig> = {
         lockOnObject: true,
         createContentType: BLUES_V2_MEDIA_TYPE,
         sourceFormat: 'aff-json',
-        affJson: { serverAdded: LAUNCHPAD_SERVER_ADDED, serverOmitsFalse: true, requiredPaths: LAUNCHPAD_HEADER },
+        affJson: { serverAdded: LAUNCHPAD_SERVER_ADDED, serverOmitsFalse: true, requiredPaths: LAUNCHPAD_HEADER, ...LAUNCHPAD_NORMALISED },
+        moveUnsupported: true,
+    },
+    // Business role template ↔ launchpad space template assignment (SIAD, <BRT>_NNNN); blues v1 shell, saved active
+    'assiad': {
+        endpoint: 'aps/cloud/iam/siad',
+        nameSpace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
+        rootName: 'blue:blueSource',
+        type: 'SIAD',
+        label: ObjectTypeLabel.ROLE_TEMPLATE_SPACE_ASSIGNMENT,
+        extension: 'assiad',
+        lockOnObject: true,
+        createContentType: 'application/vnd.sap.adt.blues.v1+xml',
+        sourceFormat: 'aff-json',
+        affJson: { serverAdded: LAUNCHPAD_SERVER_ADDED, requiredPaths: SIAD_REQUIRED, ...LAUNCHPAD_NORMALISED },
+        alwaysActive: true,
         moveUnsupported: true,
     },
 };
