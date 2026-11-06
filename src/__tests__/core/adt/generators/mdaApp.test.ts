@@ -48,9 +48,13 @@ const DEL_OPTIONS: MdaAppOptions = {
     iamApp: 'ZSNAP_BC_DEL_EXT',
 };
 
-// Generator endpoint double: validation, preview and generate answered per path
-function generator(validation: string, generate: () => Reply = () => xml(fixture('mda-generate.xml'))): (call: Call) => Reply {
+// Package ZSNAP_BC as captured on Madiba-Cloud-Dev (ZLOCAL, recordChanges false), or a recording variant
+const PACKAGE = (records: boolean): string => fixture('package-zsnap_bc.xml').replace('pak:recordChanges="false"', `pak:recordChanges="${records}"`);
+
+// Generator endpoint double: validation, preview, generate and the package read answered per path
+function generator(validation: string, generate: () => Reply = () => xml(fixture('mda-generate.xml')), records = true): (call: Call) => Reply {
     return (call) => {
+        if (call.path === '/sap/bc/adt/packages/zsnap_bc') return xml(PACKAGE(records));
         if (call.path === `${MDA}/validation`) return xml(validation);
         if (call.path === `${MDA}/preview`) return xml(fixture('mda-preview.xml'));
         if (call.path === MDA) return generate();
@@ -230,8 +234,9 @@ describe('MDA generate', () => {
         const [result, error] = await generateMdaApp(requestor, { ...DEL_OPTIONS, transport: 'TR1' });
 
         expect(error).toBeNull();
-        expect(calls.map(call => call.path)).toEqual([`${MDA}/validation`, `${MDA}/preview`, MDA]);
-        expect(calls[2]).toMatchObject({ params: { referencedObject: '/sap/bc/adt/ddic/ddl/sources/zsnap_f70s_q01', package: 'ZSNAP_BC', corrNr: 'TR1' }, timeout: 300_000, headers: { 'Content-Type': CONTENT_TYPE, 'X-sap-adt-sessiontype': 'stateless' } });
+        expect(calls.map(call => call.path)).toEqual([`${MDA}/validation`, `${MDA}/preview`, '/sap/bc/adt/packages/zsnap_bc', MDA]);
+        expect(calls[3]).toMatchObject({ params: { referencedObject: '/sap/bc/adt/ddic/ddl/sources/zsnap_f70s_q01', package: 'ZSNAP_BC', corrNr: 'TR1' }, timeout: 300_000, headers: { 'Content-Type': CONTENT_TYPE, 'X-sap-adt-sessiontype': 'stateless' } });
+        expect(result?.transportSkipped).toBe(false);
         expect(result).toMatchObject({
             status: 'created',
             appDescriptor: 'ZSNAP_BC_DEL_AD',
@@ -243,6 +248,28 @@ describe('MDA generate', () => {
             steps: { validate: 'DONE', preview: 'DONE', generate: 'DONE' },
         });
         expect(result?.generated).toHaveLength(4);
+    });
+
+    it('passes no transport for a package that does not record changes (SAP fails with one there)', async () => {
+        const { requestor, calls } = recorder(generator(fixture('mda-validation-ok.xml'), undefined, false));
+
+        const [result, error] = await generateMdaApp(requestor, { ...DEL_OPTIONS, transport: 'TR1' });
+
+        expect(error).toBeNull();
+        expect(calls.at(-1)!.path).toBe(MDA);
+        expect(calls.at(-1)!.params).not.toHaveProperty('corrNr');
+        expect(result?.transportSkipped).toBe(true);
+    });
+
+    it('reads no package without a transport, and fails when the package cannot be read', async () => {
+        const plain = recorder(generator(fixture('mda-validation-ok.xml')));
+        await generateMdaApp(plain.requestor, DEL_OPTIONS);
+        expect(plain.calls.some(call => call.path.startsWith('/sap/bc/adt/packages/'))).toBe(false);
+
+        const failing = recorder((call) => (call.path.startsWith('/sap/bc/adt/packages/') ? xml('', 404) : generator(fixture('mda-validation-ok.xml'))(call)));
+        const [, error] = await generateMdaApp(failing.requestor, { ...DEL_OPTIONS, transport: 'TR1' });
+        expect(error?.message).toContain('cannot tell whether package ZSNAP_BC records changes');
+        expect(failing.calls.some(call => call.path === MDA)).toBe(false);
     });
 
     it('skips a present set but still returns the app variant name', async () => {

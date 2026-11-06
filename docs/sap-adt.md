@@ -196,7 +196,7 @@ IAM apps (SIA6), business catalogs (SIA1) with app assignments (SIA7), business 
 - **Results:** `created`, `changed` (anything written; a publish alone is not a change). A publish that fails after the create/save is returned as `publishError` (`IamPublishError`) beside the result, not instead of it. `deadlineMs` limits the whole call; the publish wait gets what is left.
 - **Publish:** the publish POST is synchronous (~2 min) and takes no lock, so it is sent stateless (no context cookie). Two overlapping stateless publishes of one app both ended `p` after ~112 s, so a re-post is safe. Headers as captured: SIA6 `Accept`/`Content-Type: application/vnd.sap.adt.iam.publishing+xml`; SIA1 and SIA8 `Accept: */*`. Policy (`IamPublishOptions`):
   - each request's timeout is 300 s, capped at the time left before the 10 min deadline; a retry inside the request layer (CSRF refresh, lost context) gets the time left, not a fresh timeout;
-  - a client timeout re-posts at once; a 502/504 or dropped connection waits 30 s;
+  - a client timeout re-posts at once; a 502/503/504 or dropped connection waits 30 s;
   - `u` ends a run unpublished: re-post once (after 30 s), then fail as pending;
   - no POST starts with less than 150 s left: fail as pending (`timedOut`);
   - attempts are at least 3 s apart.

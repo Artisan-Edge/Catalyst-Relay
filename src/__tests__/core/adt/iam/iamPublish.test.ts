@@ -89,8 +89,17 @@ describe('publish wait', () => {
         expect(calls[0]!.timeout).toBe(300_000);
 
         const zero = recorder(() => xml(fixture('publish-sia6.xml')));
-        await publishAndWait(zero.requestor, request, { ...NO_WAIT, requestTimeoutMs: 0, deadlineMs: 0 });
+        await publishAndWait(zero.requestor, request, { ...NO_WAIT, requestTimeoutMs: 0, deadlineMs: 600_000 });
         expect(zero.calls[0]!.timeout).toBe(300_000);
+    });
+
+    it('a deadline of 0 (the caller has no time left) is pending at once, without a POST', async () => {
+        const { requestor, calls } = recorder(() => xml(fixture('publish-sia6.xml')));
+
+        const [, error] = await publishAndWait(requestor, request, { ...NO_WAIT, minPostWindowMs: 1, deadlineMs: 0 });
+
+        expect(error).toMatchObject({ failure: 'pending', timedOut: true });
+        expect(calls).toHaveLength(0);
     });
 
     it('re-posts after a dropped connection recognised by its error code (Bun words the message differently)', async () => {

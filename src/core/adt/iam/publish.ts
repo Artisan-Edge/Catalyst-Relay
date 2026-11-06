@@ -119,7 +119,8 @@ export async function publishAndWait(
     const retryDelay = timing(options.retryDelayMs, DEFAULT_RETRY_DELAY_MS);
     const minWindow = timing(options.minPostWindowMs, DEFAULT_MIN_POST_WINDOW_MS);
     const minGap = timing(options.minAttemptDelayMs, DEFAULT_MIN_ATTEMPT_DELAY_MS);
-    const deadline = Date.now() + timing(options.deadlineMs, DEFAULT_DEADLINE_MS, true);
+    // 0 is valid: a caller whose own deadline ran out gets a pending result without a POST
+    const deadline = Date.now() + timing(options.deadlineMs, DEFAULT_DEADLINE_MS);
     const label = `${KIND_LABELS[request.kind]} ${request.name}`;
     const fail = (message: string, failure: IamPublishFailure, lastStatus: string | null, timedOut = false): IamPublishError =>
         new IamPublishError(message, request.kind, request.name, failure, lastStatus, timedOut);
@@ -202,7 +203,7 @@ function errorCode(error: unknown): string {
 }
 
 // A timing option that is not a finite number >= 0 (NaN, negative, Infinity) falls back to the default;
-// a timeout or deadline of 0 too (every POST would time out and start another publish on SAP)
+// a request timeout of 0 too (every POST would time out and start another publish on SAP)
 function timing(value: number | undefined, fallback: number, positive = false): number {
     if (value === undefined || !Number.isFinite(value)) return fallback;
     return value > 0 || (!positive && value === 0) ? value : fallback;

@@ -85,4 +85,6 @@ export interface MdaGenerateResult {
     /** Validation messages other than OK */
     messages: MdaValidationMessage[];
     steps: { validate: MdaStepStatus; preview: MdaStepStatus; generate: MdaStepStatus };
+    /** The transport was not passed: the package does not record changes (SAP's generator fails with one there) */
+    transportSkipped: boolean;
 }

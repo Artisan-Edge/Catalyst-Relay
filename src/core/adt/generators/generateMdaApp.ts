@@ -2,7 +2,9 @@
  * Generate MDA App — run the Multidimensional Analysis app generator for an analytical query
  *
  * Creates the UIAD, app variant, InA SRVD and SRVB and (optionally) the IAM app in one call.
- * Validation runs first: a set that already exists is skipped, a partial set is an error.
+ * Validation runs first: a set that already exists is skipped, a partial set is an error. A transport
+ * is passed only when the package records changes: SAP's generator fails ("An exception was raised",
+ * after creating the SRVD and SRVB) when given one for a package that does not.
  */
 
 import type { AsyncResult, Result } from '../../../types/result';
@@ -15,6 +17,7 @@ import { REQUEST_TIMEOUT_MESSAGE } from '../../utils/headers';
 import { MDA_PATH, CONTENT_TYPE, ADTCORE_NS, buildMdaContent, checkMdaOptions, generatorParams, objectNames, STATELESS } from './helpers';
 import { validateMdaApp } from './validateMdaApp';
 import { previewMdaApp } from './previewMdaApp';
+import { getPackageTransportInfo } from '../discovery/packageTransportInfo';
 
 const ACCEPT = 'application/vnd.sap.adt.repository.generator.v1+json, application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.StatusMessage, */*';
 const DEFAULT_TIMEOUT_MS = 300_000;
@@ -50,11 +53,17 @@ export async function generateMdaApp(client: AdtRequestor, options: MdaAppOption
         generated: [],
         messages: validation.messages,
         steps: { validate: 'DONE', preview: 'DONE', generate: 'SKIPPED' },
+        transportSkipped: false,
     };
     if (validation.set === 'present') return ok(result);
 
     const params = generatorParams(options);
-    if (options.transport) params['corrNr'] = options.transport;
+    if (options.transport) {
+        const [pkg, pkgErr] = await getPackageTransportInfo(client, options.packageName);
+        if (pkgErr) return err(new Error(`MDA app generation: cannot tell whether package ${options.packageName} records changes: ${pkgErr.message}`));
+        if (pkg.recordChanges) params['corrNr'] = options.transport;
+        else result.transportSkipped = true;
+    }
     const [response, requestErr] = await client.request({
         method: 'POST',
         path: MDA_PATH,
