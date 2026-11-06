@@ -6,7 +6,7 @@
  * create or PUT is live at once, so there is no activation step.
  */
 
-import type { AsyncResult } from '../../../types/result';
+import type { AsyncResult, Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import type { IamObjectKind } from './types';
@@ -38,9 +38,43 @@ export function iamCollectionPath(kind: IamObjectKind): string {
     return `${IAM_BASE_PATH}/${kind}`;
 }
 
-/** ADT resource path for an IAM object. */
+/** ADT resource path for an IAM object (namespaced names such as /ABC/X are encoded). */
 export function iamObjectPath(kind: IamObjectKind, name: string): string {
-    return `${iamCollectionPath(kind)}/${name.toLowerCase()}`;
+    return `${iamCollectionPath(kind)}/${encodeURIComponent(name.trim().toLowerCase())}`;
+}
+
+/** An IAM object name as SAP stores it: trimmed, upper case. */
+export function iamName(name: string): string {
+    return name.trim().toUpperCase();
+}
+
+/**
+ * Refuse an existing object that lives in another package than the one asked for.
+ *
+ * @param kind - IAM object kind
+ * @param name - Object name
+ * @param actual - Package the object is in ('' when unknown)
+ * @param requested - Package asked for
+ * @returns void or error
+ */
+export function requireSamePackage(kind: IamObjectKind, name: string, actual: string, requested: string): Result<void, Error> {
+    if (!actual || actual.toUpperCase() === iamName(requested)) return ok(undefined);
+    return err(new Error(`${KIND_LABELS[kind]} ${name} already exists in package ${actual.toUpperCase()}, not ${iamName(requested)}; use that package or another name`));
+}
+
+/**
+ * Check that a listing response has the expected root (a 200 logon page is not an empty listing).
+ *
+ * @param doc - Parsed response
+ * @param ns - Expected root namespace
+ * @param localName - Expected root local name
+ * @param what - What was listed (for the error)
+ * @returns void or error
+ */
+export function requireRoot(doc: Document, ns: string, localName: string, what: string): Result<void, Error> {
+    const root = doc.documentElement;
+    if (root && root.namespaceURI === ns && root.localName === localName) return ok(undefined);
+    return err(new Error(`${what}: unexpected response (root ${root?.localName ?? 'none'}, expected ${localName})`));
 }
 
 /** A description cut to the IAM limit (SAP rejects a create without one). */

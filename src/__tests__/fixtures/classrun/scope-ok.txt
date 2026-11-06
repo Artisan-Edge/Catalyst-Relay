@@ -1,0 +1,14 @@
+format|1
+meta|stack|F70|plan_hash|f720704314c3299939fa243516f1dcd955e4036f85d1e642541f2c14c057c24f
+phase|simulate
+object|UIPG|ZSNAP_BC_PAGE_TEST|on|unchanged
+msg|UIPG|ZSNAP_BC_PAGE_TEST|I|APS_SCO_COMMON|009|Scope state "3" not changed.
+object|UIST|ZSNAP_BC_SPACE_TEST|on|unchanged
+msg|UIST|ZSNAP_BC_SPACE_TEST|I|APS_SCO_COMMON|009|Scope state "3" not changed.
+phase|apply
+object|UIPG|ZSNAP_BC_PAGE_TEST|on|unchanged
+msg|UIPG|ZSNAP_BC_PAGE_TEST|I|APS_SCO_COMMON|009|Scope state "3" not changed.
+object|UIST|ZSNAP_BC_SPACE_TEST|on|unchanged
+msg|UIST|ZSNAP_BC_SPACE_TEST|I|APS_SCO_COMMON|009|Scope state "3" not changed.
+result|ok|expected=2|changed=0|unchanged=2|failed=0
+

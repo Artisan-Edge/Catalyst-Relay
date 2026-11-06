@@ -24,9 +24,9 @@ export async function activateServiceBinding(
     bindingName: string
 ): AsyncResult<ActivationResult[], Error> {
     return activateByReferences(client, [{
-        uri: `/sap/bc/adt/businessservices/bindings/${bindingName.toLowerCase()}`,
+        uri: `/sap/bc/adt/businessservices/bindings/${encodeURIComponent(bindingName.trim().toLowerCase())}`,
         type: SERVICE_BINDING_TYPE_CODE,
-        name: bindingName.toUpperCase(),
+        name: bindingName.trim().toUpperCase(),
         extension: '',
     }]);
 }

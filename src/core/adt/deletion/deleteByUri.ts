@@ -8,7 +8,7 @@ import type { AdtRequestor } from '../types';
 import type { DeletionResult } from './types';
 import { escapeXml, safeParseXml } from '../../utils/xml';
 import { checkResponse } from '../helpers';
-import { DELETE_PATH, DELETION_NS, ADTCORE_NS, objectIdentity, objectMessages } from './helpers';
+import { DELETE_PATH, DELETION_NS, ADTCORE_NS, objectIdentity, objectMessages, objectsByUri } from './helpers';
 
 const DELETE_CONTENT_TYPE = 'application/vnd.sap.adt.deletion.request.v1+xml';
 
@@ -39,24 +39,24 @@ export async function deleteByUri(
     });
     const [text, checkErr] = await checkResponse(response, requestErr, 'Deletion failed', DELETE_CONTENT_TYPE);
     if (checkErr) return err(checkErr);
-    return parseDeletionResult(text);
+    return parseDeletionResult(text, uris);
 }
 
 /**
  * Parse a deletion response.
  *
  * @param xml - del:deletionResult
- * @returns One result per object or error
+ * @param uris - Requested URIs (each must have a result)
+ * @returns One result per requested URI (in order) or error
  */
-export function parseDeletionResult(xml: string): Result<DeletionResult[], Error> {
+export function parseDeletionResult(xml: string, uris: string[]): Result<DeletionResult[], Error> {
     const [doc, parseErr] = safeParseXml(xml);
     if (parseErr) return err(parseErr);
+    const [objects, objectsErr] = objectsByUri(doc, 'deletionResult', uris, 'Deletion');
+    if (objectsErr) return err(objectsErr);
 
     const results: DeletionResult[] = [];
-    const objects = doc.getElementsByTagNameNS(DELETION_NS, 'object');
-    for (let i = 0; i < objects.length; i++) {
-        const element = objects[i];
-        if (!element) continue;
+    for (const element of objects) {
         results.push({
             ...objectIdentity(element),
             isDeleted: element.getAttributeNS(DELETION_NS, 'isDeleted') === 'true',

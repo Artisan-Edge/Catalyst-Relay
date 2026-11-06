@@ -6,15 +6,19 @@ import type { AsyncResult, Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import type { BusinessCatalogInfo, CatalogAppAssignment, IamPublishOptions } from './types';
+import type { IamPublishError } from './publish';
 import { escapeXml, safeParseXml } from '../../utils/xml';
 import { checkResponse } from '../helpers';
-import { ADTCORE_NS, IAM_BASE_PATH, PUBLISHING_CONTENT_TYPE, createIamDocument, iamDescription, isPublished, readIamDocument } from './helpers';
+import { ADTCORE_NS, IAM_BASE_PATH, createIamDocument, iamDescription, iamName, isPublished, readIamDocument, requireRoot } from './helpers';
 import { publishAndWait } from './publish';
 
 const SIA1_NS = 'http://www.sap.com/iam/sia1';
 const SIA7_NS = 'http://www.sap.com/iam/sia7';
 const ASSIGNMENTS_PATH = `${IAM_BASE_PATH}/sia1/$bucapps`;
+const ASSIGNMENTS_ROOT = 'bucapps';
 const PUBLISH_PATH = `${IAM_BASE_PATH}/sia1/$publish`;
+// SAP's own client sends Accept */* to $publish (captured)
+const PUBLISH_ACCEPT = '*/*';
 const PUBLISHED_STATUS = 'p';
 
 /**
@@ -23,7 +27,7 @@ const PUBLISHED_STATUS = 'p';
  * @param client - ADT client
  * @param name - Business catalog name
  * @param packageName - Target package
- * @param description - Catalog description
+ * @param description - Catalog description (cut to 60 characters)
  * @param transport - Transport request
  * @returns void or error
  */
@@ -34,12 +38,12 @@ export async function createBusinessCatalogObject(
     description: string,
     transport?: string
 ): AsyncResult<void, Error> {
-    const catalogName = name.toUpperCase();
+    const catalogName = iamName(name);
     const body = `<?xml version="1.0" encoding="UTF-8"?>
-<sia1:sia1 xmlns:sia1="${SIA1_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:description="${escapeXml(description)}" adtcore:language="EN" adtcore:name="${catalogName}" adtcore:type="SIA1" adtcore:masterLanguage="EN">
-  <adtcore:packageRef adtcore:name="${packageName.toUpperCase()}"/>
+<sia1:sia1 xmlns:sia1="${SIA1_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:description="${escapeXml(iamDescription(description || catalogName))}" adtcore:language="EN" adtcore:name="${escapeXml(catalogName)}" adtcore:type="SIA1" adtcore:masterLanguage="EN">
+  <adtcore:packageRef adtcore:name="${escapeXml(iamName(packageName))}"/>
   <sia1:content>
-    <sia1:businessCatalogID>${catalogName}</sia1:businessCatalogID>
+    <sia1:businessCatalogID>${escapeXml(catalogName)}</sia1:businessCatalogID>
   </sia1:content>
 </sia1:sia1>`;
 
@@ -59,11 +63,11 @@ export async function readBusinessCatalog(
     client: AdtRequestor,
     name: string
 ): AsyncResult<BusinessCatalogInfo | null, Error> {
-    const [xml, readErr] = await readIamDocument(client, 'sia1', name);
+    const [xml, readErr] = await readIamDocument(client, 'sia1', iamName(name));
     if (readErr) return err(readErr);
     if (xml === null) return ok(null);
 
-    const [catalog, parseErr] = parseBusinessCatalog(xml, name);
+    const [catalog, parseErr] = parseBusinessCatalog(xml, iamName(name));
     if (parseErr) return err(parseErr);
 
     const [apps, appsErr] = await readCatalogAssignments(client, catalog.name);
@@ -103,23 +107,37 @@ export function parseBusinessCatalog(xml: string, name: string): Result<Business
  *
  * @param client - ADT client
  * @param name - Business catalog name
- * @returns Assignments or error
+ * @returns Assignments or error (also for a 200 that is not a bucapps listing)
  */
 export async function readCatalogAssignments(
     client: AdtRequestor,
     name: string
 ): AsyncResult<CatalogAppAssignment[], Error> {
+    const catalogName = iamName(name);
     const [response, requestErr] = await client.request({
         method: 'GET',
         path: ASSIGNMENTS_PATH,
-        params: { name: name.toUpperCase() },
+        params: { name: catalogName },
     });
 
-    const [text, checkErr] = await checkResponse(response, requestErr, `Failed to list the apps of business catalog ${name}`);
+    const what = `Failed to list the apps of business catalog ${catalogName}`;
+    const [text, checkErr] = await checkResponse(response, requestErr, what);
     if (checkErr) return err(checkErr);
+    return parseCatalogAssignments(text, what);
+}
 
-    const [doc, parseErr] = safeParseXml(text);
-    if (parseErr) return err(parseErr);
+/**
+ * Parse a $bucapps listing.
+ *
+ * @param xml - sia1:bucapps
+ * @param what - Error context
+ * @returns Assignments or error
+ */
+export function parseCatalogAssignments(xml: string, what = 'Business catalog assignments'): Result<CatalogAppAssignment[], Error> {
+    const [doc, parseErr] = safeParseXml(xml);
+    if (parseErr) return err(new Error(`${what}: ${parseErr.message}`));
+    const [, rootErr] = requireRoot(doc, SIA1_NS, ASSIGNMENTS_ROOT, what);
+    if (rootErr) return err(rootErr);
 
     const assignments: CatalogAppAssignment[] = [];
     const entries = doc.getElementsByTagNameNS(SIA1_NS, 'bucapp');
@@ -154,18 +172,18 @@ export async function createCatalogAssignment(
     transport?: string,
     description?: string
 ): AsyncResult<void, Error> {
-    const catalog = catalogName.toUpperCase();
-    const app = appName.toUpperCase();
-    const assignment = assignmentName.toUpperCase();
+    const catalog = iamName(catalogName);
+    const app = iamName(appName);
+    const assignment = iamName(assignmentName);
     const text = iamDescription(description || `${app} in ${catalog}`);
 
     const body = `<?xml version="1.0" encoding="UTF-8"?>
-<sia7:sia7 xmlns:sia7="${SIA7_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:description="${escapeXml(text)}" adtcore:language="EN" adtcore:name="${assignment}" adtcore:type="SIA7" adtcore:masterLanguage="EN">
-  <adtcore:packageRef adtcore:name="${packageName.toUpperCase()}"/>
+<sia7:sia7 xmlns:sia7="${SIA7_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:description="${escapeXml(text)}" adtcore:language="EN" adtcore:name="${escapeXml(assignment)}" adtcore:type="SIA7" adtcore:masterLanguage="EN">
+  <adtcore:packageRef adtcore:name="${escapeXml(iamName(packageName))}"/>
   <sia7:content>
-    <sia7:businessCatalogAppAssignmentID>${assignment}</sia7:businessCatalogAppAssignmentID>
-    <sia7:businessCatalogID>${catalog}</sia7:businessCatalogID>
-    <sia7:appID>${app}</sia7:appID>
+    <sia7:businessCatalogAppAssignmentID>${escapeXml(assignment)}</sia7:businessCatalogAppAssignmentID>
+    <sia7:businessCatalogID>${escapeXml(catalog)}</sia7:businessCatalogID>
+    <sia7:appID>${escapeXml(app)}</sia7:appID>
   </sia7:content>
 </sia7:sia7>`;
 
@@ -180,18 +198,20 @@ export async function createCatalogAssignment(
  * @param client - ADT client
  * @param name - Business catalog name
  * @param options - Publish timing
- * @returns Publishing status code ('p') or error
+ * @returns Publishing status code ('p') or IamPublishError
  */
 export async function publishBusinessCatalog(
     client: AdtRequestor,
     name: string,
     options?: IamPublishOptions
-): AsyncResult<string, Error> {
+): AsyncResult<string, IamPublishError> {
+    const catalogName = iamName(name);
     return publishAndWait(client, {
+        kind: 'sia1',
+        name: catalogName,
         path: PUBLISH_PATH,
-        params: { businessCatalogID: name.toUpperCase() },
-        accept: PUBLISHING_CONTENT_TYPE,
-        label: `business catalog ${name.toUpperCase()}`,
+        params: { businessCatalogID: catalogName },
+        accept: PUBLISH_ACCEPT,
         doneStatuses: [PUBLISHED_STATUS],
     }, options);
 }

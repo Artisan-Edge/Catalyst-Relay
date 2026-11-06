@@ -5,3 +5,4 @@
 export { createServiceBinding } from './createServiceBinding';
 export { deleteServiceBinding } from './deleteServiceBinding';
 export { readServiceBinding } from './readServiceBinding';
+export { activateServiceBinding } from './activateServiceBinding';

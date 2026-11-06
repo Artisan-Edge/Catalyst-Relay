@@ -21,13 +21,15 @@ export async function deleteByUri(state: ClientState, requestor: AdtRequestor, u
 // App variants (ADVC/LRP) reject LOCK, so they go through the deletion service: check, then delete.
 export async function deleteAppVariant(state: ClientState, requestor: AdtRequestor, name: string, transport?: string): AsyncResult<DeletionResult> {
     if (!state.session) return err(new Error('Not logged in'));
-    const variant = name.toUpperCase();
+    const variant = name.trim().toUpperCase();
+    if (!variant) return err(new Error('App variant name is required'));
     const uri = adt.appVariantUri(variant);
 
     const [checks, checkErr] = await adt.checkDeletion(requestor, [uri]);
     if (checkErr) return err(checkErr);
     const check = checks[0];
     if (!check) return err(new Error(`Deletion check returned nothing for app variant ${variant}`));
+    if (check.externalStrongReferences > 0) return err(new Error(`App variant ${variant} cannot be deleted: ${check.externalStrongReferences} object(s) still reference it${describe(check.messages)}`));
     if (!check.isDeletable) return err(new Error(`App variant ${variant} cannot be deleted${describe(check.messages)}`));
     if (check.recording && !transport) return err(new Error(`App variant ${variant} is in package ${check.packageName}, which records changes; give a transport request`));
 

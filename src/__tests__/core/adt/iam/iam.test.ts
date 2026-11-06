@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'bun:test';
 import { parseIamApp, applyIamAppChanges, resolveIamServices, saveIamAppChanges } from '../../../../core/adt/iam/app';
+import type { IamAppSaveResult } from '../../../../core/adt/iam/app';
 import { readBusinessCatalog } from '../../../../core/adt/iam/catalog';
 import { nextAssignmentName } from '../../../../core/adt/iam/assignmentName';
 import { createIamApp } from '../../../../client/methods/iam/createIamApp';
@@ -119,7 +120,7 @@ describe('applyIamAppChanges (services)', () => {
 });
 
 // Resolve, then save in one PUT — what createIamApp does for new services.
-async function addServices(requestor: AdtRequestor, name: string, services: IamServiceRef[], transport?: string): Promise<[void, null] | [null, Error]> {
+async function addServices(requestor: AdtRequestor, name: string, services: IamServiceRef[], transport?: string): Promise<[IamAppSaveResult, null] | [null, Error]> {
     const [rows, resolveErr] = await resolveIamServices(requestor, name, services);
     if (resolveErr) return [null, resolveErr];
     return saveIamAppChanges(requestor, name, { services: rows }, transport);
@@ -168,7 +169,7 @@ describe('createIamApp (orchestration)', () => {
         const [result, error] = await createIamApp(STATE, requestor, { appName: 'zb_ext', packageName: 'zbeacon', description: 'Test app', transport: 'TR1', services: [{ name: 'ZB_UI_V4', type: 'G4BA' }] });
 
         expect(error).toBeNull();
-        expect(result).toEqual({ name: 'ZB_EXT', created: true, servicesAdded: ['ZB_UI_V4'], ui5AppId: '', migrated: false, published: true, publishStatus: 'p', steps: { create: 'DONE', services: 'DONE', ui5AppId: 'SKIPPED', migration: 'SKIPPED', publish: 'DONE' } });
+        expect(result).toEqual({ name: 'ZB_EXT', created: true, changed: true, descriptionUpdated: false, descriptionDiffers: false, servicesAdded: ['ZB_UI_V4'], ui5AppId: '', ui5AppIdReplaced: null, migrated: false, published: true, publishStatus: 'p', steps: { create: 'DONE', services: 'DONE', ui5AppId: 'SKIPPED', migration: 'SKIPPED', publish: 'DONE' } });
         const create = calls.find(c => c.method === 'POST' && c.path === SIA6_PATH)!;
         expect(create.params).toEqual({ corrNr: 'TR1' });
         expect(create.body).toContain('<sia6:appType>EXT</sia6:appType>');
@@ -270,7 +271,7 @@ describe('business catalogs', () => {
         const [result, error] = await createBusinessCatalog(STATE, requestor, { catalogName: 'zb_cat', packageName: 'ZBEACON', description: 'Test catalog', transport: 'TR1', apps: ['zb_ext'] });
 
         expect(error).toBeNull();
-        expect(result).toEqual({ name: 'ZB_CAT', created: true, assignmentsAdded: [{ assignment: 'ZB_CAT_0001', app: 'ZB_EXT' }], appsMigrated: [], published: true, publishStatus: 'p', steps: { create: 'DONE', assign: 'DONE', publish: 'DONE' } });
+        expect(result).toEqual({ name: 'ZB_CAT', created: true, changed: true, descriptionUpdated: false, descriptionDiffers: false, assignmentsAdded: [{ assignment: 'ZB_CAT_0001', app: 'ZB_EXT' }], assignmentsFound: [], appsMigrated: [], published: true, publishStatus: 'p', steps: { create: 'DONE', assign: 'DONE', publish: 'DONE' } });
         const assign = calls.find(c => c.method === 'POST' && c.path === SIA7_PATH)!;
         expect(assign.params).toEqual({ corrNr: 'TR1' });
         expect(assign.body).toContain('adtcore:name="ZB_CAT_0001"');

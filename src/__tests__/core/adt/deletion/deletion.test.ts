@@ -37,23 +37,52 @@ function recorder(respond: (call: Call) => Response): { requestor: AdtRequestor;
 
 describe('deletion service parsing', () => {
     it('parses a deletion check', () => {
-        const [results, error] = parseDeletionCheck(fixture('deletion-check-advc.xml'));
+        const [results, error] = parseDeletionCheck(fixture('deletion-check-advc.xml'), [URI]);
 
         expect(error).toBeNull();
         expect(results).toEqual([{ uri: URI, name: 'ZR5YJ7I4MCCPGM3EDSH2LIKOARU', type: 'ADVC/LRP', packageName: 'ZSNAP_BC', isDeletable: true, externalStrongReferences: 0, externalWeakReferences: 0, recording: false, lockingTransport: '', messages: [] }]);
     });
 
     it('parses a deletion result', () => {
-        const [results, error] = parseDeletionResult(fixture('deletion-delete-advc.xml'));
+        const [results, error] = parseDeletionResult(fixture('deletion-delete-advc.xml'), [URI]);
 
         expect(error).toBeNull();
         expect(results).toEqual([{ uri: URI, name: 'ZR5YJ7I4MCCPGM3EDSH2LIKOARU', type: 'ADVC/LRP', packageName: 'ZSNAP_BC', isDeleted: true, messages: [] }]);
     });
 
+    it('matches results to the requested URIs, case and encoding aside', () => {
+        const [results, error] = parseDeletionCheck(fixture('deletion-check-advc.xml'), [URI.toLowerCase()]);
+
+        expect(error).toBeNull();
+        expect(results?.[0]?.name).toBe('ZR5YJ7I4MCCPGM3EDSH2LIKOARU');
+    });
+
+    it('fails when a requested URI has no result, or there are fewer results than URIs', () => {
+        const [, missing] = parseDeletionCheck(fixture('deletion-check-advc.xml'), ['/sap/bc/adt/vit/wb/object_type/advclrp/object_name/ZOTHER']);
+        const [, fewer] = parseDeletionResult(fixture('deletion-delete-advc.xml'), [URI, `${URI}X`]);
+
+        expect(missing?.message).toContain('Deletion check: no result for /sap/bc/adt/vit/wb/object_type/advclrp/object_name/ZOTHER');
+        expect(fewer?.message).toContain('(1 result(s) for 2 object(s))');
+    });
+
+    it('fails on a 200 that is not a deletion response', () => {
+        const [, check] = parseDeletionCheck('<html><body>Logon</body></html>', [URI]);
+        const [, result] = parseDeletionResult(fixture('deletion-check-advc.xml'), [URI]);
+
+        expect(check?.message).toContain('Deletion check: unexpected response (root html, expected checkResponse)');
+        expect(result?.message).toContain('Deletion: unexpected response (root checkResponse, expected deletionResult)');
+    });
+
+    it('treats strong references as not deletable', () => {
+        const [results] = parseDeletionCheck(fixture('deletion-check-advc.xml').replace('del:externalStrongReferences="0"', 'del:externalStrongReferences="2"'), [URI]);
+
+        expect(results?.[0]).toMatchObject({ isDeletable: false, externalStrongReferences: 2 });
+    });
+
     it('keeps messages with a text', () => {
         const xml = fixture('deletion-check-advc.xml').replace('del:isDeletable="true"', 'del:isDeletable="false"').replace('<del:message del:priority="0" del:type="S"><del:text/></del:message>', '<del:message del:priority="1" del:type="E"><del:text>Still used</del:text></del:message>');
 
-        const [results] = parseDeletionCheck(xml);
+        const [results] = parseDeletionCheck(xml, [URI]);
 
         expect(results?.[0]?.isDeletable).toBe(false);
         expect(results?.[0]?.messages).toEqual([{ type: 'E', text: 'Still used' }]);
@@ -127,6 +156,25 @@ describe('deleteAppVariant', () => {
         expect(result?.isDeleted).toBe(true);
         expect(calls.map(c => c.path)).toEqual(['/sap/bc/adt/deletion/check', '/sap/bc/adt/deletion/check', '/sap/bc/adt/deletion/delete']);
         expect(calls[2]!.body).toContain('<del:transportNumber>TR1</del:transportNumber>');
+    });
+
+    it('refuses a blank name without a request', async () => {
+        const { requestor, calls } = recorder(() => new Response(''));
+
+        const [, error] = await deleteAppVariant(STATE, requestor, '  ');
+
+        expect(error?.message).toBe('App variant name is required');
+        expect(calls).toHaveLength(0);
+    });
+
+    it('refuses a variant that other objects strongly reference', async () => {
+        const referenced = fixture('deletion-check-advc.xml').replace('del:externalStrongReferences="0"', 'del:externalStrongReferences="1"');
+        const { requestor, calls } = recorder(() => new Response(referenced));
+
+        const [, error] = await deleteAppVariant(STATE, requestor, 'ZR5YJ7I4MCCPGM3EDSH2LIKOARU');
+
+        expect(error?.message).toBe('App variant ZR5YJ7I4MCCPGM3EDSH2LIKOARU cannot be deleted: 1 object(s) still reference it');
+        expect(calls).toHaveLength(1);
     });
 
     it('fails when SAP reports the variant not deleted', async () => {

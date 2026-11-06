@@ -186,31 +186,38 @@ export {
     saveIamAppChanges,
     ensureIamAppMigrated,
     needsMigration,
+    isCustomerExtApp,
     applyIamAppChanges,
+    serviceRefOf,
     publishIamApp,
     MIGRATED_STATUS,
 } from './iam/app';
-export type { IamAppChanges } from './iam/app';
+export type { IamAppChanges, IamAppSaveResult } from './iam/app';
+export { iamName, iamDescription, requireSamePackage } from './iam/helpers';
 export {
     createBusinessCatalogObject,
     readBusinessCatalog,
     parseBusinessCatalog,
     readCatalogAssignments,
+    parseCatalogAssignments,
     createCatalogAssignment,
     publishBusinessCatalog,
 } from './iam/catalog';
-export { nextAssignmentName, createNumberedAssignment } from './iam/assignmentName';
+export { nextAssignmentName, createNumberedAssignment, assignmentOwnerNameError, ASSIGNMENT_NAME_MAX_LENGTH, ASSIGNMENT_OWNER_MAX_LENGTH } from './iam/assignmentName';
+export type { NumberedAssignment } from './iam/assignmentName';
 export { splitServiceName, isServiceListed } from './iam/serviceName';
 export {
     createRoleTemplateObject,
     readRoleTemplate,
     parseRoleTemplate,
     readRoleTemplateCatalogs,
+    parseRoleTemplateCatalogs,
     createRoleTemplateCatalogAssignment,
     publishRoleTemplate,
 } from './iam/roleTemplate';
-export { publishAndWait, publishingStatusText } from './iam/publish';
-export { deleteIamObject } from './iam/delete';
+export { publishAndWait, publishingStatusText, IamPublishError } from './iam/publish';
+export type { IamPublishFailure, IamPublishRequest } from './iam/publish';
+export { deleteIamObject, isStillAssigned } from './iam/delete';
 export { findIamAppsUsingBindings } from './iam/bindingUsage';
 export type {
     IamServiceType,
@@ -222,6 +229,7 @@ export type {
     IamPublishOptions,
     CreateIamAppOptions,
     IamStepStatus,
+    IamCreateOutcome,
     IamAppResult,
     CatalogAppAssignment,
     BusinessCatalogInfo,
@@ -241,6 +249,32 @@ export { checkDeletion, parseDeletionCheck } from './deletion/checkDeletion';
 export { deleteByUri, parseDeletionResult } from './deletion/deleteByUri';
 export { appVariantUri } from './deletion/appVariant';
 export type { DeletionCheckResult, DeletionResult, DeletionMessage } from './deletion/types';
+
+// MDA app generator (UIAD, app variant, InA SRVD/SRVB, IAM app for an analytical query)
+export {
+    generateMdaApp,
+    parseGeneratedObjects,
+    previewMdaApp,
+    parseMdaPreview,
+    validateMdaApp,
+    parseValidationMessages,
+    classifyMdaValidation,
+    buildMdaContent,
+} from './generators';
+export type {
+    MdaAppOptions,
+    MdaObjectKind,
+    MdaValidationMessage,
+    MdaAppValidation,
+    MdaGeneratedObject,
+    MdaAppPreview,
+    MdaStepStatus,
+    MdaGenerateResult,
+} from './generators';
+
+// Class run (IF_OO_ADT_CLASSRUN, stateless)
+export { runClass } from './classrun';
+export type { RunClassOptions } from './classrun';
 
 // Packages
 export { createPackage, readPackageSettings, parsePackageSettings } from './packages/createPackage';

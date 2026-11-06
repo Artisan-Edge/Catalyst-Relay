@@ -7,12 +7,13 @@ import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import type { IamObjectKind } from './types';
 import { extractError, safeParseXml } from '../../utils/xml';
-import { ADTCORE_NS, KIND_LABELS, iamObjectPath, lockIamObject, unlockIamObject } from './helpers';
+import { ADTCORE_NS, KIND_LABELS, iamName, iamObjectPath, lockIamObject, unlockIamObject } from './helpers';
 
 const USAGE_NS = 'http://www.sap.com/adt/ris/usageReferences';
 const USAGE_PATH = '/sap/bc/adt/repository/informationsystem/usageReferences';
-// SWB_TOOL 029 "Error while deleting object App from the database": the app is still in a catalog.
-const STILL_ASSIGNED = /SWB_TOOL[\s\S]*029|029[\s\S]*SWB_TOOL/;
+// SWB_TOOL 029 "Error while deleting object App from the database": names no cause; seen for an app still in a catalog.
+const STILL_ASSIGNED_ID = 'SWB_TOOL';
+const STILL_ASSIGNED_NUMBER = '029';
 const CATALOG_TYPE = 'SIA1';
 
 /**
@@ -33,7 +34,7 @@ export async function deleteIamObject(
     name: string,
     transport?: string
 ): AsyncResult<void, Error> {
-    const objectName = name.toUpperCase();
+    const objectName = iamName(name);
     const label = `${KIND_LABELS[kind]} ${objectName}`;
     const [lockHandle, lockErr] = await lockIamObject(client, kind, objectName);
     if (lockErr) return err(lockErr);
@@ -53,16 +54,34 @@ export async function deleteIamObject(
     if (response.ok) return ok(undefined);
 
     const text = await response.text();
-    if (kind === 'sia6' && STILL_ASSIGNED.test(text)) return err(await stillAssignedError(client, objectName));
+    if (kind === 'sia6' && isStillAssigned(text)) return err(await stillAssignedError(client, objectName));
     if (unlockErr) return err(new Error(`Failed to delete ${label}: ${extractError(text)} (unlock also failed: ${unlockErr.message})`));
     return err(new Error(`Failed to delete ${label}: ${extractError(text)}`));
 }
 
-// Name the catalogs (where-used lists them) in the error; best effort.
+/**
+ * Whether an exception document carries exactly T100 message SWB_TOOL 029 (MSGID/MSGNO or T100KEY-ID/-NO).
+ *
+ * @param xml - exc:exception
+ */
+export function isStillAssigned(xml: string): boolean {
+    const [doc, parseErr] = safeParseXml(xml);
+    if (parseErr) return false;
+    const entries = new Map<string, string>();
+    const elements = doc.getElementsByTagName('entry');
+    for (let i = 0; i < elements.length; i++) {
+        const key = elements[i]?.getAttribute('key');
+        if (key) entries.set(key, elements[i]?.textContent?.trim() ?? '');
+    }
+    const matches = (idKey: string, numberKey: string): boolean => entries.get(idKey) === STILL_ASSIGNED_ID && entries.get(numberKey) === STILL_ASSIGNED_NUMBER;
+    return matches('T100KEY-ID', 'T100KEY-NO') || matches('MSGID', 'MSGNO');
+}
+
+// SWB_TOOL 029 names no cause; name the catalogs where-used lists (best effort).
 async function stillAssignedError(client: AdtRequestor, appName: string): Promise<Error> {
     const catalogs = await assignedCatalogs(client, appName);
-    const where = catalogs.length > 0 ? ` (${catalogs.join(', ')})` : '';
-    return new Error(`Cannot delete IAM app ${appName}: it is still assigned to a business catalog${where}; remove the app from its business catalogs first (delete the SIA7 assignments)`);
+    const where = catalogs.length > 0 ? ` (assigned to ${catalogs.join(', ')})` : '';
+    return new Error(`Cannot delete IAM app ${appName}: SAP's SWB_TOOL 029 names no cause; it is probably still assigned to a business catalog${where}. Remove the app from its business catalogs first (delete the SIA7 assignments)`);
 }
 
 async function assignedCatalogs(client: AdtRequestor, appName: string): Promise<string[]> {

@@ -2,7 +2,8 @@
  * Cookie management helpers
  */
 
-export function storeCookies(cookies: Map<string, string>, response: Response): void {
+// skip: cookie names not to store (a stateless response must not replace the stateful context cookie)
+export function storeCookies(cookies: Map<string, string>, response: Response, skip?: (name: string) => boolean): void {
     const setCookieHeader = response.headers.get('set-cookie');
     if (!setCookieHeader) return;
 
@@ -11,9 +12,10 @@ export function storeCookies(cookies: Map<string, string>, response: Response): 
     const cookieStrings = setCookieHeader.split(/,(?=\s*\w+=)/);
     for (const cookieStr of cookieStrings) {
         const match = cookieStr.match(/^([^=]+)=([^;]*)/);
-        if (match && match[1] && match[2]) {
-            cookies.set(match[1].trim(), match[2].trim());
-        }
+        if (!match || !match[1] || !match[2]) continue;
+        const name = match[1].trim();
+        if (skip?.(name)) continue;
+        cookies.set(name, match[2].trim());
     }
 }
 

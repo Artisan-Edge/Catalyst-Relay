@@ -13,7 +13,7 @@ import type { FindIamAppsUsingBindingsOptions, IamAppBindingUsage, IamBindingUsa
 import { safeParseXml } from '../../utils/xml';
 import { mapLimited } from '../../utils/concurrency';
 import { checkResponse } from '../helpers';
-import { ADTCORE_NS } from './helpers';
+import { ADTCORE_NS, requireRoot } from './helpers';
 import { readIamApp } from './app';
 import { splitServiceName } from './serviceName';
 
@@ -21,6 +21,7 @@ const SEARCH_PATH = '/sap/bc/adt/repository/informationsystem/search';
 const DEFAULT_NAME_PATTERNS = ['Z*', 'Y*'];
 const MAX_RESULTS = 10_000;
 const SIA6_TYPE = 'SIA6';
+const SEARCH_ROOT = 'objectReferences';
 
 interface AppRef {
     name: string;
@@ -33,7 +34,7 @@ interface AppRef {
  * @param client - ADT client
  * @param bindingNames - Service binding names
  * @param options - Package filter and app name patterns (default Z*, Y*)
- * @returns Matches (one per app and binding) and the number of apps read, or error
+ * @returns Matches (one per app and binding), the number of apps listed and the ones that could not be read, or error
  */
 export async function findIamAppsUsingBindings(
     client: AdtRequestor,
@@ -41,23 +42,28 @@ export async function findIamAppsUsingBindings(
     options: FindIamAppsUsingBindingsOptions = {}
 ): AsyncResult<IamBindingUsageScan, Error> {
     const bindings = new Set(bindingNames.map(name => splitServiceName(name).name));
-    if (bindings.size === 0) return ok({ usages: [], appsScanned: 0 });
+    if (bindings.size === 0) return ok({ usages: [], appsScanned: 0, unreadable: [] });
     const packages = options.packages?.map(name => name.toUpperCase());
 
     const [apps, listErr] = await listIamApps(client, options.namePatterns ?? DEFAULT_NAME_PATTERNS);
     if (listErr) return err(listErr);
     const candidates = packages ? apps.filter(app => packages.includes(app.packageName.toUpperCase())) : apps;
 
+    // An app that cannot be read (no authorization, ...) is reported, not fatal: the rest is still checked.
+    const unreadable: string[] = [];
     const [matches, readErr] = await mapLimited(candidates, async (candidate): AsyncResult<IamAppBindingUsage[], Error> => {
         const [app, appErr] = await readIamApp(client, candidate.name);
-        if (appErr) return err(appErr.message.includes(candidate.name) ? appErr : new Error(`IAM app ${candidate.name}: ${appErr.message}`));
+        if (appErr) {
+            unreadable.push(candidate.name);
+            return ok([]);
+        }
         if (!app) return ok([]);
         return ok(app.services
             .filter(service => bindings.has(service.name))
             .map(service => ({ binding: service.name, app: app.name, packageName: app.packageName || candidate.packageName, serviceType: service.type })));
     });
     if (readErr) return err(readErr);
-    return ok({ usages: matches.flat(), appsScanned: candidates.length });
+    return ok({ usages: matches.flat(), appsScanned: candidates.length, unreadable: unreadable.sort() });
 }
 
 // Quick search per pattern, deduplicated by name; a result list at the limit would be incomplete.
@@ -75,6 +81,8 @@ async function listIamApps(client: AdtRequestor, patterns: string[]): AsyncResul
 
         const [doc, parseErr] = safeParseXml(text);
         if (parseErr) return err(parseErr);
+        const [, rootErr] = requireRoot(doc, ADTCORE_NS, SEARCH_ROOT, `Failed to list IAM apps matching ${pattern}`);
+        if (rootErr) return err(rootErr);
         const refs = doc.getElementsByTagNameNS(ADTCORE_NS, 'objectReference');
         if (refs.length >= MAX_RESULTS) return err(new Error(`${refs.length} or more IAM apps match ${pattern}, the search limit; narrow the name patterns so the scan is complete`));
         for (let i = 0; i < refs.length; i++) {

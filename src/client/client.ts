@@ -64,6 +64,7 @@ import type {
     RoleTemplateResult,
     RoleTemplateInfo,
     IamPublishOptions,
+    IamPublishError,
     IamObjectKind,
     IamBindingUsageScan,
     FindIamAppsUsingBindingsOptions,
@@ -85,6 +86,11 @@ import type {
     UnitTestRunOptions,
     UnitTestRunResult,
     UnitTestMetadata,
+    MdaAppOptions,
+    MdaAppValidation,
+    MdaAppPreview,
+    MdaGenerateResult,
+    RunClassOptions,
 } from '../core/adt';
 import type { AsyncResult } from '../types/result';
 import { createAuthStrategy } from '../core/auth/factory';
@@ -109,6 +115,8 @@ import * as refactoringMethods from './methods/refactoring';
 import * as textElementMethods from './methods/textelements';
 import * as abapUnitMethods from './methods/abapunit';
 import * as attributeMethods from './methods/attributes';
+import * as generatorMethods from './methods/generators';
+import * as classRunMethods from './methods/classrun';
 import {
     storeCookies,
     buildCookieHeader,
@@ -182,6 +190,8 @@ export interface ADTClient {
     createServiceBinding(options: CreateServiceBindingOptions): AsyncResult<ServiceBindingResult>;
     deleteServiceBinding(bindingName: string, transport?: string, version?: ServiceBindingVersion): AsyncResult<void>;
     readServiceBinding(bindingName: string): AsyncResult<ServiceBindingInfo>;
+    // (Re)activate a binding, e.g. after its service definition was widened; client.activate cannot address SRVB
+    activateServiceBinding(bindingName: string): AsyncResult<ActivationResult[]>;
 
     // Cloud IAM
     createIamApp(options: CreateIamAppOptions): AsyncResult<IamAppResult>;
@@ -191,9 +201,9 @@ export interface ADTClient {
     createRoleTemplate(options: CreateRoleTemplateOptions): AsyncResult<RoleTemplateResult>;
     readRoleTemplate(templateName: string): AsyncResult<RoleTemplateInfo>;
     // Publish locally; each waits for SAP's synchronous ~2 min publish (re-posts on timeout / 'u')
-    publishIamApp(appName: string, options?: IamPublishOptions): AsyncResult<string>;
-    publishBusinessCatalog(catalogName: string, options?: IamPublishOptions): AsyncResult<string>;
-    publishRoleTemplate(templateName: string, options?: IamPublishOptions): AsyncResult<string>;
+    publishIamApp(appName: string, options?: IamPublishOptions): AsyncResult<string, IamPublishError>;
+    publishBusinessCatalog(catalogName: string, options?: IamPublishOptions): AsyncResult<string, IamPublishError>;
+    publishRoleTemplate(templateName: string, options?: IamPublishOptions): AsyncResult<string, IamPublishError>;
     deleteIamObject(kind: IamObjectKind, name: string, transport?: string): AsyncResult<void>;
     // IAM apps listing any of the bindings (reads each customer app once; appsScanned 0 means nothing was checked)
     findIamAppsUsingBindings(bindingNames: string[], options?: FindIamAppsUsingBindingsOptions): AsyncResult<IamBindingUsageScan>;
@@ -202,6 +212,14 @@ export interface ADTClient {
     checkDeletion(uris: string[]): AsyncResult<DeletionCheckResult[]>;
     deleteByUri(uris: string[], transport?: string): AsyncResult<DeletionResult[]>;
     deleteAppVariant(name: string, transport?: string): AsyncResult<DeletionResult>;
+
+    // MDA app generator (validate is the idempotence pre-check; generate skips a set that exists)
+    validateMdaApp(options: MdaAppOptions): AsyncResult<MdaAppValidation>;
+    previewMdaApp(options: MdaAppOptions): AsyncResult<MdaAppPreview>;
+    generateMdaApp(options: MdaAppOptions): AsyncResult<MdaGenerateResult>;
+
+    // Class run (IF_OO_ADT_CLASSRUN): stateless, returns the console text
+    runClass(className: string, options?: RunClassOptions): AsyncResult<string>;
 
     // Packages
     createPackage(options: CreatePackageOptions): AsyncResult<CreatePackageResult>;
@@ -271,8 +289,8 @@ export class ADTClientImpl implements ADTClient {
 
     // --- Private helpers (one-line delegations) ---
 
-    private storeCookies(response: Response): void {
-        storeCookies(this.state.cookies, response);
+    private storeCookies(response: Response, skip?: (name: string) => boolean): void {
+        storeCookies(this.state.cookies, response, skip);
     }
 
     private buildCookieHeader(): string | null {
@@ -486,6 +504,10 @@ export class ADTClientImpl implements ADTClient {
         return businessServiceMethods.readServiceBinding(this.state, this.requestor, bindingName);
     }
 
+    async activateServiceBinding(bindingName: string): AsyncResult<ActivationResult[]> {
+        return businessServiceMethods.activateServiceBinding(this.state, this.requestor, bindingName);
+    }
+
     // --- Cloud IAM ---
 
     async createIamApp(options: CreateIamAppOptions): AsyncResult<IamAppResult> {
@@ -512,15 +534,15 @@ export class ADTClientImpl implements ADTClient {
         return iamMethods.readRoleTemplate(this.state, this.requestor, templateName);
     }
 
-    async publishIamApp(appName: string, options?: IamPublishOptions): AsyncResult<string> {
+    async publishIamApp(appName: string, options?: IamPublishOptions): AsyncResult<string, IamPublishError> {
         return iamMethods.publishIamApp(this.state, this.requestor, appName, options);
     }
 
-    async publishBusinessCatalog(catalogName: string, options?: IamPublishOptions): AsyncResult<string> {
+    async publishBusinessCatalog(catalogName: string, options?: IamPublishOptions): AsyncResult<string, IamPublishError> {
         return iamMethods.publishBusinessCatalog(this.state, this.requestor, catalogName, options);
     }
 
-    async publishRoleTemplate(templateName: string, options?: IamPublishOptions): AsyncResult<string> {
+    async publishRoleTemplate(templateName: string, options?: IamPublishOptions): AsyncResult<string, IamPublishError> {
         return iamMethods.publishRoleTemplate(this.state, this.requestor, templateName, options);
     }
 
@@ -544,6 +566,26 @@ export class ADTClientImpl implements ADTClient {
 
     async deleteAppVariant(name: string, transport?: string): AsyncResult<DeletionResult> {
         return deletionMethods.deleteAppVariant(this.state, this.requestor, name, transport);
+    }
+
+    // --- MDA app generator ---
+
+    async validateMdaApp(options: MdaAppOptions): AsyncResult<MdaAppValidation> {
+        return generatorMethods.validateMdaApp(this.state, this.requestor, options);
+    }
+
+    async previewMdaApp(options: MdaAppOptions): AsyncResult<MdaAppPreview> {
+        return generatorMethods.previewMdaApp(this.state, this.requestor, options);
+    }
+
+    async generateMdaApp(options: MdaAppOptions): AsyncResult<MdaGenerateResult> {
+        return generatorMethods.generateMdaApp(this.state, this.requestor, options);
+    }
+
+    // --- Class run ---
+
+    async runClass(className: string, options?: RunClassOptions): AsyncResult<string> {
+        return classRunMethods.runClass(this.state, this.requestor, className, options);
     }
 
     // --- Packages ---

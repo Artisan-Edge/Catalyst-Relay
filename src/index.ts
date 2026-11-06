@@ -94,6 +94,8 @@ export type {
     IamPublishStatus,
     CreateIamAppOptions,
     IamStepStatus,
+    IamCreateOutcome,
+    IamPublishFailure,
     IamAppResult,
     CatalogAppAssignment,
     BusinessCatalogInfo,
@@ -111,6 +113,15 @@ export type {
     DeletionCheckResult,
     DeletionResult,
     DeletionMessage,
+    MdaAppOptions,
+    MdaObjectKind,
+    MdaValidationMessage,
+    MdaAppValidation,
+    MdaGeneratedObject,
+    MdaAppPreview,
+    MdaStepStatus,
+    MdaGenerateResult,
+    RunClassOptions,
     CreatePackageOptions,
     CreatePackageResult,
     PackageSettings,
@@ -168,6 +179,9 @@ export type {
 
 // Error classes (for instanceof checks on AsyncResult errors)
 export { ExternalReferencesError } from './core/adt';
+
+// IAM publish failures: IamPublishError.pending (may still publish) vs a definitive failure (.failure)
+export { IamPublishError } from './core/adt';
 
 // Query builder (optional helper for data preview)
 export { buildSQLQuery } from './core/adt';

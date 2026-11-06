@@ -160,7 +160,7 @@ describe('createIamApp with INA1 and ui5AppId', () => {
 
         expect(error).toBeNull();
         expect(result).toEqual({
-            name: 'ZSNAP_BC_CLI_EXT', created: true, servicesAdded: ['ZSNAP_BC_MDA_SB'], ui5AppId: 'ZSNAP_BC_UIAD_LEAN2', migrated: true, published: true, publishStatus: 'p',
+            name: 'ZSNAP_BC_CLI_EXT', created: true, changed: true, descriptionUpdated: false, descriptionDiffers: false, servicesAdded: ['ZSNAP_BC_MDA_SB'], ui5AppId: 'ZSNAP_BC_UIAD_LEAN2', ui5AppIdReplaced: null, migrated: true, published: true, publishStatus: 'p',
             steps: { create: 'DONE', services: 'DONE', ui5AppId: 'DONE', migration: 'DONE', publish: 'DONE' },
         });
         const puts = calls.filter(c => c.method === 'PUT');
@@ -229,7 +229,7 @@ describe('deleteIamObject', () => {
 
         const [, error] = await deleteIamObject(requestor, 'sia6', 'ZSNAP_BC_DEL_EXT');
 
-        expect(error?.message).toBe('Cannot delete IAM app ZSNAP_BC_DEL_EXT: it is still assigned to a business catalog (ZSNAP_BC_CAT_TEST); remove the app from its business catalogs first (delete the SIA7 assignments)');
+        expect(error?.message).toBe("Cannot delete IAM app ZSNAP_BC_DEL_EXT: SAP's SWB_TOOL 029 names no cause; it is probably still assigned to a business catalog (assigned to ZSNAP_BC_CAT_TEST). Remove the app from its business catalogs first (delete the SIA7 assignments)");
         expect(calls.some(c => c.params?.['_action'] === 'UNLOCK')).toBe(true);
     });
 

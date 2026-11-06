@@ -21,7 +21,7 @@ export interface RequestDependencies {
     state: ClientState;
     ssoCerts: SsoCerts | undefined;
     getCookieHeader: () => string | null;
-    storeCookies: (response: Response) => void;
+    storeCookies: (response: Response, skip?: (name: string) => boolean) => void;
 }
 
 type RequestFn = (options: RequestOptions) => AsyncResult<Response, Error>;
@@ -45,6 +45,9 @@ const ICM_NO_SESSION = 'ICMENOSESSION';
 const ICM_ERROR_HEADERS = ['sap-err-id', 'x-sap-icm-err-id'];
 const BAD_REQUEST = 400;
 const CONTEXT_COOKIE = /^sap-contextid$/i;
+// Least time worth a retry inside one request; less fails clearly instead of a spurious timeout
+const MIN_RETRY_MS = 1000;
+const isContextCookie = (name: string): boolean => CONTEXT_COOKIE.test(name);
 export const SESSION_LOST_MESSAGE = `SAP session expired (${ICM_NO_SESSION}: the server no longer knows this session) and could not be re-established: log in again`;
 
 function isLostContext(response: Response, body: string): boolean {
@@ -112,6 +115,11 @@ export async function executeRequest(
     const isRecoveryRequest = recovering.getStore() === true;
     const sentCsrfToken = state.csrfToken;
     const sentSession = state.session;
+    // A retry inside this request (CSRF refresh, lost context) gets the time left, not a fresh timeout
+    const timeout = requestTimeout ?? config.timeout ?? DEFAULT_TIMEOUT;
+    const startedAt = Date.now();
+    const timeLeft = (): number => timeout - (Date.now() - startedAt);
+    const noTimeToRetry = (why: string): Error => new Error(`No time left to retry ${method} ${path} after ${why} (the ${timeout} ms timeout is used up)`);
 
     // Build headers with auth and CSRF token
     debug(`Request ${method} ${path} - CSRF token in state: ${state.csrfToken?.substring(0, 20) || 'null'}...`);
@@ -147,12 +155,13 @@ export async function executeRequest(
             cert: ssoCerts?.cert,
             key: ssoCerts?.key,
             rejectUnauthorized: !config.insecure,
-            timeout: requestTimeout ?? config.timeout ?? DEFAULT_TIMEOUT,
+            timeout,
         });
 
 
-        // Store any cookies from response
-        storeCookies(response);
+        // Store any cookies from response; a stateless one must not replace the stateful context cookie
+        const keepCookies = (received: Response): void => stateless ? storeCookies(received, isContextCookie) : storeCookies(received);
+        keepCookies(response);
 
         // Handle CSRF token validation failure with automatic refresh
         if (response.status === 403) {
@@ -171,6 +180,8 @@ export async function executeRequest(
                     headers['Cookie'] = retryCookieHeader;
                 }
                 debug(`Retrying with new CSRF token: ${newToken.substring(0, 20)}...`);
+                const retryTimeout = timeLeft();
+                if (retryTimeout < MIN_RETRY_MS) return err(noTimeToRetry('a CSRF token refresh'));
 
                 const retryResponse = await httpRequest(url, {
                     method,
@@ -179,9 +190,9 @@ export async function executeRequest(
                     cert: ssoCerts?.cert,
                     key: ssoCerts?.key,
                     rejectUnauthorized: !config.insecure,
-                    timeout: requestTimeout ?? config.timeout ?? DEFAULT_TIMEOUT,
+                    timeout: retryTimeout,
                 });
-                storeCookies(retryResponse);
+                keepCookies(retryResponse);
                 return ok(retryResponse);
             }
 
@@ -205,7 +216,9 @@ export async function executeRequest(
             for (const name of [...state.cookies.keys()]) {
                 if (CONTEXT_COOKIE.test(name)) state.cookies.delete(name);
             }
-            return retryingLostContext.run(true, () => selfRequest(options));
+            const retryTimeout = timeLeft();
+            if (retryTimeout < MIN_RETRY_MS) return err(noTimeToRetry('a lost session context'));
+            return retryingLostContext.run(true, () => selfRequest({ ...options, timeout: retryTimeout }));
         }
 
         // Handle session expiration with automatic reset
@@ -215,9 +228,11 @@ export async function executeRequest(
             // Application errors also surface as 500 — only reset when the body
             // actually indicates a dead session. SAML sessions are excluded: the
             // reset's logoff would destroy browser-established cookies that
-            // cannot be re-acquired headlessly.
+            // cannot be re-acquired headlessly. Stateless requests are excluded too:
+            // their 500 (a class run or generator dump page) says nothing about the
+            // stateful session, and a reset would end it and its locks.
             const isSessionError = /session/i.test(text) && /(timed out|expired|no longer exists|not found)/i.test(text);
-            if (isSessionError && config.auth.type !== 'saml' && !isRecoveryRequest) {
+            if (isSessionError && !stateless && config.auth.type !== 'saml' && !isRecoveryRequest) {
                 const [, resetErr] = await resetSession(state, sentSession, selfRequest);
                 if (resetErr) {
                     debugError(`Session reset after 500 failed: ${resetErr.message}`);

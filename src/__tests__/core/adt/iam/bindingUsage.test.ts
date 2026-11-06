@@ -29,6 +29,7 @@ describe('findIamAppsUsingBindings', () => {
                 { binding: 'ZB_SRV', app: 'ZV2_EXT', packageName: 'ZSNAP_BC', serviceType: 'IWSV' },
             ],
             appsScanned: 3,
+            unreadable: [],
         });
         expect(calls.filter(c => c.path.endsWith('/search')).map(c => c.params)).toEqual([
             { operation: 'quickSearch', query: 'Z*', maxResults: 10_000, objectType: 'SIA6' },
@@ -52,7 +53,7 @@ describe('findIamAppsUsingBindings', () => {
     it('reports appsScanned 0 when no app matches', async () => {
         const { requestor } = recorder(() => xml(search([])));
 
-        expect(await findIamAppsUsingBindings(requestor, ['ZB'])).toEqual([{ usages: [], appsScanned: 0 }, null]);
+        expect(await findIamAppsUsingBindings(requestor, ['ZB'])).toEqual([{ usages: [], appsScanned: 0, unreadable: [] }, null]);
     });
 
     it('fails when a search hits the result limit (the scan would be incomplete)', async () => {
@@ -64,11 +65,28 @@ describe('findIamAppsUsingBindings', () => {
         expect(error?.message).toContain('10000 or more IAM apps match Z*, the search limit');
     });
 
-    it('names the app whose read failed', async () => {
-        const { requestor } = recorder((call) => call.path.endsWith('/search') ? xml(search([['ZBAD_EXT', 'P']])) : new Error('ECONNRESET'));
+    it('skips and reports apps it cannot read, and still checks the others', async () => {
+        const { requestor } = recorder((call) => {
+            if (call.path.endsWith('/search')) return xml(search([['ZBAD_EXT', 'P'], ['ZNOAUTH_EXT', 'P'], ['ZSNAP_BC_LEAN2_EXT', 'ZSNAP_BC']]));
+            if (call.path.endsWith('/zbad_ext')) return new Error('ECONNRESET');
+            if (call.path.endsWith('/znoauth_ext')) return xml('<exc:exception xmlns:exc="x"><message>No authorization</message></exc:exception>', 403);
+            return xml(fixture('sia6-lean2.xml'));
+        });
 
-        const [, error] = await findIamAppsUsingBindings(requestor, ['ZB'], { namePatterns: ['Z*'] });
+        const [scan, error] = await findIamAppsUsingBindings(requestor, ['ZSNAP_BC_MDA_SB'], { namePatterns: ['Z*'] });
 
-        expect(error?.message).toBe('IAM app ZBAD_EXT: ECONNRESET');
+        expect(error).toBeNull();
+        expect(scan?.unreadable).toEqual(['ZBAD_EXT', 'ZNOAUTH_EXT']);
+        expect(scan?.usages.map(usage => usage.app)).toEqual(['ZSNAP_BC_LEAN2_EXT']);
+        expect(scan?.appsScanned).toBe(3);
+    });
+
+    it('fails when the search answers 200 with something other than a listing (e.g. a logon page)', async () => {
+        const { requestor } = recorder(() => xml('<html><body>Logon</body></html>'));
+
+        const [scan, error] = await findIamAppsUsingBindings(requestor, ['ZB'], { namePatterns: ['Z*'] });
+
+        expect(scan).toBeNull();
+        expect(error?.message).toContain('Failed to list IAM apps matching Z*: unexpected response (root html, expected objectReferences)');
     });
 });

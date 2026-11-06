@@ -48,7 +48,7 @@ export const xml = (body: string, status = 200): Response => new Response(body, 
 export const STATE = { session: { username: 'CB9980000160' } } as unknown as ClientState;
 export const IAM = '/sap/bc/adt/aps/cloud/iam';
 export const LOCK = '<?xml version="1.0" encoding="UTF-8"?><asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0"><asx:values><DATA><LOCK_HANDLE>H1</LOCK_HANDLE></DATA></asx:values></asx:abap>';
-export const NO_WAIT = { retryDelayMs: 0, deadlineMs: 60_000 };
+export const NO_WAIT = { retryDelayMs: 0, deadlineMs: 60_000, minPostWindowMs: 0, minAttemptDelayMs: 0 };
 export const publishing = (ns: string, status: string): string => `<?xml version="1.0" encoding="utf-8"?><${ns}:publishingStatus xmlns:${ns}="http://www.sap.com/iam/${ns}"><${ns}:publishingStatusText>${status}</${ns}:publishingStatusText></${ns}:publishingStatus>`;
 
 // Lean2 with the app renamed, its service and ui5AppId removed (a fresh migrated app).

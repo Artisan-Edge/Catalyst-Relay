@@ -55,7 +55,7 @@ export interface ClientContext {
     // Bound methods from class
     request: RequestFn;
     buildCookieHeader: () => string | null;
-    storeCookies: (response: Response) => void;
+    storeCookies: (response: Response, skip?: (name: string) => boolean) => void;
     startAutoRefresh: (intervalMs: number) => void;
     stopAutoRefresh: () => void;
 }

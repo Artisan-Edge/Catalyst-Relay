@@ -7,6 +7,7 @@ import type { AsyncResult, Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import type { IamAppInfo, IamAppService, IamPublishOptions, IamServiceRef } from './types';
+import type { IamPublishError } from './publish';
 import { escapeXml, safeParseXml } from '../../utils/xml';
 import { checkResponse } from '../helpers';
 import {
@@ -15,13 +16,15 @@ import {
     IAM_BASE_PATH,
     PUBLISHING_CONTENT_TYPE,
     createIamDocument,
+    iamDescription,
+    iamName,
     iamObjectPath,
     lockIamObject,
     readIamDocument,
     unlockIamObject,
 } from './helpers';
 import { publishAndWait } from './publish';
-import { splitServiceName } from './serviceName';
+import { isServiceListed, splitServiceName } from './serviceName';
 
 const SIA6_NS = 'http://www.sap.com/iam/sia6';
 const ATOM_NS = 'http://www.w3.org/2005/Atom';
@@ -34,6 +37,8 @@ const PUBLISHED_STATUS = 'p';
 const DEFAULT_APP_TYPE = 'EXT';
 const DEFAULT_IWSV_VERSION = '0001';
 const INA1_SERVICE_TYPE = 'INA1';
+// Customer namespace (Z*, Y*) except key-user apps (YY1_*), which the key-user tools own
+const CUSTOMER_APP_NAME = /^(?!YY1_)[ZY]/;
 /** migrationStatus of a migrated app; a catalog (created at 3) refuses apps without it */
 export const MIGRATED_STATUS = '3';
 // The service elements an IAM app stores per listed service, in document order.
@@ -47,13 +52,25 @@ export interface IamAppChanges {
     migrationStatus?: string;
 }
 
+/** What a save applied, after re-checking the document read under the lock */
+export interface IamAppSaveResult {
+    /** Whether a PUT was sent (false: everything was already in place) */
+    saved: boolean;
+    /** Service rows appended */
+    services: Record<string, string>[];
+    /** ui5AppId before the save when the save changed it ('' when there was none); null when unchanged */
+    previousUi5AppId: string | null;
+    /** migrationStatus was set */
+    migrated: boolean;
+}
+
 /**
  * Create an empty IAM app.
  *
  * @param client - ADT client
  * @param name - IAM app name
  * @param packageName - Target package
- * @param description - App description
+ * @param description - App description (cut to 60 characters)
  * @param appType - Application type (default 'EXT')
  * @param transport - Transport request
  * @returns The app as created or error
@@ -66,13 +83,13 @@ export async function createIamAppObject(
     appType = DEFAULT_APP_TYPE,
     transport?: string
 ): AsyncResult<IamAppInfo, Error> {
-    const appName = name.toUpperCase();
+    const appName = iamName(name);
     const body = `<?xml version="1.0" encoding="UTF-8"?>
-<sia6:sia6 xmlns:sia6="${SIA6_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:description="${escapeXml(description)}" adtcore:language="EN" adtcore:name="${appName}" adtcore:type="SIA6" adtcore:masterLanguage="EN">
-  <adtcore:packageRef adtcore:name="${packageName.toUpperCase()}"/>
+<sia6:sia6 xmlns:sia6="${SIA6_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:description="${escapeXml(iamDescription(description || appName))}" adtcore:language="EN" adtcore:name="${escapeXml(appName)}" adtcore:type="SIA6" adtcore:masterLanguage="EN">
+  <adtcore:packageRef adtcore:name="${escapeXml(iamName(packageName))}"/>
   <sia6:content>
-    <sia6:appID>${appName}</sia6:appID>
-    <sia6:appType>${escapeXml(appType.toUpperCase())}</sia6:appType>
+    <sia6:appID>${escapeXml(appName)}</sia6:appID>
+    <sia6:appType>${escapeXml(iamName(appType))}</sia6:appType>
   </sia6:content>
 </sia6:sia6>`;
 
@@ -92,10 +109,10 @@ export async function readIamApp(
     client: AdtRequestor,
     name: string
 ): AsyncResult<IamAppInfo | null, Error> {
-    const [xml, readErr] = await readIamDocument(client, 'sia6', name);
+    const [xml, readErr] = await readIamDocument(client, 'sia6', iamName(name));
     if (readErr) return err(readErr);
     if (xml === null) return ok(null);
-    return parseIamApp(xml, name);
+    return parseIamApp(xml, iamName(name));
 }
 
 /**
@@ -143,13 +160,13 @@ export function parseIamApp(xml: string, name: string): Result<IamAppInfo, Error
 }
 
 /**
- * Set migrationStatus 3 on an app whose migrationStatus element is empty (a guard for older apps and
- * other tenants; a catalog refuses unmigrated apps). An app without the element is left alone.
+ * Set migrationStatus 3 on a customer EXT app whose migrationStatus element is empty (a guard for
+ * older apps and other tenants; a catalog refuses unmigrated apps). Any other app is left alone.
  *
  * @param client - ADT client
  * @param name - IAM app name
  * @param transport - Transport request
- * @returns true when the app was migrated, false when it already was, or error
+ * @returns true when the app was migrated, false when it already was (or is not relay's to migrate), or error
  */
 export async function ensureIamAppMigrated(
     client: AdtRequestor,
@@ -158,17 +175,26 @@ export async function ensureIamAppMigrated(
 ): AsyncResult<boolean, Error> {
     const [app, readErr] = await readIamApp(client, name);
     if (readErr) return err(readErr);
-    if (!app) return err(new Error(`IAM app ${name.toUpperCase()} does not exist`));
+    if (!app) return err(new Error(`IAM app ${iamName(name)} does not exist`));
     if (!needsMigration(app)) return ok(false);
 
-    const [, saveErr] = await saveIamAppChanges(client, name, { migrationStatus: MIGRATED_STATUS }, transport);
+    const [saved, saveErr] = await saveIamAppChanges(client, name, { migrationStatus: MIGRATED_STATUS }, transport);
     if (saveErr) return err(saveErr);
-    return ok(true);
+    return ok(saved.migrated);
 }
 
-/** Whether the app's migrationStatus element exists and is empty */
+/**
+ * Whether relay may migrate the app: a customer-owned External App (see isCustomerExtApp) whose
+ * migrationStatus element exists and is empty. SAP apps, inbound-service (IBS) apps and key-user
+ * apps also show an empty element; they are never locked or written.
+ */
 export function needsMigration(app: IamAppInfo): boolean {
-    return app.migrationStatus === '';
+    return app.migrationStatus === '' && isCustomerExtApp(app);
+}
+
+/** A customer-owned External App: type EXT, name Z* or Y*, not a YY1_ key-user app */
+export function isCustomerExtApp(app: IamAppInfo): boolean {
+    return app.appType.toUpperCase() === DEFAULT_APP_TYPE && CUSTOMER_APP_NAME.test(app.name.toUpperCase());
 }
 
 /**
@@ -187,7 +213,7 @@ export async function resolveIamServices(
     name: string,
     services: IamServiceRef[]
 ): AsyncResult<Record<string, string>[], Error> {
-    const appName = name.toUpperCase();
+    const appName = iamName(name);
     const details: Record<string, string>[] = [];
     for (const service of services) {
         const [detail, detailErr] = await resolveIamService(client, appName, service);
@@ -198,31 +224,32 @@ export async function resolveIamServices(
 }
 
 /**
- * Save changes in one locked full-document PUT: read the app, edit it, PUT it back, unlock.
+ * Save changes in one locked full-document PUT: read the app under the lock, drop what it already
+ * has (services listed, equal ui5AppId, migration not pending), PUT the rest back, unlock.
  *
  * @param client - ADT client
  * @param name - IAM app name
  * @param changes - Resolved services to append, UI5 app ID, migration status
  * @param transport - Transport request
- * @returns void or error
+ * @returns What was applied, or error
  */
 export async function saveIamAppChanges(
     client: AdtRequestor,
     name: string,
     changes: IamAppChanges,
     transport?: string
-): AsyncResult<void, Error> {
-    const appName = name.toUpperCase();
+): AsyncResult<IamAppSaveResult, Error> {
+    const appName = iamName(name);
     const [lockHandle, lockErr] = await lockIamObject(client, 'sia6', appName);
     if (lockErr) return err(lockErr);
 
-    const [, saveErr] = await putChanges(client, appName, changes, lockHandle, transport);
+    const [saved, saveErr] = await putChanges(client, appName, changes, lockHandle, transport);
 
     // Always release the lock, even if the save failed.
     const [, unlockErr] = await unlockIamObject(client, 'sia6', appName, lockHandle);
     if (saveErr) return err(saveErr);
     if (unlockErr) return err(unlockErr);
-    return ok(undefined);
+    return ok(saved);
 }
 
 /**
@@ -231,35 +258,49 @@ export async function saveIamAppChanges(
  * @param client - ADT client
  * @param name - IAM app name
  * @param options - Publish timing
- * @returns Publishing status code ('p') or error
+ * @returns Publishing status code ('p') or IamPublishError
  */
 export async function publishIamApp(
     client: AdtRequestor,
     name: string,
     options?: IamPublishOptions
-): AsyncResult<string, Error> {
+): AsyncResult<string, IamPublishError> {
+    const appName = iamName(name);
     return publishAndWait(client, {
+        kind: 'sia6',
+        name: appName,
         path: PUBLISH_PATH,
-        params: { application: name.toUpperCase() },
+        params: { application: appName },
         accept: PUBLISHING_CONTENT_TYPE,
-        label: `IAM app ${name.toUpperCase()}`,
+        contentType: PUBLISHING_CONTENT_TYPE,
         doneStatuses: [PUBLISHED_STATUS],
     }, options);
 }
 
-// GET the document under the lock, edit it, PUT it back.
+// GET the document under the lock, keep only what it lacks, PUT it back.
 async function putChanges(
     client: AdtRequestor,
     appName: string,
     changes: IamAppChanges,
     lockHandle: string,
     transport?: string
-): AsyncResult<void, Error> {
+): AsyncResult<IamAppSaveResult, Error> {
     const [xml, readErr] = await readIamDocument(client, 'sia6', appName);
     if (readErr) return err(readErr);
     if (xml === null) return err(new Error(`IAM app ${appName} does not exist`));
+    const [current, parseErr] = parseIamApp(xml, appName);
+    if (parseErr) return err(parseErr);
 
-    const [body, buildErr] = applyIamAppChanges(xml, changes);
+    const pending = pendingChanges(current, changes);
+    const result: IamAppSaveResult = {
+        saved: false,
+        services: pending.services ?? [],
+        previousUi5AppId: pending.ui5AppId !== undefined ? current.ui5AppId : null,
+        migrated: pending.migrationStatus !== undefined,
+    };
+    if (Object.keys(pending).length === 0) return ok(result);
+
+    const [body, buildErr] = applyIamAppChanges(xml, pending);
     if (buildErr) return err(buildErr);
 
     const params: Record<string, string> = { lockHandle };
@@ -275,7 +316,25 @@ async function putChanges(
 
     const [, checkErr] = await checkResponse(response, requestErr, `Failed to save IAM app ${appName}`);
     if (checkErr) return err(checkErr);
-    return ok(undefined);
+    return ok({ ...result, saved: true });
+}
+
+// The changes the current document still lacks (another session may have saved some since the caller read it)
+function pendingChanges(current: IamAppInfo, changes: IamAppChanges): IamAppChanges {
+    const pending: IamAppChanges = {};
+    const services = (changes.services ?? []).filter(row => !isServiceListed(current.services, serviceRefOf(row)));
+    if (services.length > 0) pending.services = services;
+    if (changes.ui5AppId !== undefined && changes.ui5AppId.toUpperCase() !== current.ui5AppId.toUpperCase()) pending.ui5AppId = changes.ui5AppId;
+    if (changes.migrationStatus !== undefined && current.migrationStatus === '') pending.migrationStatus = changes.migrationStatus;
+    return pending;
+}
+
+/** The service reference a resolved row stands for (name, type, IWSV version) */
+export function serviceRefOf(row: Record<string, string>): IamServiceRef {
+    const { name, version } = splitServiceName(row['relServiceName'] ?? '');
+    const ref: IamServiceRef = { name, type: (row['relServiceType'] ?? '') as IamServiceRef['type'] };
+    if (version) ref.version = version;
+    return ref;
 }
 
 /**
@@ -341,7 +400,7 @@ async function resolveIamService(
     appName: string,
     service: IamServiceRef
 ): AsyncResult<Record<string, string>, Error> {
-    const [key, keyErr] = service.type === INA1_SERVICE_TYPE ? [service.name.toUpperCase(), null] as const : await findServiceKey(client, service);
+    const [key, keyErr] = service.type === INA1_SERVICE_TYPE ? [iamName(service.name), null] as const : await findServiceKey(client, service);
     if (keyErr) return err(keyErr);
 
     const [response, requestErr] = await client.request({
@@ -368,7 +427,7 @@ async function resolveIamService(
 
 // G4BA items are the binding name; IWSV items are "<SERVICE><padding><VERSION>".
 async function findServiceKey(client: AdtRequestor, service: IamServiceRef): AsyncResult<string, Error> {
-    const name = service.name.toUpperCase();
+    const name = iamName(service.name);
     const version = service.version ?? DEFAULT_IWSV_VERSION;
 
     const [response, requestErr] = await client.request({

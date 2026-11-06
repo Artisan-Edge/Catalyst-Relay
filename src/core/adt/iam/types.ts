@@ -1,6 +1,8 @@
 // Cloud IAM types — IAM apps (SIA6), business catalogs (SIA1) and their app assignments (SIA7),
 // business role templates (SIA8) and their catalog assignments (SIA9)
 
+import type { IamPublishError } from './publish';
+
 /** Service types an IAM app can list: OData V4 (G4BA service group), OData V2 (IWSV service) or InA (INA1, an InA service binding). */
 export type IamServiceType = 'G4BA' | 'IWSV' | 'INA1';
 
@@ -52,7 +54,9 @@ export interface IamAppInfo {
 
 export interface CreateIamAppOptions {
     appName: string;
+    /** An existing app in another package is refused */
     packageName: string;
+    /** Set on create only (cut to 60 characters); an existing app keeps its description */
     description: string;
     transport?: string;
     /** Application type (default 'EXT', External App) */
@@ -62,17 +66,33 @@ export interface CreateIamAppOptions {
     ui5AppId?: string;
     /** Publish locally after saving (default: true) */
     publish?: boolean;
+    /** Overall time limit of the call; the publish wait gets what is left (default: the publish's own 10 min) */
+    deadlineMs?: number;
 }
 
 export type IamStepStatus = 'DONE' | 'SKIPPED';
 
-export interface IamAppResult {
-    name: string;
+/** Fields every IAM create result shares */
+export interface IamCreateOutcome {
     created: boolean;
+    /** Anything was written (create, services, ui5AppId, migration, assignments); a publish alone is no change */
+    changed: boolean;
+    /** Always false: the description is set on create only */
+    descriptionUpdated: false;
+    /** An existing object's description differs from the one asked for (not changed) */
+    descriptionDiffers: boolean;
+    /** The publish failed or did not finish after everything else was saved; the rest of the result stands */
+    publishError?: IamPublishError;
+}
+
+export interface IamAppResult extends IamCreateOutcome {
+    name: string;
     /** Services newly added to the app (names); already-listed services are skipped */
     servicesAdded: string[];
     /** The app's UI5 app ID after the run ('' when none) */
     ui5AppId: string;
+    /** The UI5 app ID this run replaced; null when none was replaced (unchanged, or set where there was none) */
+    ui5AppIdReplaced: string | null;
     /** migrationStatus was empty and was set to 3 */
     migrated: boolean;
     published: boolean;
@@ -98,21 +118,26 @@ export interface BusinessCatalogInfo {
 
 export interface CreateBusinessCatalogOptions {
     catalogName: string;
+    /** An existing catalog in another package is refused */
     packageName: string;
+    /** Set on create only (cut to 60 characters) */
     description: string;
     transport?: string;
     /** IAM apps to assign */
     apps: string[];
     /** Publish locally after assigning (default: true) */
     publish?: boolean;
+    /** Overall time limit of the call; the publish wait gets what is left */
+    deadlineMs?: number;
 }
 
-export interface BusinessCatalogResult {
+export interface BusinessCatalogResult extends IamCreateOutcome {
     name: string;
-    created: boolean;
     /** Assignments newly created; apps already in the catalog are skipped */
     assignmentsAdded: CatalogAppAssignment[];
-    /** Apps whose empty migrationStatus was set to 3 before assigning them */
+    /** Assignments another session made meanwhile (found after SAP said the name exists) */
+    assignmentsFound: CatalogAppAssignment[];
+    /** Customer EXT apps whose empty migrationStatus was set to 3 before assigning them */
     appsMigrated: string[];
     published: boolean;
     publishStatus: IamPublishStatus;
@@ -137,21 +162,27 @@ export interface RoleTemplateInfo {
 }
 
 export interface CreateRoleTemplateOptions {
+    /** At most 25 characters when catalogs are assigned (assignments are <name>_NNNN, at most 30) */
     templateName: string;
+    /** An existing template in another package is refused */
     packageName: string;
+    /** Set on create only (cut to 60 characters) */
     description: string;
     transport?: string;
     /** Business catalogs to assign */
     catalogs: string[];
     /** Publish locally after assigning (default: true; always runs, nothing reads back a publish) */
     publish?: boolean;
+    /** Overall time limit of the call; the publish wait gets what is left */
+    deadlineMs?: number;
 }
 
-export interface RoleTemplateResult {
+export interface RoleTemplateResult extends IamCreateOutcome {
     name: string;
-    created: boolean;
     /** Assignments newly created; catalogs already assigned are skipped */
     assignmentsAdded: RoleTemplateCatalogAssignment[];
+    /** Assignments another session made meanwhile (found after SAP said the name exists) */
+    assignmentsFound: RoleTemplateCatalogAssignment[];
     published: boolean;
     /** publishingStatusText; SAP returns '' for a finished role template publish */
     publishStatus: IamPublishStatus;
@@ -162,10 +193,14 @@ export interface RoleTemplateResult {
 export interface IamPublishOptions {
     /** Per-request timeout (default 300 s) */
     requestTimeoutMs?: number;
-    /** Wait before re-posting while SAP reports 'u' (in progress) (default 30 s) */
+    /** Wait before re-posting after 'u' or a 502/504 / dropped connection (default 30 s) */
     retryDelayMs?: number;
     /** Overall limit across re-posts (default 10 min) */
     deadlineMs?: number;
+    /** No POST starts with less time than this left before the deadline (default 150 s) */
+    minPostWindowMs?: number;
+    /** Least gap between attempts (default 3 s) */
+    minAttemptDelayMs?: number;
 }
 
 /** An IAM app that lists one of the bindings scanned for */
@@ -180,8 +215,10 @@ export interface IamAppBindingUsage {
 
 export interface IamBindingUsageScan {
     usages: IamAppBindingUsage[];
-    /** IAM apps read; 0 means nothing was checked (no app matched the patterns/packages) */
+    /** IAM apps listed for the scan; 0 means nothing was checked (no app matched the patterns/packages) */
     appsScanned: number;
+    /** Apps that could not be read (e.g. 403); their services were not checked */
+    unreadable: string[];
 }
 
 export interface FindIamAppsUsingBindingsOptions {

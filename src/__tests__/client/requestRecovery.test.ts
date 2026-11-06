@@ -82,6 +82,18 @@ beforeAll(() => {
 
             if (path === '/bad-request') return new Response('Invalid parameter', { status: 400 });
 
+            // '/slow-lost' answers ICMENOSESSION once after a delay; '/slow-work' is '/work' after a delay
+            if (path === '/slow-lost') {
+                server.contextCalls.push(req.headers.get('cookie'));
+                await Bun.sleep(80);
+                if (server.lostContextAnswers > 0) {
+                    server.lostContextAnswers--;
+                    return new Response(ICM_NO_SESSION_PAGE, { status: 400, headers: { 'content-type': 'text/html', 'sap-err-id': 'ICMENOSESSION' } });
+                }
+                return new Response('done');
+            }
+            if (path === '/slow-work') await Bun.sleep(80);
+
             // '/expire' stands for work on a session that has timed out; '/work' only checks the token
             if (path === '/expire' && server.sessionExpired) return new Response(SESSION_TIMED_OUT, { status: 500 });
             if (req.headers.get('x-csrf-token') !== server.validToken) return new Response('CSRF token validation failed', { status: 403 });
@@ -196,6 +208,51 @@ describe('executeRequest recovery', () => {
         expect(server.logoffs).toBe(1);
         expect(state.csrfToken).toBe(server.validToken);
         expect(results.filter((_, i) => i % 2 === 1).every(([response]) => response?.status === 200)).toBe(true);
+    });
+});
+
+describe('executeRequest retries within the original timeout', () => {
+    it('fails clearly instead of retrying after a CSRF refresh when less than a second is left', async () => {
+        const { request } = createClient('stale');
+
+        // 80 ms to the 403 and a token fetch leave less than 1 s of the 1.05 s timeout
+        const [response, error] = await request({ method: 'POST', path: '/slow-work', timeout: 1_050 });
+
+        expect(response).toBeNull();
+        expect(error?.message).toBe('No time left to retry POST /slow-work after a CSRF token refresh (the 1050 ms timeout is used up)');
+        expect(server.csrfFetches).toBe(1);
+    });
+
+    it('retries after a CSRF refresh within the time left', async () => {
+        const { request } = createClient('stale');
+
+        const [response, error] = await request({ method: 'POST', path: '/slow-work', timeout: 5_000 });
+
+        expect(error).toBeNull();
+        expect(response?.status).toBe(200);
+    });
+
+    it('gives a lost-context retry only the time left', async () => {
+        const { state, request } = createClient('initial');
+        const timeouts: Array<number | undefined> = [];
+        const deps: RequestDependencies = {
+            state,
+            ssoCerts: undefined,
+            getCookieHeader: () => null,
+            storeCookies: () => undefined,
+        };
+        const recordingRequest = (options: RequestOptions): ReturnType<typeof executeRequest> => {
+            timeouts.push(options.timeout);
+            return executeRequest(deps, options, recordingRequest);
+        };
+        server.lostContextAnswers = 1;
+
+        const [response] = await recordingRequest({ method: 'GET', path: '/slow-lost', timeout: 5_000 });
+
+        expect(response?.status).toBe(200);
+        expect(timeouts[0]).toBe(5_000);
+        expect(timeouts[1]).toBeLessThanOrEqual(4_930);
+        expect(timeouts[1]).toBeGreaterThan(4_000);
     });
 });
 

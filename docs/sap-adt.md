@@ -15,6 +15,8 @@ SAP-specific concepts and behaviors for working with ADT (ABAP Development Tools
 - [InA service bindings](#ina-service-bindings)
 - [Cloud IAM](#cloud-iam)
 - [Deletion service](#deletion-service)
+- [MDA app generator](#mda-app-generator)
+- [Class run](#class-run)
 
 ---
 
@@ -174,6 +176,7 @@ App descriptor items (UIAD/TYP, `asuiad`), page templates (UIPG/TYP, `asuipg`) a
 - **Options:** always a UI binding. `bindingVersion`, `bindingCategory: 'WEB_API'` and `publish: true` are rejected.
 - **Validation:** `serviceBindingVersion=INA`. `INA\V4` dumps (500).
 - **Activation** creates the `INA1/INA` runtime object; nothing else is needed.
+- **Re-activation:** `client.activate` cannot address a binding (SRVB has no extension); `activateServiceBinding(name)` re-activates it, e.g. after its service definition was widened.
 - **Never published:** `odatav4/publishjobs` on an InA binding dumps (500) and ends the stateful session. The binding reads back `published="false"` with `allowedAction="PUBLISH"` even when complete, so a re-run skips publish.
 - **Read:** `bindingType: 'INA'`, `category: 'UI'`, `odataVersion: ''`. A re-run compares the binding type, not the OData version.
 - **Delete:** `deleteServiceBinding` reads the binding first. Not found: error, nothing locked. Read failed otherwise: error, unless the caller passes `version` (then it unpublishes with it and deletes). Read as `ODATA`: unpublish with the caller's `version`, else the one read back, else V4 then V2. InA or SQL: lock, delete, unlock only. Every binding is unlocked after the DELETE: SAP keeps the lock otherwise, and re-creating the name fails ("currently editing").
@@ -187,18 +190,52 @@ IAM apps (SIA6), business catalogs (SIA1) with app assignments (SIA7), business 
 
 - **IAM app services:** G4BA and IWSV go through `sia6/service/values`, then `service/detail`. INA1 (an InA binding) goes to `service/detail?serviceType=INA1&serviceName=<binding>&appName=<app>` directly.
 - **IWSV names:** SAP stores an IWSV `relServiceName` padded with its version (`APJ_JOB_MANAGEMENT_SRV             0001`). Relay reads it as `name` plus `version`; "already listed" compares type, name and (for IWSV, default `0001`) version, so a re-run adds no duplicate row.
-- **IAM app save:** new services, `ui5AppId` (one value) and `migrationStatus` are written in one locked full-document PUT, only when something differs. `migrationStatus` is set to 3 only when its element exists and is empty; the element is never inserted. `createBusinessCatalog` applies the same guard to each app before assigning it (SIA7 otherwise fails with `CM_APS_IAM_WBI_SIA1`/021). The create response shows `migrationStatus` empty even when a read shows 3, so `createIamApp` reads the app after creating it.
-- **Publish:** the publish POST is synchronous (~2 min) and takes no lock, so it is sent stateless (no context cookie): the stateful session stays free and a re-post does not queue behind the first publish. Each request's timeout is 300 s, capped at the time left before the 10 min deadline. A client timeout re-posts at once; a 502/504 or dropped connection ("socket hang up") and status `u` wait 30 s and re-post (`IamPublishOptions`). Done: `p` for apps and catalogs; `p` or empty for role templates (`sia8/$publish?brtID=`, `Accept: */*`), but only inside a `publishingStatus` document (a 200 logon page is an error). `publishStatus` on the object is no signal (a never-published app reads `p`).
-- **Role templates:** `$getsia9?name=<brt>` lists the catalog assignments (add-only, like `$bucapps`). Assignments are named `<owner>_NNNN`; when SAP says a name already exists, the next number is tried (up to 3 more). Every catalog is checked to exist before anything is written. The launchpad space link is a SIAD source object (`.assiad`, `<BRT>_NNNN`, AFF JSON with `generalInformation.businessRoleTemplate` and `launchpadSpaceTemplate`; blues v1 shell; saved active).
-- **Delete:** `deleteIamObject(kind, name)` locks, DELETEs and unlocks. An IAM app still in a catalog fails with SWB_TOOL 029 ("Error while deleting object App from the database"); relay names the catalogs (from where-used) and says to remove the SIA7 assignments first. Order: SIAD → SIA9 → SIA8 → SIA7 → SIA6 → SIA1.
+- **IAM app save:** new services, `ui5AppId` (one value) and `migrationStatus` are written in one locked full-document PUT. The document read under the lock decides what is still missing (another session may have added a service meanwhile); nothing missing, no PUT. `ui5AppIdReplaced` reports a replaced ID. The create response shows `migrationStatus` empty even when a read shows 3, so `createIamApp` reads the app after creating it.
+- **Migration guard:** `migrationStatus` is set to 3 only on a customer External App (`EXT`, name `Z*`/`Y*`, not `YY1_*`) whose element exists and is empty; the element is never inserted. SAP apps (`F1068_TRAN`), inbound-service apps (`IBS`) and key-user apps (`YY1_*`) also show an empty element and are never locked or written. `createBusinessCatalog` applies the guard to each app before assigning it (SIA7 otherwise fails with `CM_APS_IAM_WBI_SIA1`/021).
+- **Existing objects:** an IAM app, catalog or role template that exists in another package than requested is refused. The description is set on create only (cut to 60 characters, escaped); results carry `descriptionUpdated: false` and `descriptionDiffers`. Names are trimmed and upper-cased; namespaced names are percent-encoded in paths.
+- **Results:** `created`, `changed` (anything written; a publish alone is not a change). A publish that fails after the create/save is returned as `publishError` (`IamPublishError`) beside the result, not instead of it. `deadlineMs` limits the whole call; the publish wait gets what is left.
+- **Publish:** the publish POST is synchronous (~2 min) and takes no lock, so it is sent stateless (no context cookie). Two overlapping stateless publishes of one app both ended `p` after ~112 s, so a re-post is safe. Headers as captured: SIA6 `Accept`/`Content-Type: application/vnd.sap.adt.iam.publishing+xml`; SIA1 and SIA8 `Accept: */*`. Policy (`IamPublishOptions`):
+  - each request's timeout is 300 s, capped at the time left before the 10 min deadline; a retry inside the request layer (CSRF refresh, lost context) gets the time left, not a fresh timeout;
+  - a client timeout re-posts at once; a 502/504 or dropped connection waits 30 s;
+  - `u` ends a run unpublished: re-post once (after 30 s), then fail as pending;
+  - no POST starts with less than 150 s left: fail as pending (`timedOut`);
+  - attempts are at least 3 s apart.
+- **Publish result:** done is `p` for apps and catalogs, `p` or empty for role templates, read from a `publishingStatus` root in `http://www.sap.com/iam/<kind>` with a `publishingStatusText` child (self-closing is fine) and no message/error child. `IamPublishError` carries `kind`, `objectName`, `failure` (`pending` | `status` | `response` | `request`), `pending`, `timedOut` and `lastStatus`; map on `failure`/`pending`, not on the message. Pending means the object may still publish (record it, retry next run); `status` (ended with another status) and `response` (no clean `publishingStatus`, e.g. a logon page) are definitive. `publishStatus` on the object is no signal (a never-published app reads `p`).
+- **Assignments:** `$bucapps` (root `sia1:bucapps`) and `$getsia9?name=<brt>` (root `sia8:businessCatalogs`) list them; any other 200 (a logon page) is an error. Assignments are named `<owner>_NNNN` (at most 30, so a role template name with catalogs is at most 25, checked before the SIA8 is created). When SAP says a name already exists, the assignments are re-listed: a target assigned meanwhile is returned in `assignmentsFound`; otherwise the next number is tried (up to 3 more).
+- **Role templates:** every catalog is checked to exist before anything is written. The launchpad space link is a SIAD source object (`.assiad`, `<BRT>_NNNN`, AFF JSON with `generalInformation.businessRoleTemplate` and `launchpadSpaceTemplate`; blues v1 shell; saved active).
+- **Delete:** `deleteIamObject(kind, name)` locks, DELETEs and unlocks. SWB_TOOL 029 ("Error while deleting object App from the database", matched by its T100 id and number) names no cause; for an IAM app it is probably still assigned to a catalog, so relay names the catalogs where-used finds and says to remove the SIA7 assignments first. Order: SIAD → SIA9 → SIA8 → SIA7 → SIA6 → SIA1.
+- **Binding usage:** `findIamAppsUsingBindings` fails when the search answers 200 with something other than an `objectReferences` listing. An app it cannot read is skipped and listed in `unreadable`.
 
 ---
 
 ## Deletion service
 
-`/sap/bc/adt/deletion/check` (`application/vnd.sap.adt.deletion.check.request.v1+xml`) and `/sap/bc/adt/deletion/delete` (`application/vnd.sap.adt.deletion.request.v1+xml`) take object URIs of any type, including ones that cannot be locked. `checkDeletion(uris)` returns `isDeletable`, reference counts and the locking transport; `deleteByUri(uris, transport?)` returns `isDeleted` per object.
+`/sap/bc/adt/deletion/check` (`application/vnd.sap.adt.deletion.check.request.v1+xml`) and `/sap/bc/adt/deletion/delete` (`application/vnd.sap.adt.deletion.request.v1+xml`) take object URIs of any type, including ones that cannot be locked. `checkDeletion(uris)` returns `isDeletable`, reference counts and the locking transport; `deleteByUri(uris, transport?)` returns `isDeleted` per object. Results are matched to the requested URIs (in request order); a missing result, or a 200 without the `checkResponse`/`deletionResult` root, is an error. `isDeletable` is false when `externalStrongReferences` > 0.
 
-- **App variants (ADVC/LRP):** their vit URI (`appVariantUri(name)`) rejects LOCK (405). `deleteAppVariant(name, transport?)` checks, then deletes through the service; a package that records changes needs the transport (refused up front without one).
+- **App variants (ADVC/LRP):** their vit URI (`appVariantUri(name)`) rejects LOCK (405). `deleteAppVariant(name, transport?)` checks, then deletes through the service; a blank name, a strongly referenced variant, and a package that records changes without a transport are refused up front.
+
+---
+
+## MDA app generator
+
+`generateMdaApp(options)` runs the Multidimensional Analysis app generator (`/sap/bc/adt/analytics/generators/ui/mda-app`) for an analytical query: UIAD, app variant (ADVC/LRP), InA SRVD and SRVB, and optionally the IAM app. Every name is the caller's. Verified on Madiba-Cloud-Dev (package `ZSNAP_BC`).
+
+- **Calls:** `validation`, `preview` and the generate POST each take the content JSON (`application/vnd.sap.adt.serverdriven.content.v1+json; framework=generators.v1`) and `?referencedObject=/sap/bc/adt/ddic/ddl/sources/<query>&package=<pkg>` (without `package` the server dumps). The transport goes in `corrNr` (untested).
+- **Stateless:** all three are sent stateless. In the stateful session the generator's existence check is stale: objects deleted since still "already exist", which blocks a re-generate under the same names.
+- **Idempotence:** validation (`checks=package,referencedobject,authorization`) returns one `ERROR` per existing object; the texts are matched loosely (SAP writes "defintion" and "App descriptor"). Every object present: generate is `SKIPPED` (`status: 'present'`). Some present: error, nothing generated. Any other `ERROR`: error.
+- **App variant:** the generate response lists UIAD, SRVD, SRVB and SIA6 only. The preview names the app variant's system name, which is the same for the same `appVariantId` (also after a delete and re-generate); `generateMdaApp` returns it as `appVariant` for `deleteAppVariant`.
+- **Result state:** everything is active. The SRVB is an unpublished InA binding; the IAM app lists it as an INA1 service, has `ui5AppId` = the UIAD and `migrationStatus` 3. No catalog assignment is made.
+- **Delete order:** SIA6 → UIAD → app variant → SRVB → SRVD.
+
+---
+
+## Class run
+
+`runClass(className, { timeoutMs? })` runs a class implementing `IF_OO_ADT_CLASSRUN` and returns its console text: `POST /sap/bc/adt/oo/classrun/<class>`, `Accept: text/plain`.
+
+- **Stateless:** always (`X-sap-adt-sessiontype: stateless`, no `sap-contextid`). A stateful session keeps the class load and runs old code after a re-activation; a stateless run sees the new code at once. It holds no locks and leaves the stateful session alone.
+- **Errors:** HTTP 500 means the run dumped; the error points to `/sap/bc/adt/runtime/dumps`. `INVALID_TABLE_RANGE` in `CL_ABAP_DOCU_CLASS_POOL` (before the class runs) was seen on stateful runs, with and without ABAP Doc comments; stateless runs of the same classes did not dump. A missing class answers 200 with "Object X of type CLAS does not exist." and is reported as an error.
+- **Timeout:** 300 s by default. Clients are independent: run it once per client (e.g. development and customizing).
 
 ---
 

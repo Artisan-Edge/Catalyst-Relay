@@ -9,14 +9,16 @@ import type { AsyncResult, Result } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import type { IamPublishOptions, RoleTemplateCatalogAssignment, RoleTemplateInfo } from './types';
+import type { IamPublishError } from './publish';
 import { escapeXml, safeParseXml } from '../../utils/xml';
 import { checkResponse } from '../helpers';
-import { ADTCORE_NS, IAM_BASE_PATH, createIamDocument, iamDescription, readIamDocument } from './helpers';
+import { ADTCORE_NS, IAM_BASE_PATH, createIamDocument, iamDescription, iamName, readIamDocument, requireRoot } from './helpers';
 import { publishAndWait } from './publish';
 
 const SIA8_NS = 'http://www.sap.com/iam/sia8';
 const SIA9_NS = 'http://www.sap.com/iam/sia9';
 const ASSIGNMENTS_PATH = `${IAM_BASE_PATH}/sia8/$getsia9`;
+const ASSIGNMENTS_ROOT = 'businessCatalogs';
 const PUBLISH_PATH = `${IAM_BASE_PATH}/sia8/$publish`;
 // The publishing media type gets 406 here; the response is sia8.publishing+xml.
 const PUBLISH_ACCEPT = '*/*';
@@ -29,7 +31,7 @@ const PUBLISH_DONE_STATUSES = ['p', ''] as const;
  * @param client - ADT client
  * @param name - Role template name (brtID)
  * @param packageName - Target package
- * @param description - Template description
+ * @param description - Template description (cut to 60 characters)
  * @param transport - Transport request
  * @returns void or error
  */
@@ -40,12 +42,12 @@ export async function createRoleTemplateObject(
     description: string,
     transport?: string
 ): AsyncResult<void, Error> {
-    const templateName = name.toUpperCase();
+    const templateName = iamName(name);
     const body = `<?xml version="1.0" encoding="UTF-8"?>
-<sia8:sia8 xmlns:sia8="${SIA8_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:name="${templateName}" adtcore:type="SIA8" adtcore:description="${escapeXml(iamDescription(description || templateName))}" adtcore:language="EN" adtcore:masterLanguage="EN">
-  <adtcore:packageRef adtcore:name="${packageName.toUpperCase()}"/>
+<sia8:sia8 xmlns:sia8="${SIA8_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:name="${escapeXml(templateName)}" adtcore:type="SIA8" adtcore:description="${escapeXml(iamDescription(description || templateName))}" adtcore:language="EN" adtcore:masterLanguage="EN">
+  <adtcore:packageRef adtcore:name="${escapeXml(iamName(packageName))}"/>
   <sia8:content>
-    <sia8:brtID>${templateName}</sia8:brtID>
+    <sia8:brtID>${escapeXml(templateName)}</sia8:brtID>
     <sia8:scopeDependent>false</sia8:scopeDependent>
   </sia8:content>
 </sia8:sia8>`;
@@ -66,11 +68,11 @@ export async function readRoleTemplate(
     client: AdtRequestor,
     name: string
 ): AsyncResult<RoleTemplateInfo | null, Error> {
-    const [xml, readErr] = await readIamDocument(client, 'sia8', name);
+    const [xml, readErr] = await readIamDocument(client, 'sia8', iamName(name));
     if (readErr) return err(readErr);
     if (xml === null) return ok(null);
 
-    const [template, parseErr] = parseRoleTemplate(xml, name);
+    const [template, parseErr] = parseRoleTemplate(xml, iamName(name));
     if (parseErr) return err(parseErr);
 
     const [catalogs, catalogsErr] = await readRoleTemplateCatalogs(client, template.name);
@@ -109,24 +111,38 @@ export function parseRoleTemplate(xml: string, name: string): Result<RoleTemplat
  *
  * @param client - ADT client
  * @param name - Role template name
- * @returns Assignments or error
+ * @returns Assignments or error (also for a 200 that is not a businessCatalogs listing)
  */
 export async function readRoleTemplateCatalogs(
     client: AdtRequestor,
     name: string
 ): AsyncResult<RoleTemplateCatalogAssignment[], Error> {
+    const templateName = iamName(name);
     const [response, requestErr] = await client.request({
         method: 'GET',
         path: ASSIGNMENTS_PATH,
-        params: { name: name.toUpperCase() },
+        params: { name: templateName },
         headers: { 'Accept': '*/*' },
     });
 
-    const [text, checkErr] = await checkResponse(response, requestErr, `Failed to list the catalogs of business role template ${name}`);
+    const what = `Failed to list the catalogs of business role template ${templateName}`;
+    const [text, checkErr] = await checkResponse(response, requestErr, what);
     if (checkErr) return err(checkErr);
+    return parseRoleTemplateCatalogs(text, what);
+}
 
-    const [doc, parseErr] = safeParseXml(text);
-    if (parseErr) return err(parseErr);
+/**
+ * Parse a $getsia9 listing.
+ *
+ * @param xml - sia8:businessCatalogs
+ * @param what - Error context
+ * @returns Assignments or error
+ */
+export function parseRoleTemplateCatalogs(xml: string, what = 'Role template catalog assignments'): Result<RoleTemplateCatalogAssignment[], Error> {
+    const [doc, parseErr] = safeParseXml(xml);
+    if (parseErr) return err(new Error(`${what}: ${parseErr.message}`));
+    const [, rootErr] = requireRoot(doc, SIA8_NS, ASSIGNMENTS_ROOT, what);
+    if (rootErr) return err(rootErr);
 
     const assignments: RoleTemplateCatalogAssignment[] = [];
     const entries = doc.getElementsByTagNameNS(SIA8_NS, 'businessCatalog');
@@ -161,17 +177,17 @@ export async function createRoleTemplateCatalogAssignment(
     transport?: string,
     description?: string
 ): AsyncResult<void, Error> {
-    const template = templateName.toUpperCase();
-    const catalog = catalogName.toUpperCase();
-    const assignment = assignmentName.toUpperCase();
+    const template = iamName(templateName);
+    const catalog = iamName(catalogName);
+    const assignment = iamName(assignmentName);
 
     const body = `<?xml version="1.0" encoding="UTF-8"?>
-<sia9:sia9 xmlns:sia9="${SIA9_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:name="${assignment}" adtcore:type="SIA9" adtcore:description="${escapeXml(iamDescription(description || catalog))}" adtcore:language="EN" adtcore:masterLanguage="EN">
-  <adtcore:packageRef adtcore:name="${packageName.toUpperCase()}"/>
+<sia9:sia9 xmlns:sia9="${SIA9_NS}" xmlns:adtcore="${ADTCORE_NS}" adtcore:name="${escapeXml(assignment)}" adtcore:type="SIA9" adtcore:description="${escapeXml(iamDescription(description || catalog))}" adtcore:language="EN" adtcore:masterLanguage="EN">
+  <adtcore:packageRef adtcore:name="${escapeXml(iamName(packageName))}"/>
   <sia9:content>
-    <sia9:templateCatalogAssignmentID>${assignment}</sia9:templateCatalogAssignmentID>
-    <sia9:businessRoleTemplateID>${template}</sia9:businessRoleTemplateID>
-    <sia9:businessCatalogID>${catalog}</sia9:businessCatalogID>
+    <sia9:templateCatalogAssignmentID>${escapeXml(assignment)}</sia9:templateCatalogAssignmentID>
+    <sia9:businessRoleTemplateID>${escapeXml(template)}</sia9:businessRoleTemplateID>
+    <sia9:businessCatalogID>${escapeXml(catalog)}</sia9:businessCatalogID>
   </sia9:content>
 </sia9:sia9>`;
 
@@ -186,18 +202,20 @@ export async function createRoleTemplateCatalogAssignment(
  * @param client - ADT client
  * @param name - Role template name
  * @param options - Publish timing
- * @returns Publishing status text ('' or 'p') or error
+ * @returns Publishing status text ('' or 'p') or IamPublishError
  */
 export async function publishRoleTemplate(
     client: AdtRequestor,
     name: string,
     options?: IamPublishOptions
-): AsyncResult<string, Error> {
+): AsyncResult<string, IamPublishError> {
+    const templateName = iamName(name);
     return publishAndWait(client, {
+        kind: 'sia8',
+        name: templateName,
         path: PUBLISH_PATH,
-        params: { brtID: name.toUpperCase() },
+        params: { brtID: templateName },
         accept: PUBLISH_ACCEPT,
-        label: `business role template ${name.toUpperCase()}`,
         doneStatuses: PUBLISH_DONE_STATUSES,
     }, options);
 }
