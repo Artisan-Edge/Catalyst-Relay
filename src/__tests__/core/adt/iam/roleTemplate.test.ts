@@ -91,7 +91,7 @@ describe('role templates', () => {
         const [result, error] = await createRoleTemplate(STATE, requestor, { templateName: 'zb', packageName: 'zsnap_bc', description: 'Test', transport: 'TR1', catalogs: ['zc'] });
 
         expect(error).toBeNull();
-        expect(result).toEqual({ name: 'ZB', created: true, changed: true, descriptionUpdated: false, descriptionDiffers: false, assignmentsAdded: [{ assignment: 'ZB_0001', catalog: 'ZC' }], assignmentsFound: [], published: true, publishStatus: '', steps: { create: 'DONE', assign: 'DONE', publish: 'DONE' } });
+        expect(result).toEqual({ name: 'ZB', created: true, changed: true, descriptionUpdated: false, descriptionDiffers: false, assignmentsAdded: [{ assignment: 'ZB_0001', catalog: 'ZC' }], assignmentsFound: [], assignmentsNotRequested: [], published: true, publishStatus: '', steps: { create: 'DONE', assign: 'DONE', publish: 'DONE' } });
         const create = calls.find(c => c.method === 'POST' && c.path === `${IAM}/sia8`)!;
         expect(create.params).toEqual({ corrNr: 'TR1' });
         expect(create.body).toContain('<sia8:brtID>ZB</sia8:brtID>');

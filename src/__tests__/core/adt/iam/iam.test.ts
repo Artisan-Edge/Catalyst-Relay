@@ -271,7 +271,7 @@ describe('business catalogs', () => {
         const [result, error] = await createBusinessCatalog(STATE, requestor, { catalogName: 'zb_cat', packageName: 'ZBEACON', description: 'Test catalog', transport: 'TR1', apps: ['zb_ext'] });
 
         expect(error).toBeNull();
-        expect(result).toEqual({ name: 'ZB_CAT', created: true, changed: true, descriptionUpdated: false, descriptionDiffers: false, assignmentsAdded: [{ assignment: 'ZB_CAT_0001', app: 'ZB_EXT' }], assignmentsFound: [], appsMigrated: [], published: true, publishStatus: 'p', steps: { create: 'DONE', assign: 'DONE', publish: 'DONE' } });
+        expect(result).toEqual({ name: 'ZB_CAT', created: true, changed: true, descriptionUpdated: false, descriptionDiffers: false, assignmentsAdded: [{ assignment: 'ZB_CAT_0001', app: 'ZB_EXT' }], assignmentsFound: [], assignmentsNotRequested: [], appsMigrated: [], published: true, publishStatus: 'p', steps: { create: 'DONE', assign: 'DONE', publish: 'DONE' } });
         const assign = calls.find(c => c.method === 'POST' && c.path === SIA7_PATH)!;
         expect(assign.params).toEqual({ corrNr: 'TR1' });
         expect(assign.body).toContain('adtcore:name="ZB_CAT_0001"');
@@ -288,6 +288,15 @@ describe('business catalogs', () => {
         expect(result?.steps).toEqual({ create: 'SKIPPED', assign: 'SKIPPED', publish: 'SKIPPED' });
         expect(result?.published).toBe(true);
         expect(calls.some(c => c.method === 'POST')).toBe(false);
+    });
+
+    it('reports existing assignments of apps not asked for, and leaves them', async () => {
+        const { requestor, calls } = mockRequestor(catalogResponder({ status: 'p', apps: [['ZB_CAT_0001', 'ZB_EXT'], ['ZB_CAT_0002', 'ZB_OLD_EXT']] }));
+
+        const [result] = await createBusinessCatalog(STATE, requestor, { catalogName: 'ZB_CAT', packageName: 'ZBEACON', description: 'x', apps: ['zb_ext'] });
+
+        expect(result?.assignmentsNotRequested).toEqual([{ assignment: 'ZB_CAT_0002', app: 'ZB_OLD_EXT' }]);
+        expect(calls.some(c => c.method === 'DELETE')).toBe(false);
     });
 
     it('fails before assigning an IAM app that does not exist', async () => {

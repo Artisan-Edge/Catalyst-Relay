@@ -159,6 +159,25 @@ describe('MDA validation', () => {
         expect(JSON.parse(calls[0]!.body!)).toEqual(JSON.parse(buildMdaContent(OPTIONS)));
     });
 
+    it('counts any severity but OK/INFO/WARNING as an error (FATAL, E)', () => {
+        const validation = classifyMdaValidation([{ severity: 'FATAL', text: 'Generator broke' }, { severity: 'E', text: 'Bad package' }, { severity: 'WARNING', text: 'Just a note' }], OPTIONS);
+
+        expect(validation.errors).toEqual(['Generator broke', 'Bad package']);
+    });
+
+    it('matches whole names only: an "already exists" for a longer name is an error', () => {
+        const validation = classifyMdaValidation([{ severity: 'ERROR', text: `IAM App ${OPTIONS.iamApp}2 already exists` }], OPTIONS);
+
+        expect(validation.existing).toEqual([]);
+        expect(validation.errors).toHaveLength(1);
+    });
+
+    it('refuses a validationMessages root in another namespace', () => {
+        const [, error] = parseValidationMessages('<validationMessages xmlns="http://example.com/other"/>');
+
+        expect(error?.message).toContain('unexpected response');
+    });
+
     it('refuses a non-validation response', () => {
         const [, error] = parseValidationMessages('<html><body>logon</body></html>');
 

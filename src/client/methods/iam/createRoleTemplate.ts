@@ -37,6 +37,7 @@ export async function createRoleTemplate(
         descriptionDiffers: false,
         assignmentsAdded: [],
         assignmentsFound: [],
+        assignmentsNotRequested: [],
         published: false,
         publishStatus: '',
         steps: { create: 'SKIPPED', assign: 'SKIPPED', publish: 'SKIPPED' },
@@ -54,6 +55,8 @@ export async function createRoleTemplate(
     // Before anything is written: room for <name>_NNNN, and every catalog exists (a clear message rather than SAP's).
     const assignments: RoleTemplateCatalogAssignment[] = [...(existing?.catalogs ?? [])];
     const assigned = new Set(assignments.map(entry => entry.catalog.toUpperCase()));
+    const requested = new Set(options.catalogs.map(item => adt.iamName(item)));
+    result.assignmentsNotRequested = assignments.filter(entry => !requested.has(entry.catalog.toUpperCase()));
     const missing = [...new Set(options.catalogs.map(catalog => adt.iamName(catalog)).filter(Boolean))].filter(catalog => !assigned.has(catalog));
     const nameErr = missing.length > 0 ? adt.assignmentOwnerNameError('Business role template', name) : null;
     if (nameErr) return err(nameErr);

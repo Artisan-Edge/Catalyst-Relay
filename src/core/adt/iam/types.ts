@@ -137,6 +137,8 @@ export interface BusinessCatalogResult extends IamCreateOutcome {
     assignmentsAdded: CatalogAppAssignment[];
     /** Assignments another session made meanwhile (found after SAP said the name exists) */
     assignmentsFound: CatalogAppAssignment[];
+    /** Existing assignments of apps the options did not name (left as they are) */
+    assignmentsNotRequested: CatalogAppAssignment[];
     /** Customer EXT apps whose empty migrationStatus was set to 3 before assigning them */
     appsMigrated: string[];
     published: boolean;
@@ -183,6 +185,8 @@ export interface RoleTemplateResult extends IamCreateOutcome {
     assignmentsAdded: RoleTemplateCatalogAssignment[];
     /** Assignments another session made meanwhile (found after SAP said the name exists) */
     assignmentsFound: RoleTemplateCatalogAssignment[];
+    /** Existing assignments of catalogs the options did not name (left as they are) */
+    assignmentsNotRequested: RoleTemplateCatalogAssignment[];
     published: boolean;
     /** publishingStatusText; SAP returns '' for a finished role template publish */
     publishStatus: IamPublishStatus;

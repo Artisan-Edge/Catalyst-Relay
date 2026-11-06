@@ -2,7 +2,8 @@
  * Validate MDA App — the generator's validation, used as the idempotence pre-check
  *
  * With the content JSON, SAP returns one ERROR per object that already exists (its texts carry
- * a typo and a double space, so they are matched loosely), or a single OK.
+ * a typo and a double space, so they are matched loosely), or a single OK. Any severity other
+ * than OK, INFO, WARNING or SUCCESS counts as an error; a message without one does not.
  */
 
 import type { AsyncResult, Result } from '../../../types/result';
@@ -16,7 +17,8 @@ import { MDA_PATH, CONTENT_TYPE, buildMdaContent, checkMdaOptions, expectedKinds
 const VALIDATION_NS = 'http://www.sap.com/adt/core/validationMessages';
 const ACCEPT = 'application/vnd.sap.adt.validationMessages.v1+xml';
 const CHECKS = 'package,referencedobject,authorization';
-const ERROR_SEVERITY = 'ERROR';
+// Severities that are not errors; anything else (ERROR, FATAL, E, A, X, ...) counts as one
+const NON_ERROR_SEVERITIES = new Set(['', 'OK', 'INFO', 'I', 'WARNING', 'W', 'SUCCESS', 'S']);
 const ALREADY_EXISTS = /already\s+exists/i;
 
 // "Service defintion with name X already exists" (SAP's typo), "App  descriptor X already exists", ...
@@ -63,7 +65,8 @@ export async function validateMdaApp(client: AdtRequestor, options: MdaAppOption
 export function parseValidationMessages(xml: string): Result<MdaValidationMessage[], Error> {
     const [doc, parseErr] = safeParseXml(xml);
     if (parseErr) return err(parseErr);
-    if (doc.documentElement?.localName !== 'validationMessages') return err(new Error(`MDA app validation: unexpected response: ${xml.slice(0, 200)}`));
+    const root = doc.documentElement;
+    if (root?.localName !== 'validationMessages' || root.namespaceURI !== VALIDATION_NS) return err(new Error(`MDA app validation: unexpected response: ${xml.slice(0, 200)}`));
 
     const messages: MdaValidationMessage[] = [];
     const entries = doc.getElementsByTagNameNS(VALIDATION_NS, 'validationMessage');
@@ -78,7 +81,7 @@ export function parseValidationMessages(xml: string): Result<MdaValidationMessag
 }
 
 /**
- * Sort ERROR messages into "already exists" per object and other errors; derive the set state.
+ * Sort error messages (any severity but OK, INFO, WARNING, SUCCESS or none) into "already exists" per object and other errors; derive the set state.
  *
  * @param messages - Parsed validation messages
  * @param options - Generator options (the names to look for)
@@ -91,7 +94,7 @@ export function classifyMdaValidation(messages: MdaValidationMessage[], options:
     const errors: string[] = [];
 
     for (const message of messages) {
-        if (message.severity.toUpperCase() !== ERROR_SEVERITY) continue;
+        if (NON_ERROR_SEVERITIES.has(message.severity.toUpperCase())) continue;
         const kind = existingKind(message.text, expected, names);
         if (!kind) {
             errors.push(message.text);
@@ -108,5 +111,11 @@ export function classifyMdaValidation(messages: MdaValidationMessage[], options:
 function existingKind(text: string, expected: MdaObjectKind[], names: Record<MdaObjectKind, string>): MdaObjectKind | null {
     if (!ALREADY_EXISTS.test(text)) return null;
     const upper = text.toUpperCase();
-    return expected.find(kind => KIND_PATTERNS[kind].test(text) && upper.includes(names[kind].toUpperCase())) ?? null;
+    return expected.find(kind => KIND_PATTERNS[kind].test(text) && containsName(upper, names[kind].toUpperCase())) ?? null;
+}
+
+// The whole name, not a prefix of a longer one (ZFOO_SB must not match ZFOO_SB2)
+function containsName(upperText: string, upperName: string): boolean {
+    const escaped = upperName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^A-Z0-9_/])${escaped}($|[^A-Z0-9_/])`).test(upperText);
 }

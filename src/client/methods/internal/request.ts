@@ -207,7 +207,9 @@ export async function executeRequest(
         // Lost session context: nothing ran, so retry once on a fresh context (locks of the old one are gone)
         if (response.status === BAD_REQUEST) {
             const text = await response.text();
-            if (!isLostContext(response, text)) {
+            // A stateless request sends no context cookie, so it cannot have lost one: the stateful context
+            // (and its locks) stays, and the 400 goes to the caller
+            if (stateless || !isLostContext(response, text)) {
                 return ok(new Response(text, { status: response.status, statusText: response.statusText, headers: response.headers }));
             }
             if (isRecoveryRequest || retryingLostContext.getStore() === true) return err(new Error(SESSION_LOST_MESSAGE));

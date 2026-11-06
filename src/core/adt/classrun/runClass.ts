@@ -21,6 +21,7 @@ const INTERNAL_SERVER_ERROR = 500;
 const SHORT_TEXT_LENGTH = 300;
 // SAP answers 200 with this text for a class that does not exist
 const NOT_FOUND = /^Object \S+ of type CLAS does not exist\.?\s*$/;
+const HTML_PAGE = /^\s*<(!doctype\s+html|html)[\s>]/i;
 
 /**
  * POST /oo/classrun/<class> (stateless, Accept text/plain).
@@ -28,7 +29,8 @@ const NOT_FOUND = /^Object \S+ of type CLAS does not exist\.?\s*$/;
  * @param client - ADT client
  * @param className - Class name
  * @param options - Timeout
- * @returns The console text, or error (HTTP 500: the run dumped; class not found)
+ * @returns The console text, or error (HTTP 500: the run dumped; class not found; an HTML page,
+ *   e.g. a logon page — also refused when a class's own output starts with <html> or <!doctype html>)
  */
 export async function runClass(client: AdtRequestor, className: string, options: RunClassOptions = {}): AsyncResult<string, Error> {
     const name = className.trim().toUpperCase();
@@ -49,6 +51,8 @@ export async function runClass(client: AdtRequestor, className: string, options:
     const [text, checkErr] = await checkResponse(response, requestErr, `Class run of ${name} failed`);
     if (checkErr) return err(checkErr);
     if (NOT_FOUND.test(text.trim())) return err(new Error(`Class run of ${name} failed: ${text.trim()}`));
+    // A 200 HTML page is not console output (a logon or error page)
+    if (HTML_PAGE.test(text) || /text\/html/i.test(response?.headers.get('content-type') ?? '')) return err(new Error(`Class run of ${name} failed: unexpected HTML response: ${text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SHORT_TEXT_LENGTH)}`));
     return ok(text);
 }
 

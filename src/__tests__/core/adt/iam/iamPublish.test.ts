@@ -70,14 +70,27 @@ describe('publish wait', () => {
         expect(calls).toHaveLength(2);
     });
 
-    it('re-posts after a 502, a 504 or a dropped connection', async () => {
-        const { requestor, calls } = recorder(sequence([() => xml('', 502), () => xml('', 504), () => new Error('socket hang up'), () => xml(fixture('publish-sia6.xml'))]));
+    it('re-posts after a 502, a 503, a 504 or a dropped connection', async () => {
+        const { requestor, calls } = recorder(sequence([() => xml('', 502), () => xml('', 503), () => xml('', 504), () => new Error('socket hang up'), () => xml(fixture('publish-sia6.xml'))]));
 
         const [status, error] = await publishAndWait(requestor, request, NO_WAIT);
 
         expect(error).toBeNull();
         expect(status).toBe('p');
-        expect(calls).toHaveLength(4);
+        expect(calls).toHaveLength(5);
+    });
+
+    it('falls back to the default timings for invalid ones (NaN, negative, Infinity)', async () => {
+        const { requestor, calls } = recorder(() => xml(fixture('publish-sia6.xml')));
+
+        const [status] = await publishAndWait(requestor, request, { ...NO_WAIT, requestTimeoutMs: Number.NaN, deadlineMs: -1, minPostWindowMs: Infinity });
+
+        expect(status).toBe('p');
+        expect(calls[0]!.timeout).toBe(300_000);
+
+        const zero = recorder(() => xml(fixture('publish-sia6.xml')));
+        await publishAndWait(zero.requestor, request, { ...NO_WAIT, requestTimeoutMs: 0, deadlineMs: 0 });
+        expect(zero.calls[0]!.timeout).toBe(300_000);
     });
 
     it('re-posts after a dropped connection recognised by its error code (Bun words the message differently)', async () => {

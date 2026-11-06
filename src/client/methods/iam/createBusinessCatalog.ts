@@ -35,6 +35,7 @@ export async function createBusinessCatalog(
         descriptionDiffers: false,
         assignmentsAdded: [],
         assignmentsFound: [],
+        assignmentsNotRequested: [],
         appsMigrated: [],
         published: false,
         publishStatus: '',
@@ -53,6 +54,8 @@ export async function createBusinessCatalog(
     // Check every app first (a clear message rather than SAP's on a typo'd name).
     const assignments: CatalogAppAssignment[] = [...(existing?.apps ?? [])];
     const assigned = new Set(assignments.map(entry => entry.app.toUpperCase()));
+    const requested = new Set(options.apps.map(item => adt.iamName(item)));
+    result.assignmentsNotRequested = assignments.filter(entry => !requested.has(entry.app.toUpperCase()));
     const missing = [...new Set(options.apps.map(app => adt.iamName(app)).filter(Boolean))].filter(app => !assigned.has(app));
     const toMigrate: string[] = [];
     for (const app of missing) {

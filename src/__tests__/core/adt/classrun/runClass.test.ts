@@ -78,6 +78,15 @@ describe('runClass', () => {
         expect(error?.message).toBe('Class run of ZSNAP_BC_CLI_RUN failed: Object ZSNAP_BC_CLI_RUN of type CLAS does not exist.');
     });
 
+    it('refuses a 200 HTML page (a logon page) as console output', async () => {
+        const { requestor } = recorder(() => new Response('<!DOCTYPE html><html><body>Logon</body></html>', { status: 200, headers: { 'content-type': 'text/html' } }));
+
+        const [output, error] = await runClass(requestor, 'ZCL_X');
+
+        expect(output).toBeNull();
+        expect(error?.message).toBe('Class run of ZCL_X failed: unexpected HTML response: Logon');
+    });
+
     it('refuses an empty class name without a request', async () => {
         const { requestor, calls } = recorder(() => text(''));
 

@@ -190,51 +190,89 @@ curl -X POST http://localhost:3000/login \
 
 ## Supported Object Types
 
-| Extension  | Object Type    | ADT Type |
-| ---------- | -------------- | -------- |
-| `asddls`   | CDS View       | DDLS/DF  |
-| `asdcls`   | Access Control | DCLS/DL  |
-| `aclass`   | ABAP Class     | CLAS/OC  |
-| `asprog`   | ABAP Program   | PROG/P   |
-| `asinc`    | ABAP Include   | PROG/I   |
-| `astabldt` | Table          | TABL/DT  |
-| `astablds` | Structure      | STRU/D   |
+| Extension  | Object Type                    | ADT Type |
+| ---------- | ------------------------------ | -------- |
+| `asddls`   | CDS View                       | DDLS/DF  |
+| `asdcls`   | Access Control                 | DCLS/DL  |
+| `aclass`   | ABAP Class                     | CLAS/OC  |
+| `asprog`   | ABAP Program                   | PROG/P   |
+| `asinc`    | ABAP Include                   | PROG/I   |
+| `astabldt` | Table                          | TABL/DT  |
+| `astablds` | Structure                      | STRU/D   |
+| `srvd`     | Service Definition             | SRVD/SRV |
+| `asbdef`   | Behavior Definition            | BDEF/BDO |
+| `asdtel`   | Data Element                   | DTEL/DE  |
+| `asdoma`   | Domain                         | DOMA/DD  |
+| `asfugr`   | Function Group                 | FUGR/F   |
+| `asfunc`   | Function Module                | FUGR/FF  |
+| `asfinc`   | Function Group Include         | FUGR/I   |
+| `asmsag`   | Message Class                  | MSAG/N   |
+| `asenqu`   | Lock Object                    | ENQU/DL  |
+| `asnrob`   | Number Range Object            | NROB/NRO |
+| `asuiad`   | Launchpad App Descriptor       | UIAD/TYP |
+| `asuipg`   | Launchpad Page Template        | UIPG/TYP |
+| `asuist`   | Launchpad Space Template       | UIST/TOP |
+| `assiad`   | Role Template Space Assignment | SIAD     |
+
+`getObjectConfig()` returns the full list with endpoints and labels.
 
 ## Library Mode API Reference
 
 ### Client Methods
 
-| Method                                               | Description                                                                      |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `login()`                                            | Authenticate and create session                                                  |
-| `logout()`                                           | End session                                                                      |
-| `refreshSession()`                                   | Manually refresh session (keepalive)                                             |
-| `exportSessionState()`                               | Serialize session for transfer to another process                                |
-| `importSessionState(state)`                          | Restore a previously exported session                                            |
-| `read(objects)`                                      | Batch read with content                                                          |
-| `create(object, package, transport?)`                | Create a new object                                                              |
-| `update(object, transport?)`                         | Update an existing object                                                        |
-| `upsert(objects, package, transport?)`               | Create or update a batch                                                         |
-| `activate(objects)`                                  | Run-based activation; mixed extensions allowed                                   |
-| `checkSyntax(objects)`                               | Syntax check (single extension per batch)                                        |
-| `delete(objects, transport?)`                        | Multi-delete with dependency ordering; returns `DeleteResult[]`                  |
-| `getPackages(options?)`                              | List packages (filter, includeDescriptions)                                      |
-| `getPackageStats(nameOrNames)`                       | Package description and recursive object count                                   |
-| `getTree(query)`                                     | Browse package tree (supports owner filter)                                      |
-| `getTransports(package)`                             | List transports                                                                  |
-| `createTransport(config)`                            | Create transport                                                                 |
-| `deleteTransport(id, removeObjects?)`                | Delete transport (optionally clear contents first)                               |
-| `removeFromTransport(id, objectName)`                | Remove a single object from a transport                                          |
-| `viewTransportObjects(id)`                           | List tasks and objects on a transport                                            |
-| `getInactiveObjects()`                               | List objects/transports awaiting activation                                      |
-| `previewData(query)`                                 | Query table/view                                                                 |
-| `getDistinctValues(name, parameters, column, type?)` | Distinct values with counts                                                      |
-| `countRows(name, type, parameters?)`                 | Row count                                                                        |
-| `freestyleQuery(sqlQuery, limit?, timeout?)`         | Run arbitrary read-only OpenSQL; optional row limit and per-request timeout (ms) |
-| `search(query, options?)`                            | Search objects (`{ types?, includePackages? }`)                                  |
-| `whereUsed(object)`                                  | Find dependencies                                                                |
-| `gitDiff(objects)`                                   | Compare with server                                                              |
-| `getObjectConfig()`                                  | Supported object types                                                           |
+| Method                                                                                   | Description                                                                                                                     |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `login()`                                                                                | Authenticate and create session                                                                                                 |
+| `logout()`                                                                               | End session                                                                                                                     |
+| `refreshSession()`                                                                       | Manually refresh session (keepalive)                                                                                            |
+| `exportSessionState()`                                                                   | Serialize session for transfer to another process                                                                               |
+| `importSessionState(state)`                                                              | Restore a previously exported session                                                                                           |
+| `read(objects)`                                                                          | Batch read with content                                                                                                         |
+| `create(object, package, transport?)`                                                    | Create a new object                                                                                                             |
+| `update(object, transport?)`                                                             | Update an existing object                                                                                                       |
+| `upsert(objects, package, transport?)`                                                   | Create or update a batch                                                                                                        |
+| `readClassInclude(class, type)`                                                          | Read a class's local include                                                                                                    |
+| `writeClassInclude(class, type, source, transport?)`                                     | Write a class's local include                                                                                                   |
+| `activate(objects)`                                                                      | Run-based activation; mixed extensions allowed                                                                                  |
+| `checkSyntax(objects)`                                                                   | Syntax check (single extension per batch)                                                                                       |
+| `delete(objects, transport?)`                                                            | Multi-delete with dependency ordering; returns `DeleteResult[]`                                                                 |
+| `changePackage(objects, target, options?)`                                               | Move objects to another package (refactoring preview/execute)                                                                   |
+| `createPackage(options)`                                                                 | Create a package                                                                                                                |
+| `getPackages(options?)`                                                                  | List packages (filter, includeDescriptions)                                                                                     |
+| `getPackageStats(nameOrNames)`                                                           | Package description and recursive object count                                                                                  |
+| `getTree(query)`                                                                         | Browse package tree (supports owner filter)                                                                                     |
+| `getTransports(package)`                                                                 | List transports usable for a package                                                                                            |
+| `getUserTransports(filters?)`                                                            | List transports involving a user                                                                                                |
+| `createTransport(config)`                                                                | Create transport                                                                                                                |
+| `deleteTransport(id, removeObjects?)`                                                    | Delete transport (optionally clear contents first)                                                                              |
+| `removeFromTransport(id, objectName)`                                                    | Remove a single object from a transport                                                                                         |
+| `viewTransportObjects(id)`                                                               | List tasks and objects on a transport                                                                                           |
+| `getInactiveObjects()`                                                                   | List objects/transports awaiting activation                                                                                     |
+| `getFunctionGroupParts(group)`                                                           | A function group's includes and modules                                                                                         |
+| `readObjectAttributes(object) / writeObjectAttributes(object, attributes, transport?)`   | Object title, program authorization group                                                                                       |
+| `readTextElements / writeTextElements / resolveTextElementsOwner / activateTextElements` | Text pools (symbols, selections, headings)                                                                                      |
+| `previewData(query)`                                                                     | Query table/view                                                                                                                |
+| `getDistinctValues(name, parameters, column, type?)`                                     | Distinct values with counts                                                                                                     |
+| `countRows(name, type, parameters?)`                                                     | Row count                                                                                                                       |
+| `freestyleQuery(sqlQuery, limit?, timeout?)`                                             | Run arbitrary read-only OpenSQL; optional row limit and per-request timeout (ms)                                                |
+| `search(query, options?)`                                                                | Search objects (`{ types?, includePackages? }`)                                                                                 |
+| `whereUsed(object)`                                                                      | Find dependencies                                                                                                               |
+| `gitDiff(objects)`                                                                       | Compare with server                                                                                                             |
+| `createServiceBinding(options) / readServiceBinding(name)`                               | Create (UI, Web API or InA) and read a service binding                                                                          |
+| `activateServiceBinding(name)`                                                           | Activate a binding again (e.g. after its SRVD was widened)                                                                      |
+| `deleteServiceBinding(name, transport?, version?)`                                       | Unpublish (OData) and delete a binding                                                                                          |
+| `createIamApp / createBusinessCatalog / createRoleTemplate(options)`                     | Create or complete an IAM app, catalog or role template; publishes unless `publish: false` (a failed publish is `publishError`) |
+| `readIamApp / readBusinessCatalog / readRoleTemplate(name)`                              | Read an IAM object with its services or assignments                                                                             |
+| `publishIamApp / publishBusinessCatalog / publishRoleTemplate(name, options?)`           | Publish locally and wait (about 2 minutes); fails with `IamPublishError`                                                        |
+| `deleteIamObject(kind, name, transport?)`                                                | Delete an IAM object or assignment                                                                                              |
+| `findIamAppsUsingBindings(bindings, options?)`                                           | Customer IAM apps listing the bindings (`usages`, `appsScanned`, `unreadable`)                                                  |
+| `checkDeletion(uris) / deleteByUri(uris, transport?)`                                    | Generic ADT deletion service                                                                                                    |
+| `deleteAppVariant(name, transport?)`                                                     | Delete an app variant (deletion check first)                                                                                    |
+| `validateMdaApp / previewMdaApp / generateMdaApp(options)`                               | SAP's MDA app generator (stateless); generate skips a present set                                                               |
+| `runClass(className, options?)`                                                          | Run an `if_oo_adt_classrun` class stateless; returns its console text                                                           |
+| `getApiReleaseState / releaseApi / unreleaseApi / updateApiReleaseVisibility`            | C1 API release of CDS views                                                                                                     |
+| `runUnitTests(options) / getUnitTestMetadata()`                                          | ABAP Unit runs                                                                                                                  |
+| `getObjectConfig()`                                                                      | Supported object types                                                                                                          |
 
 ### Usage Examples
 

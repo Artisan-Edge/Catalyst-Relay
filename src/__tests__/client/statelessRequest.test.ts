@@ -27,6 +27,8 @@ beforeAll(() => {
             received.push({ cookie: req.headers.get('cookie'), sessionType: req.headers.get('x-sap-adt-sessiontype') });
             if (path === '/dump') return new Response(DUMP_PAGE, { status: 500 });
             if (path === '/sets-context') return new Response('done', { headers: [['set-cookie', 'sap-contextid=SID%3aNEW; path=/'], ['set-cookie', 'MYSAPSSO2=fresh; path=/']] });
+            if (path === '/no-session') return new Response('ICMENOSESSION', { status: 400, headers: { 'sap-err-id': 'ICMENOSESSION' } });
+            if (path === '/hyphenated') return new Response('done', { headers: [['set-cookie', 'MYSAPSSO2=a; path=/'], ['set-cookie', 'sap-usercontext=sap-client=100; path=/'], ['set-cookie', 'SAP_SESSIONID_X_100=b; Expires=Wed, 21 Oct 2026 07:28:00 GMT; path=/']] });
             if (path === '/sap/bc/adt/compatibility/graph') return new Response('', { headers: { 'x-csrf-token': 'token' } });
             return new Response('done');
         },
@@ -119,5 +121,51 @@ describe('stateless requests', () => {
         await request({ method: 'POST', path: '/lock' });
 
         expect(received[0]).toEqual({ cookie: 'sap-contextid=SID%3aCTX; SAP_SESSIONID_ABC_100=secure', sessionType: 'stateful' });
+    });
+});
+
+describe('lost context on a stateless request', () => {
+    it('is not retried and keeps the stored context cookie (the stateful context and its locks stay)', async () => {
+        const jar = new Map(Object.entries(COOKIES));
+        const request = createRequest(COOKIES, jar);
+
+        const [response, error] = await request({ method: 'POST', path: '/no-session', headers: { 'X-sap-adt-sessiontype': 'stateless' } });
+
+        expect(error).toBeNull();
+        expect(response!.status).toBe(400);
+        expect(paths).toEqual(['/no-session']);
+        expect(jar.get('sap-contextid')).toBe('SID%3aCTX');
+    });
+
+    it('a stateful one drops the context cookie and retries (control)', async () => {
+        const jar = new Map(Object.entries(COOKIES));
+        const request = createRequest(COOKIES, jar);
+
+        await request({ method: 'POST', path: '/no-session' });
+
+        expect(paths).toEqual(['/no-session', '/no-session']);
+        expect(jar.has('sap-contextid')).toBe(false);
+    });
+});
+
+describe('storeCookies', () => {
+    it('keeps every cookie, also hyphenated ones after the first and those with an Expires date', async () => {
+        const jar = new Map<string, string>();
+        const request = createRequest({}, jar);
+
+        await request({ method: 'GET', path: '/hyphenated' });
+
+        expect(jar.get('MYSAPSSO2')).toBe('a');
+        expect(jar.get('sap-usercontext')).toBe('sap-client=100');
+        expect(jar.get('SAP_SESSIONID_X_100')).toBe('b');
+    });
+
+    it('splits a joined header before hyphenated names when getSetCookie is missing', () => {
+        const jar = new Map<string, string>();
+        const headers = { get: () => 'MYSAPSSO2=a; path=/, sap-contextid=SID%3aX; Expires=Wed, 21 Oct 2026 07:28:00 GMT; path=/', getSetCookie: undefined } as unknown as Headers;
+
+        storeCookies(jar, { headers } as Response);
+
+        expect([...jar.entries()]).toEqual([['MYSAPSSO2', 'a'], ['sap-contextid', 'SID%3aX']]);
     });
 });

@@ -33,8 +33,8 @@ const STATUS_ROOT = 'publishingStatus';
 const STATUS_TEXT = 'publishingStatusText';
 // Children that mean SAP reported a problem inside the status document
 const PROBLEM_CHILDREN = new Set(['message', 'messages', 'error', 'errors', 'exception']);
-// Gateway errors and dropped connections: the publish may still be running, so re-post.
-const TRANSIENT_STATUSES = new Set([502, 504]);
+// Gateway errors, an unavailable server and dropped connections: the publish may still be running, so re-post.
+const TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const TRANSIENT_ERROR = /socket hang up|ECONNRESET|EPIPE|ETIMEDOUT|ECONNABORTED/i;
 // Checked on the error and its cause: Bun's node:http words these differently from Node
 const TRANSIENT_CODES = new Set(['ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ECONNABORTED']);
@@ -115,11 +115,11 @@ export async function publishAndWait(
     request: IamPublishRequest,
     options: IamPublishOptions = {}
 ): AsyncResult<string, IamPublishError> {
-    const requestTimeout = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-    const retryDelay = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
-    const minWindow = options.minPostWindowMs ?? DEFAULT_MIN_POST_WINDOW_MS;
-    const minGap = options.minAttemptDelayMs ?? DEFAULT_MIN_ATTEMPT_DELAY_MS;
-    const deadline = Date.now() + (options.deadlineMs ?? DEFAULT_DEADLINE_MS);
+    const requestTimeout = timing(options.requestTimeoutMs, DEFAULT_REQUEST_TIMEOUT_MS, true);
+    const retryDelay = timing(options.retryDelayMs, DEFAULT_RETRY_DELAY_MS);
+    const minWindow = timing(options.minPostWindowMs, DEFAULT_MIN_POST_WINDOW_MS);
+    const minGap = timing(options.minAttemptDelayMs, DEFAULT_MIN_ATTEMPT_DELAY_MS);
+    const deadline = Date.now() + timing(options.deadlineMs, DEFAULT_DEADLINE_MS, true);
     const label = `${KIND_LABELS[request.kind]} ${request.name}`;
     const fail = (message: string, failure: IamPublishFailure, lastStatus: string | null, timedOut = false): IamPublishError =>
         new IamPublishError(message, request.kind, request.name, failure, lastStatus, timedOut);
@@ -199,6 +199,13 @@ function isTransient(response: Response | null, requestErr: Error | null): boole
 function errorCode(error: unknown): string {
     if (typeof error !== 'object' || error === null || !('code' in error)) return '';
     return String((error as { code: unknown }).code ?? '').toUpperCase();
+}
+
+// A timing option that is not a finite number >= 0 (NaN, negative, Infinity) falls back to the default;
+// a timeout or deadline of 0 too (every POST would time out and start another publish on SAP)
+function timing(value: number | undefined, fallback: number, positive = false): number {
+    if (value === undefined || !Number.isFinite(value)) return fallback;
+    return value > 0 || (!positive && value === 0) ? value : fallback;
 }
 
 function sleep(ms: number): Promise<void> {
