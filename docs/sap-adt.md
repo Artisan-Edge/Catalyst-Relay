@@ -220,7 +220,7 @@ IAM apps (SIA6), business catalogs (SIA1) with app assignments (SIA7), business 
 
 `generateMdaApp(options)` runs the Multidimensional Analysis app generator (`/sap/bc/adt/analytics/generators/ui/mda-app`) for an analytical query: UIAD, app variant (ADVC/LRP), InA SRVD and SRVB, and optionally the IAM app. Every name is the caller's. Verified on Madiba-Cloud-Dev (package `ZSNAP_BC`).
 
-- **Calls:** `validation`, `preview` and the generate POST each take the content JSON (`application/vnd.sap.adt.serverdriven.content.v1+json; framework=generators.v1`) and `?referencedObject=/sap/bc/adt/ddic/ddl/sources/<query>&package=<pkg>` (without `package` the server dumps). The transport goes in `corrNr` (untested).
+- **Calls:** `validation`, `preview` and the generate POST each take the content JSON (`application/vnd.sap.adt.serverdriven.content.v1+json; framework=generators.v1`) and `?referencedObject=/sap/bc/adt/ddic/ddl/sources/<query>&package=<pkg>` (without `package` the server dumps). The transport goes in `corrNr`, but only for a package that records changes: with a transport the package is read first (`getPackageTransportInfo`, `pak:recordChanges`), and for a package that does not record changes the transport is left out and the result says `transportSkipped: true`. SAP's generator fails when given one there (it creates the SRVD and SRVB, then "Generation error: An exception was raised"). A recording package with `corrNr` is not yet verified.
 - **Stateless:** all three are sent stateless. In the stateful session the generator's existence check is stale: objects deleted since still "already exist", which blocks a re-generate under the same names.
 - **Idempotence:** validation (`checks=package,referencedobject,authorization`) returns one `ERROR` per existing object; the texts are matched loosely (SAP writes "defintion" and "App descriptor"). Every object present: generate is `SKIPPED` (`status: 'present'`). Some present: error, nothing generated. Any other `ERROR`: error.
 - **App variant:** the generate response lists UIAD, SRVD, SRVB and SIA6 only. The preview names the app variant's system name, which is the same for the same `appVariantId` (also after a delete and re-generate); `generateMdaApp` returns it as `appVariant` for `deleteAppVariant`.
@@ -239,4 +239,4 @@ IAM apps (SIA6), business catalogs (SIA1) with app assignments (SIA7), business 
 
 ---
 
-_Last updated: v0.8.0_
+_Last updated: v0.10.0_

@@ -199,7 +199,7 @@ export interface IamPublishOptions {
     requestTimeoutMs?: number;
     /** Wait before re-posting after 'u' or a 502/504 / dropped connection (default 30 s) */
     retryDelayMs?: number;
-    /** Overall limit across re-posts (default 10 min) */
+    /** Overall limit across re-posts (default 10 min); 0 means no time left: pending at once, without a POST */
     deadlineMs?: number;
     /** No POST starts with less time than this left before the deadline (default 150 s) */
     minPostWindowMs?: number;
