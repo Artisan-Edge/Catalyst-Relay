@@ -82,6 +82,9 @@ export function createAuthStrategy(options: CreateAuthOptions): AuthStrategy {
             if (config.forceEnroll) {
                 ssoConfig.forceEnroll = config.forceEnroll;
             }
+            if (config.spnegoTokenProvider) {
+                ssoConfig.spnegoTokenProvider = config.spnegoTokenProvider;
+            }
             if (insecure) {
                 ssoConfig.insecure = insecure;
             }

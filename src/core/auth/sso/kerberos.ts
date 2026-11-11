@@ -10,6 +10,7 @@
  */
 
 import type { AsyncResult } from '../../../types/result';
+import type { SpnegoTokenProvider } from '../../../types/config';
 import { ok, err } from '../../../types/result';
 
 /**
@@ -57,6 +58,7 @@ async function loadKerberosModule(): AsyncResult<KerberosModule> {
  * Authorization: Negotiate headers for authenticating to SLS.
  *
  * @param servicePrincipalName - SPN to authenticate to (e.g., HTTP/sapsso.corp.example.com)
+ * @param tokenProvider - Optional replacement for the kerberos package (e.g. a native helper exe)
  * @returns Base64-encoded SPNEGO token or error
  *
  * @example
@@ -75,7 +77,13 @@ async function loadKerberosModule(): AsyncResult<KerberosModule> {
  * });
  * ```
  */
-export async function getSpnegoToken(servicePrincipalName: string): AsyncResult<string> {
+export async function getSpnegoToken(
+    servicePrincipalName: string,
+    tokenProvider?: SpnegoTokenProvider
+): AsyncResult<string> {
+    // A caller-supplied provider replaces the kerberos package entirely
+    if (tokenProvider) return getProvidedToken(servicePrincipalName, tokenProvider);
+
     const [kerberos, loadErr] = await loadKerberosModule();
     if (loadErr) return err(loadErr);
 
@@ -94,6 +102,23 @@ export async function getSpnegoToken(servicePrincipalName: string): AsyncResult<
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return err(new Error(`Kerberos authentication failed: ${message}`));
+    }
+}
+
+// Ask the caller's provider for the token, trimming any trailing newline
+async function getProvidedToken(
+    servicePrincipalName: string,
+    tokenProvider: SpnegoTokenProvider
+): AsyncResult<string> {
+    try {
+        const token = (await tokenProvider(servicePrincipalName)).trim();
+        if (!token) {
+            return err(new Error('Failed to generate SPNEGO token: the token provider returned an empty token'));
+        }
+        return ok(token);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return err(new Error(`SPNEGO token provider failed: ${message}`));
     }
 }
 

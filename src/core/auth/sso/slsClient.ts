@@ -11,6 +11,7 @@
 
 import * as https from 'https';
 import type { AsyncResult } from '../../../types/result';
+import type { SpnegoTokenProvider } from '../../../types/config';
 import { ok, err } from '../../../types/result';
 import type { SlsConfig, SlsAuthResponse, CertificateMaterial } from './types';
 import { SLS_DEFAULTS } from './types';
@@ -85,6 +86,8 @@ interface SlsClientConfig {
     config: SlsConfig;
     /** Skip SSL verification (required for most corporate environments) */
     insecure?: boolean;
+    /** Gets the SPNEGO token instead of the kerberos package */
+    spnegoTokenProvider?: SpnegoTokenProvider;
 }
 
 /**
@@ -118,11 +121,11 @@ interface SlsClientConfig {
 export async function enrollCertificate(
     options: SlsClientConfig
 ): AsyncResult<CertificateMaterial> {
-    const { config, insecure = false } = options;
+    const { config, insecure = false, spnegoTokenProvider } = options;
     const profile = config.profile ?? SLS_DEFAULTS.PROFILE;
 
     // Step 1: Authenticate with Kerberos (also captures session cookies)
-    const [authResult, authErr] = await authenticateToSls(config, profile, insecure);
+    const [authResult, authErr] = await authenticateToSls(config, profile, insecure, spnegoTokenProvider);
     if (authErr) return err(authErr);
 
     // Step 2: Generate keypair
@@ -161,11 +164,12 @@ interface SlsAuthResult {
 async function authenticateToSls(
     config: SlsConfig,
     profile: string,
-    insecure: boolean = false
+    insecure: boolean = false,
+    spnegoTokenProvider?: SpnegoTokenProvider
 ): AsyncResult<SlsAuthResult> {
     // Get SPNEGO token
     const spn = config.servicePrincipalName ?? extractSpnFromUrl(config.slsUrl);
-    const [token, tokenErr] = await getSpnegoToken(spn);
+    const [token, tokenErr] = await getSpnegoToken(spn, spnegoTokenProvider);
     if (tokenErr) return err(tokenErr);
 
     // Build auth URL

@@ -560,6 +560,7 @@ Kerberos-based SSO using mTLS certificates from SAP Secure Login Server (SLS).
 | `profile` | string | No | SLS profile name (default: `SAPSSO_P`) |
 | `servicePrincipalName` | string | No | Kerberos SPN override |
 | `forceEnroll` | boolean | No | Force certificate re-enrollment |
+| `spnegoTokenProvider` | `(spn: string) => Promise<string>` | No | Library only. Returns the base64 SPNEGO token (the part after `Negotiate `) for the SPN; replaces the `kerberos` package |
 
 **Example:**
 ```json
@@ -590,8 +591,19 @@ Kerberos-based SSO using mTLS certificates from SAP Secure Login Server (SLS).
 
 **Certificate storage:** `./certificates/sso/{username}_full_chain.pem` and `./certificates/sso/{username}_key.pem`
 
+**Token provider:** where the native `kerberos` package can't load (e.g. a Bun-compiled exe), pass `spnegoTokenProvider`. Relay calls it with the SPN (`servicePrincipalName`, else `HTTP/<slsUrl host>`) and sends the trimmed result as `Authorization: Negotiate <token>`. Catalyst-CLI is meant to run `catalyst-auth.exe spnego --spn <SPN>` (built from Catalyst-Core). Only the first SPNEGO leg is sent.
+
+```typescript
+auth: {
+    type: 'sso',
+    slsUrl: 'https://sapsso.corp.example.com:50001',
+    profile: '1546b978-7951-4690-b0b8-ad04f38d7050',
+    spnegoTokenProvider: async (spn) => runCatalystAuth(['spnego', '--spn', spn]),
+}
+```
+
 **Requirements:**
-- `kerberos` package must be installed: `npm install kerberos`
+- `kerberos` package must be installed (`npm install kerberos`), unless `spnegoTokenProvider` is set
 - Windows: Requires Active Directory integration (uses SSPI)
 - Linux/macOS: Requires MIT Kerberos with valid ticket (`kinit`)
 - `insecure: true` typically required (corporate CAs not in trust store)

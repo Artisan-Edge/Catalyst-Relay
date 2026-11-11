@@ -62,6 +62,11 @@ export interface SamlAuthConfig {
 }
 
 /**
+ * Returns the base64 SPNEGO token (the part after "Negotiate ") for a Kerberos SPN.
+ */
+export type SpnegoTokenProvider = (servicePrincipalName: string) => Promise<string>;
+
+/**
  * SSO (Kerberos) authentication configuration
  */
 export interface SsoAuthConfig {
@@ -74,6 +79,8 @@ export interface SsoAuthConfig {
     servicePrincipalName?: string;
     /** Force certificate re-enrollment even if valid cert exists */
     forceEnroll?: boolean;
+    /** Gets the SPNEGO token instead of the kerberos package (library use only; not serializable) */
+    spnegoTokenProvider?: SpnegoTokenProvider;
     /** @deprecated Use slsUrl instead */
     certificate?: string;
 }
@@ -155,6 +162,7 @@ export const clientConfigSchema = z.object({
             profile: z.string().optional(),
             servicePrincipalName: z.string().optional(),
             forceEnroll: z.boolean().optional(),
+            spnegoTokenProvider: z.custom<SpnegoTokenProvider>((value) => typeof value === 'function').optional(),
             certificate: z.string().optional(),
         }),
     ]),

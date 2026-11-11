@@ -43,6 +43,7 @@ export type {
     BasicAuthConfig,
     SamlAuthConfig,
     SsoAuthConfig,
+    SpnegoTokenProvider,
     ClientConfig,
 } from './types/config';
 

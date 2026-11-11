@@ -546,6 +546,8 @@ The library uses only web standard APIs (`fetch`, `Request`, `Response`, `URL`) 
 | `playwright` | SAML authentication           | `npm install playwright` |
 | `kerberos`   | SSO (Kerberos) authentication | `npm install kerberos`   |
 
+For SSO without the `kerberos` package (e.g. a Bun-compiled exe), pass `auth.spnegoTokenProvider: (spn) => Promise<string>` returning the base64 SPNEGO token. See [docs/endpoints/auth.md](docs/endpoints/auth.md#sso-auth).
+
 ## Project Structure
 
 ```

@@ -33,6 +33,7 @@
 
 import type { AuthStrategy } from '../types';
 import type { AsyncResult } from '../../../types/result';
+import type { SpnegoTokenProvider } from '../../../types/config';
 import { ok, err } from '../../../types/result';
 import type { SlsConfig, CertificateMaterial } from './types';
 import { enrollCertificate } from './slsClient';
@@ -54,6 +55,8 @@ export interface SsoAuthConfig {
     forceEnroll?: boolean;
     /** Return certificate contents instead of saving to files */
     returnContents?: boolean;
+    /** Gets the SPNEGO token instead of the kerberos package */
+    spnegoTokenProvider?: SpnegoTokenProvider;
 }
 
 /**
@@ -130,6 +133,7 @@ export class SsoAuth implements AuthStrategy {
         const [material, enrollErr] = await enrollCertificate({
             config: slsConfig,
             insecure: this.config.insecure ?? false,
+            ...(this.config.spnegoTokenProvider && { spnegoTokenProvider: this.config.spnegoTokenProvider }),
         });
 
         if (enrollErr) {
