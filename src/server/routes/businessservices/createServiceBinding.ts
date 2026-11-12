@@ -2,7 +2,7 @@
  * POST /businessservices/bindings — Create, activate and publish a service binding
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import type { CreateServiceBindingOptions, ServiceBindingResult } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';

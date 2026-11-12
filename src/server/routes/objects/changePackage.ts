@@ -1,6 +1,6 @@
 // POST /objects/change-package — Reassign objects to another package
 
-import { z } from 'zod';
+import * as z from 'zod';
 import { objectRefSchema } from '../../../types/requests';
 import type { ChangePackageOptions, ChangePackageResult } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';

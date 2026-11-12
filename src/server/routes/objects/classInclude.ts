@@ -2,7 +2,7 @@
  * POST /objects/class-include — Write a class local-source include (CCDEF/CCIMP/CCMAC/CCAU)
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

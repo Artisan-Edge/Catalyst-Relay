@@ -2,7 +2,7 @@
  * POST /objects/upsert/:package/:transport — Create or update objects
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import { objectContentSchema } from '../../../types/requests';
 import type { ObjectContent } from '../../../types/requests';
 import type { UpsertResult } from '../../../core/adt/types';

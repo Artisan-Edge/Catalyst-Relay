@@ -6,7 +6,7 @@
  * Trailing blanks are dropped, as SAP does. A leading BOM is ignored.
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import type { Result } from '../../types/result';
 import { ok, err } from '../../types/result';
 import { safeJsonParse } from '../utils/json';

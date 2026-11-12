@@ -2,7 +2,7 @@
  * POST /where-used — Find object dependencies (batch operation)
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import { objectRefSchema } from '../../../types/requests';
 import type { Dependency } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';

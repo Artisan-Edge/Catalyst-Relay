@@ -2,7 +2,7 @@
  * POST /api-release/:name/visibility — Change the visibility flags of a released C1 contract
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import type { ApiReleaseVisibility, ApiReleaseVisibilityOptions, ApiReleaseVisibilityResult } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';

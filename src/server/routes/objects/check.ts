@@ -1,6 +1,6 @@
 // POST /objects/check — Syntax check objects (non-destructive)
 
-import { z } from 'zod';
+import * as z from 'zod';
 import { objectRefSchema } from '../../../types/requests';
 import type { CheckResult } from '../../../core/adt/craud/syntaxCheck';
 import { ApiError } from '../../middleware/error';

@@ -2,7 +2,7 @@
  * POST /api-release/:name/unrelease — Unrelease the C1 API contract of a CDS query
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import type { ApiReleaseResult } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
