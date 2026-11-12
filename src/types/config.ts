@@ -140,7 +140,7 @@ const samlProviderConfigSchema = z.object({
  * Zod schema for runtime validation of ClientConfig
  */
 export const clientConfigSchema = z.object({
-    url: z.string().url(),
+    url: z.url(),
     client: z.string().min(1).max(3),
     auth: z.discriminatedUnion('type', [
         z.object({
@@ -158,7 +158,7 @@ export const clientConfigSchema = z.object({
         }),
         z.object({
             type: z.literal('sso'),
-            slsUrl: z.string().url(),
+            slsUrl: z.url(),
             profile: z.string().optional(),
             servicePrincipalName: z.string().optional(),
             forceEnroll: z.boolean().optional(),

@@ -26,7 +26,7 @@ import type { ISessionManager } from '../types';
 
 // 1. Request schema (colocated)
 export const loginRequestSchema = z.object({
-    url: z.string().url(),
+    url: z.url(),
     client: z.string().min(1).max(3),
     auth: authConfigSchema
 });
