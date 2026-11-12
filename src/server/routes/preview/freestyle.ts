@@ -2,7 +2,7 @@
  * POST /preview/freestyle — Execute arbitrary OpenSQL via the freestyle endpoint
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import type { DataFrame } from '../../../core/adt/data_extraction/previewParser';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';

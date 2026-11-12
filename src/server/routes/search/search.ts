@@ -2,7 +2,7 @@
  * POST /search/:query — Search for objects by name/pattern
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import type { SearchResult } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';

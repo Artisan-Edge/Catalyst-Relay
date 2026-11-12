@@ -2,7 +2,7 @@
  * POST /preview/distinct — Get distinct values for column with counts
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import type { DistinctResult } from '../../../core/adt';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';

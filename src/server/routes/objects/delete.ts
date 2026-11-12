@@ -1,6 +1,6 @@
 // DELETE /objects/:transport — Multi-delete with dependency analysis
 
-import { z } from 'zod';
+import * as z from 'zod';
 import { objectRefSchema } from '../../../types/requests';
 import type { DeleteResult } from '../../../core/adt';
 import { ExternalReferencesError } from '../../../core/adt';

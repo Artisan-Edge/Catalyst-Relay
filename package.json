@@ -37,7 +37,7 @@
     "hono": "^4.6.0",
     "node-forge": "^1.3.1",
     "undici": "^7.16.0",
-    "zod": "^3.24.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@napi-rs/keyring": "^1.1.6",

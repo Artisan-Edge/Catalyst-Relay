@@ -2,7 +2,7 @@
  * PUT /transports/:transportId/objects — Remove an object from a transport
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';

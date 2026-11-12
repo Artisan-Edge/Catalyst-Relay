@@ -2,7 +2,7 @@
  * POST /git-diff — Compare local content with server content
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import { objectContentSchema } from '../../../types/requests';
 import type { ObjectContent } from '../../../types/requests';
 import type { DiffResult } from '../../../core/adt/craud/gitDiff';

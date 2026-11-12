@@ -2,7 +2,7 @@
  * POST /objects/read — Batch read objects with content
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import { objectRefSchema } from '../../../types/requests';
 import type { ObjectWithContent } from '../../../core/adt/craud/read';
 import { ApiError } from '../../middleware/error';

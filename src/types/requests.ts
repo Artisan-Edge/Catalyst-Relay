@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 /**
  * Reference to an SAP development object
@@ -71,7 +71,7 @@ export const objectRefSchema = z.object({
 export const objectContentSchema = objectRefSchema.extend({
     content: z.string(),
     description: z.string().optional(),
-    implementationType: z.nativeEnum(BehaviorImplementationType).optional(),
+    implementationType: z.enum(BehaviorImplementationType).optional(),
 });
 
 export const treeQuerySchema = z.object({
