@@ -38,6 +38,8 @@ export interface PackageSettings {
     softwareComponent: string;
     transportLayer: string;
     packageType: string;
+    /** True when changes are recorded on transports; false for local packages */
+    recordChanges: boolean;
 }
 
 export interface CreatePackageResult {
@@ -97,6 +99,7 @@ export function parsePackageSettings(xml: string, packageName: string): Result<P
         softwareComponent: attribute('softwareComponent', 'name', PAK_NS),
         transportLayer: attribute('transportLayer', 'name', PAK_NS),
         packageType: attribute('attributes', 'packageType', PAK_NS),
+        recordChanges: attribute('attributes', 'recordChanges', PAK_NS) === 'true',
     });
 }
 

@@ -26,6 +26,7 @@ export {
 
 // Read operations
 export { readObject } from './craud/read';
+export { objectExists } from './craud/objectExists';
 export type { ObjectMetadata, ObjectWithContent } from './craud/read';
 
 // Activation

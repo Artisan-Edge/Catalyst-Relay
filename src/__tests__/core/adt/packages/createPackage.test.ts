@@ -3,7 +3,9 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { createPackage, parsePackageSettings } from '../../../../core/adt/packages/createPackage';
+import * as fs from 'fs';
+import * as path from 'path';
+import { createPackage, parsePackageSettings, readPackageSettings } from '../../../../core/adt/packages/createPackage';
 import type { AdtRequestor } from '../../../../core/adt';
 
 interface RecordedRequest {
@@ -39,7 +41,32 @@ describe('parsePackageSettings', () => {
         const [settings, error] = parsePackageSettings(packageXml('ZBEACON', 'ZSNAP', 'HOME', 'ZDEV'), 'ZBEACON');
 
         expect(error).toBeNull();
-        expect(settings).toEqual({ name: 'ZBEACON', description: 'ZBEACON package', parentPackage: 'ZSNAP', softwareComponent: 'HOME', transportLayer: 'ZDEV', packageType: 'development' });
+        expect(settings).toEqual({ name: 'ZBEACON', description: 'ZBEACON package', parentPackage: 'ZSNAP', softwareComponent: 'HOME', transportLayer: 'ZDEV', packageType: 'development', recordChanges: false });
+    });
+
+    it('reads change recording from the captured ZSNAP_BC document', () => {
+        const xml = fs.readFileSync(path.join(import.meta.dir, '../../../fixtures/generators/package-zsnap_bc.xml'), 'utf8');
+        expect(parsePackageSettings(xml, 'ZSNAP_BC')[0]).toMatchObject({ parentPackage: 'ZSNAP', softwareComponent: 'ZLOCAL', recordChanges: false });
+        const recording = xml.replace('pak:recordChanges="false"', 'pak:recordChanges="true"');
+        expect(parsePackageSettings(recording, 'ZSNAP_BC')[0]?.recordChanges).toBe(true);
+    });
+});
+
+describe('readPackageSettings', () => {
+    it('returns null for a missing package and the settings for an existing one', async () => {
+        const missing = mockRequestor(() => new Response('', { status: 404 }));
+        expect(await readPackageSettings(missing.requestor, 'ZSNAP_LAUNCHPAD')).toEqual([null, null]);
+        const present = mockRequestor(() => new Response(packageXml('ZSNAP_F70', 'ZSNAP'), { status: 200 }));
+        const [settings] = await readPackageSettings(present.requestor, 'ZSNAP_F70');
+        expect(settings?.parentPackage).toBe('ZSNAP');
+        expect(present.calls[0]?.path).toBe('/sap/bc/adt/packages/zsnap_f70');
+    });
+
+    it('is an error, not null, for any other failure', async () => {
+        const failing = mockRequestor(() => new Response('boom', { status: 500 }));
+        const [settings, error] = await readPackageSettings(failing.requestor, 'ZSNAP_F70');
+        expect(settings).toBeNull();
+        expect(error?.message).toContain('Failed to read package ZSNAP_F70');
     });
 });
 

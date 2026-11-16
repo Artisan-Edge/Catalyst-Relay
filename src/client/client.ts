@@ -72,6 +72,7 @@ import type {
     DeletionResult,
     CreatePackageOptions,
     CreatePackageResult,
+    PackageSettings,
     ApiReleaseState,
     ApiReleaseResult,
     ApiReleaseVisibility,
@@ -141,6 +142,8 @@ export interface ADTClient {
 
     // CRAUD Operations
     read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]>;
+    // True when the object exists, false on HTTP 404, an error for any other failure
+    objectExists(object: ObjectRef): AsyncResult<boolean>;
     create(object: ObjectContent, packageName: string, transport?: string): AsyncResult<void>;
     update(object: ObjectContent, transport?: string): AsyncResult<void>;
     readClassInclude(className: string, includeType: ClassIncludeType): AsyncResult<string>;
@@ -223,6 +226,8 @@ export interface ADTClient {
 
     // Packages
     createPackage(options: CreatePackageOptions): AsyncResult<CreatePackageResult>;
+    // A package's settings (super-package, software component, change recording); null when it does not exist
+    readPackage(packageName: string): AsyncResult<PackageSettings | null>;
 
     // API Release (CDS / DDLS C1 contract)
     getApiReleaseState(objectName: string): AsyncResult<ApiReleaseState>;
@@ -362,6 +367,10 @@ export class ADTClientImpl implements ADTClient {
 
     async read(objects: ObjectRef[]): AsyncResult<ObjectWithContent[]> {
         return craudMethods.read(this.state, this.requestor, objects);
+    }
+
+    async objectExists(object: ObjectRef): AsyncResult<boolean> {
+        return craudMethods.objectExists(this.state, this.requestor, object);
     }
 
     async create(object: ObjectContent, packageName: string, transport?: string): AsyncResult<void> {
@@ -592,6 +601,10 @@ export class ADTClientImpl implements ADTClient {
 
     async createPackage(options: CreatePackageOptions): AsyncResult<CreatePackageResult> {
         return packageMethods.createPackage(this.state, this.requestor, options);
+    }
+
+    async readPackage(packageName: string): AsyncResult<PackageSettings | null> {
+        return packageMethods.readPackage(this.state, this.requestor, packageName);
     }
 
     // --- API Release ---

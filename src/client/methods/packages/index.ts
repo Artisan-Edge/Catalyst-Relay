@@ -3,3 +3,4 @@
  */
 
 export { createPackage } from './createPackage';
+export { readPackage } from './readPackage';

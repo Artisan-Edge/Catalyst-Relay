@@ -3,6 +3,7 @@
  */
 
 export { read } from './read';
+export { objectExists } from './objectExists';
 export { create } from './create';
 export { update } from './update';
 export { readClassInclude, writeClassInclude } from './specialcases/classes';
