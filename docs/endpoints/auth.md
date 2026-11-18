@@ -591,7 +591,7 @@ Kerberos-based SSO using mTLS certificates from SAP Secure Login Server (SLS).
 
 **Certificate storage:** `~/.catalyst/certificates/sso/{username}_full_chain.pem` and `~/.catalyst/certificates/sso/{username}_key.pem`
 
-**Certificate reuse:** a stored certificate is reused (no enrollment) until 5 minutes before it expires; SLS certificates live about 10 hours. `forceEnroll` always enrolls.
+**Certificate reuse:** a stored certificate is reused (no enrollment) until an hour before it expires, so it stays good for a working session; SLS certificates live about 10 hours. `forceEnroll` always enrolls.
 
 **Token provider:** where the native `kerberos` package can't load (e.g. a Bun-compiled exe), pass `spnegoTokenProvider`. Relay calls it with the SPN (`servicePrincipalName`, else `HTTP/<slsUrl host>`) and sends the trimmed result as `Authorization: Negotiate <token>`. Catalyst-CLI is meant to run `catalyst-auth.exe spnego --spn <SPN>` (built from Catalyst-Core). Only the first SPNEGO leg is sent.
 

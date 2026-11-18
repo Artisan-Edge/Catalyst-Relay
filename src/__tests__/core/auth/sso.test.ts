@@ -92,8 +92,8 @@ describe('SsoAuth certificate reuse', () => {
         expect(auth.getStoredCertificatePaths()).toEqual(getCertificatePaths());
     });
 
-    it('re-enrolls when the saved certificate expires within 5 minutes', async () => {
-        await saveCertificateExpiringIn(2 * MINUTE_MS);
+    it('re-enrolls when the saved certificate expires within the hour', async () => {
+        await saveCertificateExpiringIn(30 * MINUTE_MS);
         const auth = ssoAuth();
 
         const [, error] = await auth.performLogin(fetch);

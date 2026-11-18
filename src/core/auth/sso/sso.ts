@@ -39,8 +39,8 @@ import type { SlsConfig, CertificateMaterial, CertificatePaths } from './types';
 import { enrollCertificate } from './slsClient';
 import { loadCertificates, saveCertificates, certificatesExist, isCertificateExpired, getCertificatePaths } from './storage';
 
-// SLS certificates live ~10h, so the 1-day default buffer would re-enroll on every login; 5 minutes covers clock skew
-const CERT_REUSE_BUFFER_DAYS = 5 / (24 * 60);
+// SLS certificates live ~10h, so the 1-day default buffer would re-enroll on every login; an hour keeps a reused certificate good for a working session
+const CERT_REUSE_BUFFER_DAYS = 1 / 24;
 
 /**
  * SSO authentication configuration
