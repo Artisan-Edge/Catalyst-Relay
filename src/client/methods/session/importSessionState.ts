@@ -39,14 +39,15 @@ export async function importSessionState(
 
     // For SSO, load certificates from paths
     if (state.authType === 'sso' && state.ssoCertPaths) {
-        debug(`importSessionState: loading SSO certs from ${state.ssoCertPaths.fullChainPath}`);
+        const paths = state.ssoCertPaths;
+        debug(`importSessionState: loading SSO certs from ${paths.fullChainPath}`);
         try {
             const fs = await import('fs/promises');
             const [fullChain, key] = await Promise.all([
-                fs.readFile(state.ssoCertPaths.fullChainPath, 'utf-8'),
-                fs.readFile(state.ssoCertPaths.keyPath, 'utf-8'),
+                fs.readFile(paths.fullChainPath, 'utf-8'),
+                fs.readFile(paths.keyPath, 'utf-8'),
             ]);
-            setSsoCerts({ cert: fullChain, key });
+            setSsoCerts({ cert: fullChain, key, paths });
             debug(`importSessionState: SSO certs loaded successfully`);
         } catch (certErr) {
             debug(`importSessionState: SSO cert load failed: ${certErr}`);

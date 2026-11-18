@@ -873,7 +873,8 @@ Create a new transport request.
 The request type (Workbench vs Customizing) is selectable via `type`. The
 transport `target` defaults to the system's only target when there is exactly
 one; if the system exposes more than one target, `target` must be supplied or
-the request fails listing the available options.
+the request fails with `MULTIPLE_TRANSPORT_TARGETS` (409), listing the available
+options in `targets`.
 
 ### Request
 
@@ -920,13 +921,28 @@ curl -X POST http://localhost:3000/transports \
 }
 ```
 
+**Several targets and none supplied (409):**
+
+```json
+{
+  "success": false,
+  "error": "Multiple transport targets available; pass an explicit target. Options: DEV (Development), LOCAL ()",
+  "code": "MULTIPLE_TRANSPORT_TARGETS",
+  "targets": [
+    { "name": "DEV", "description": "Development" },
+    { "name": "LOCAL", "description": "" }
+  ]
+}
+```
+
 ### Errors
 
-| Code                | Status | Cause                                                                          |
-| ------------------- | ------ | ------------------------------------------------------------------------------ |
-| `VALIDATION_ERROR`  | 400    | Missing description, or invalid `type`                                         |
-| `SESSION_NOT_FOUND` | 401    | Invalid session                                                                |
-| `UNKNOWN_ERROR`     | 500    | SAP server error, or ambiguous target (more than one target and none supplied) |
+| Code                         | Status | Cause                                            |
+| ---------------------------- | ------ | ------------------------------------------------ |
+| `VALIDATION_ERROR`           | 400    | Missing description, or invalid `type`           |
+| `SESSION_NOT_FOUND`          | 401    | Invalid session                                  |
+| `MULTIPLE_TRANSPORT_TARGETS` | 409    | More than one target and none supplied           |
+| `UNKNOWN_ERROR`              | 500    | SAP server error                                 |
 
 ### Use Cases
 
@@ -937,7 +953,7 @@ curl -X POST http://localhost:3000/transports \
 ### Library Usage
 
 ```typescript
-import { createClient } from "catalyst-relay";
+import { createClient, MultipleTransportTargetsError } from "catalyst-relay";
 import type { TransportConfig } from "catalyst-relay";
 
 const [client, createErr] = createClient({
@@ -957,6 +973,11 @@ const config: TransportConfig = {
 
 const [transportId, err] = await client.createTransport(config);
 
+if (err instanceof MultipleTransportTargetsError) {
+  // Let the user pick one of err.targets, then retry with { ...config, target }
+  console.error("Pick a target:", err.targets.map((t) => t.name).join(", "));
+  return;
+}
 if (err) {
   console.error("Failed to create transport:", err.message);
   return;
@@ -979,12 +1000,17 @@ const [result, upsertErr] = await client.upsertObject({
 
 ```typescript
 interface TransportConfig {
-  package: string;
   description: string;
+  type?: "workbench" | "customizing";
+  target?: string;
 }
 
 type AsyncResult<string> = Promise<[string, null] | [null, Error]>;
 ```
+
+To offer a picker up front, `client.getTransportTargets()` returns the same list (`AsyncResult<TransportTarget[]>`, `TransportTarget` is `{ name, description }`) without creating anything.
+
+Without `target`, when the system has more than one target the error tuple's error is a `MultipleTransportTargetsError` whose `targets: TransportTarget[]` lists them. Use `instanceof MultipleTransportTargetsError` to narrow; the message text is unchanged from earlier versions.
 
 **Notes:**
 

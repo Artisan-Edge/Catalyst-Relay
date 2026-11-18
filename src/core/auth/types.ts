@@ -1,5 +1,5 @@
 import type { AsyncResult } from '../../types/result';
-import type { CertificateMaterial } from './sso/types';
+import type { CertificateMaterial, CertificatePaths } from './sso/types';
 
 /**
  * Authentication type discriminator
@@ -51,6 +51,12 @@ export interface AuthStrategy {
      * @returns Certificate material for mTLS or null if not available
      */
     getCertificates?(): CertificateMaterial | null;
+
+    /**
+     * Get the files the SSO certificates were saved to or loaded from (optional)
+     * @returns Certificate paths, or null when the certificates were never written to disk
+     */
+    getStoredCertificatePaths?(): CertificatePaths | null;
 
     /**
      * Get SAP system username for SAML authentication (optional)

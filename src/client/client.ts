@@ -38,6 +38,7 @@ import type {
     SearchOptions,
     Dependency,
     TransportConfig,
+    TransportTarget,
     TaskContents,
     DiffResult,
     ObjectConfig,
@@ -181,7 +182,10 @@ export interface ADTClient {
     whereUsed(object: ObjectRef): AsyncResult<Dependency[]>;
 
     // Transport Management
+    // Without config.target, fails with MultipleTransportTargetsError (.targets) when the system has several
     createTransport(config: TransportConfig): AsyncResult<string>;
+    // Targets a new transport request may use (the create dialog's value-help)
+    getTransportTargets(): AsyncResult<TransportTarget[]>;
     deleteTransport(transportId: string, removeObjects?: boolean): AsyncResult<void>;
     removeFromTransport(transportId: string, objectName: string): AsyncResult<void>;
     viewTransportObjects(transportId: string): AsyncResult<TaskContents[]>;
@@ -479,6 +483,10 @@ export class ADTClientImpl implements ADTClient {
 
     async createTransport(transportConfig: TransportConfig): AsyncResult<string> {
         return transportMethods.createTransport(this.state, this.requestor, transportConfig);
+    }
+
+    async getTransportTargets(): AsyncResult<TransportTarget[]> {
+        return transportMethods.getTransportTargets(this.state, this.requestor);
     }
 
     async deleteTransport(transportId: string, removeObjects = false): AsyncResult<void> {

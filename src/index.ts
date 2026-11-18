@@ -158,6 +158,7 @@ export type {
     ModifiedDiffHunk,
     TransportConfig,
     TransportType,
+    TransportTarget,
     TransportObject,
     TaskContents,
     ObjectConfig,
@@ -179,7 +180,7 @@ export type {
 } from './core/adt';
 
 // Error classes (for instanceof checks on AsyncResult errors)
-export { ExternalReferencesError } from './core/adt';
+export { ExternalReferencesError, MultipleTransportTargetsError } from './core/adt';
 
 // IAM publish failures: IamPublishError.pending (may still publish) vs a definitive failure (.failure)
 export { IamPublishError } from './core/adt';

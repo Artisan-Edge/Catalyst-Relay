@@ -38,10 +38,12 @@ export async function login(
     // For SSO with mTLS, store certificates for use in requests
     if (authStrategy.type === 'sso' && authStrategy.getCertificates) {
         const certs = authStrategy.getCertificates();
+        const paths = authStrategy.getStoredCertificatePaths?.() ?? null;
         if (certs) {
             setSsoCerts({
                 cert: certs.fullChain,
                 key: certs.privateKey,
+                ...(paths && { paths }),
             });
             debug('Stored mTLS certificates for SSO authentication');
         }

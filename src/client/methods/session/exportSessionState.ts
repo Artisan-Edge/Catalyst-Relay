@@ -4,7 +4,6 @@
 
 import type { ExportableSessionState } from '../../../core/session/types';
 import type { ClientContext, SsoCerts } from '../../types';
-import { getCertificatePaths } from '../../../core/auth/sso/storage';
 
 export function exportSessionState(
     ctx: ClientContext,
@@ -25,9 +24,9 @@ export function exportSessionState(
         authType: ctx.state.authStrategy.type,
     };
 
-    // For SSO, include certificate paths (not contents for security)
-    if (ctx.state.authStrategy.type === 'sso' && ssoCerts) {
-        state.ssoCertPaths = getCertificatePaths();
+    // For SSO, include certificate paths (not contents for security), only when the certs were written there
+    if (ctx.state.authStrategy.type === 'sso' && ssoCerts?.paths) {
+        state.ssoCertPaths = ssoCerts.paths;
     }
 
     return state;

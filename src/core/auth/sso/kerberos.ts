@@ -13,6 +13,10 @@ import type { AsyncResult } from '../../../types/result';
 import type { SpnegoTokenProvider } from '../../../types/config';
 import { ok, err } from '../../../types/result';
 
+// A hung SSPI/kinit call or token provider would otherwise stall login forever
+const TOKEN_TIMEOUT_MS = 30_000;
+const TIMED_OUT = Symbol('timedOut');
+
 /**
  * Kerberos client interface matching the kerberos npm package
  */
@@ -88,12 +92,15 @@ export async function getSpnegoToken(
     if (loadErr) return err(loadErr);
 
     try {
-        // Initialize Kerberos client for the given SPN
-        const client = await kerberos.initializeClient(servicePrincipalName);
+        // Initialize a client for the SPN, then step with an empty token to get the initial SPNEGO token
+        const token = await withTimeout((async () => {
+            const client = await kerberos.initializeClient(servicePrincipalName);
+            return client.step('');
+        })());
 
-        // Step with empty token to get initial SPNEGO token
-        const token = await client.step('');
-
+        if (token === TIMED_OUT) {
+            return err(new Error(`Kerberos did not respond within ${TOKEN_TIMEOUT_MS / 1000}s`));
+        }
         if (!token) {
             return err(new Error('Failed to generate SPNEGO token: empty response'));
         }
@@ -111,7 +118,12 @@ async function getProvidedToken(
     tokenProvider: SpnegoTokenProvider
 ): AsyncResult<string> {
     try {
-        const token = (await tokenProvider(servicePrincipalName)).trim();
+        const provided = await withTimeout(tokenProvider(servicePrincipalName));
+        if (provided === TIMED_OUT) {
+            return err(new Error(`SSO token provider did not respond within ${TOKEN_TIMEOUT_MS / 1000}s`));
+        }
+
+        const token = provided.trim();
         if (!token) {
             return err(new Error('Failed to generate SPNEGO token: the token provider returned an empty token'));
         }
@@ -119,6 +131,20 @@ async function getProvidedToken(
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return err(new Error(`SPNEGO token provider failed: ${message}`));
+    }
+}
+
+// Settle with the promise, or with TIMED_OUT once the timeout passes; the timer is cleared either way
+async function withTimeout<T>(promise: Promise<T>): Promise<T | typeof TIMED_OUT> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<typeof TIMED_OUT>((resolve) => {
+        timer = setTimeout(() => resolve(TIMED_OUT), TOKEN_TIMEOUT_MS);
+    });
+
+    try {
+        return await Promise.race([promise, timeout]);
+    } finally {
+        clearTimeout(timer);
     }
 }
 

@@ -35,9 +35,12 @@ import type { AuthStrategy } from '../types';
 import type { AsyncResult } from '../../../types/result';
 import type { SpnegoTokenProvider } from '../../../types/config';
 import { ok, err } from '../../../types/result';
-import type { SlsConfig, CertificateMaterial } from './types';
+import type { SlsConfig, CertificateMaterial, CertificatePaths } from './types';
 import { enrollCertificate } from './slsClient';
-import { loadCertificates, saveCertificates, certificatesExist, isCertificateExpired } from './storage';
+import { loadCertificates, saveCertificates, certificatesExist, isCertificateExpired, getCertificatePaths } from './storage';
+
+// SLS certificates live ~10h, so the 1-day default buffer would re-enroll on every login; 5 minutes covers clock skew
+const CERT_REUSE_BUFFER_DAYS = 5 / (24 * 60);
 
 /**
  * SSO authentication configuration
@@ -66,6 +69,8 @@ export class SsoAuth implements AuthStrategy {
     readonly type = 'sso' as const;
     private config: SsoAuthConfig;
     private certificates: CertificateMaterial | null = null;
+    // Where the current certificates are on disk; null when they only live in memory (returnContents)
+    private certificatePaths: CertificatePaths | null = null;
 
     /**
      * Create an SSO Auth strategy
@@ -101,6 +106,11 @@ export class SsoAuth implements AuthStrategy {
         return this.certificates;
     }
 
+    // Files the current certificates were saved to or loaded from; null when they were never written
+    getStoredCertificatePaths(): CertificatePaths | null {
+        return this.certificatePaths;
+    }
+
     /**
      * Perform SSO login via certificate enrollment
      *
@@ -115,6 +125,7 @@ export class SsoAuth implements AuthStrategy {
             const [loadResult, loadErr] = await this.tryLoadExistingCertificates();
             if (!loadErr && loadResult) {
                 this.certificates = loadResult;
+                this.certificatePaths = getCertificatePaths();
                 return ok(undefined);
             }
         }
@@ -141,14 +152,17 @@ export class SsoAuth implements AuthStrategy {
         }
 
         // Save certificates to filesystem (unless returnContents is true)
+        let paths: CertificatePaths | null = null;
         if (!this.config.returnContents) {
-            const [, saveErr] = await saveCertificates(material);
+            const [savedPaths, saveErr] = await saveCertificates(material);
             if (saveErr) {
                 return err(saveErr);
             }
+            paths = savedPaths;
         }
 
         this.certificates = material;
+        this.certificatePaths = paths;
         return ok(undefined);
     }
 
@@ -169,7 +183,7 @@ export class SsoAuth implements AuthStrategy {
         }
 
         // Check expiry
-        const [isExpired, expiryErr] = isCertificateExpired(material.fullChain);
+        const [isExpired, expiryErr] = isCertificateExpired(material.fullChain, CERT_REUSE_BUFFER_DAYS);
         if (expiryErr) {
             return err(expiryErr);
         }

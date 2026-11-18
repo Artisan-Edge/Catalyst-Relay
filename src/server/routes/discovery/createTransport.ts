@@ -7,6 +7,7 @@ import { ApiError } from '../../middleware/error';
 import { formatZodError } from '../../utils';
 import type { RouteContext } from '../types';
 import type { TransportConfig } from '../../../core/adt';
+import { MultipleTransportTargetsError } from '../../../core/adt';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Schema (colocated)
@@ -55,6 +56,18 @@ export async function createTransportHandler(c: RouteContext) {
     const [transportId, error] = await client.createTransport(config);
 
     if (error) {
+        // Several targets and none given: list them so the caller can pick one
+        if (error instanceof MultipleTransportTargetsError) {
+            return c.json(
+                {
+                    success: false as const,
+                    error: error.message,
+                    code: 'MULTIPLE_TRANSPORT_TARGETS' as const,
+                    targets: error.targets,
+                },
+                409
+            );
+        }
         throw new ApiError('UNKNOWN_ERROR', error.message, 500);
     }
 

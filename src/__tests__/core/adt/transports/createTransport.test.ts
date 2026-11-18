@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'bun:test';
 import { createTransport } from '../../../../core/adt/transports/createTransport';
 import type { AdtRequestor } from '../../../../core/adt';
+import { MultipleTransportTargetsError } from '../../../../index';
 
 interface RecordedRequest {
     method: string;
@@ -96,5 +97,21 @@ describe('createTransport', () => {
 
         expect(error?.message).toContain('No authorization');
         expect(createBodies(calls)).toHaveLength(1);
+    });
+
+    it('fails with MultipleTransportTargetsError listing the targets when no target is given', async () => {
+        const { requestor, calls } = mockRequestor(() => new Response(targetsXml(['DEV', 'QAS']), { status: 200 }));
+
+        const [number, error] = await createTransport(requestor, { description: 'x' }, 'EBOSCH');
+
+        expect(number).toBeNull();
+        expect(error).toBeInstanceOf(MultipleTransportTargetsError);
+        expect((error as MultipleTransportTargetsError).targets).toEqual([
+            { name: 'DEV', description: 'DEV target' },
+            { name: 'QAS', description: 'QAS target' },
+        ]);
+        // Older consumers parse this text
+        expect(error?.message).toBe('Multiple transport targets available; pass an explicit target. Options: DEV (DEV target), QAS (QAS target)');
+        expect(createBodies(calls)).toHaveLength(0);
     });
 });

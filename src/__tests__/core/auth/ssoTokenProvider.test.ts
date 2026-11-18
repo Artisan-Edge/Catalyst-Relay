@@ -4,7 +4,7 @@
  * The no-provider path calls the real kerberos package, so it is covered by integration/sso-workflow.test.ts.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, spyOn } from 'bun:test';
 import forge from 'node-forge';
 import { createClient } from '../../../client';
 import { getSpnegoToken } from '../../../core/auth/sso';
@@ -105,5 +105,44 @@ describe('SSO spnegoTokenProvider', () => {
         const [token, error] = await getSpnegoToken(SPN, async () => '  \n');
         expect(token).toBeNull();
         expect(error?.message).toContain('the token provider returned an empty token');
+    });
+});
+
+describe('SSO token provider timeout', () => {
+    const realSetTimeout = globalThis.setTimeout;
+    const delays: (number | undefined)[] = [];
+    let setTimeoutSpy: ReturnType<typeof spyOn<typeof globalThis, 'setTimeout'>>;
+    let clearTimeoutSpy: ReturnType<typeof spyOn<typeof globalThis, 'clearTimeout'>>;
+
+    // Timers fire at once so the 30s limit runs instantly; the requested delay is recorded
+    beforeEach(() => {
+        delays.length = 0;
+        setTimeoutSpy = spyOn(globalThis, 'setTimeout').mockImplementation(((handler: () => void, delay?: number) => {
+            delays.push(delay);
+            return realSetTimeout(handler, 0);
+        }) as unknown as typeof setTimeout);
+        clearTimeoutSpy = spyOn(globalThis, 'clearTimeout');
+    });
+
+    afterEach(() => {
+        setTimeoutSpy.mockRestore();
+        clearTimeoutSpy.mockRestore();
+    });
+
+    it('fails when the provider does not respond within 30s', async () => {
+        const [token, error] = await getSpnegoToken(SPN, () => new Promise<string>(() => {}));
+
+        expect(token).toBeNull();
+        expect(error?.message).toBe('SSO token provider did not respond within 30s');
+        expect(delays).toEqual([30_000]);
+    });
+
+    it('clears the timer when the provider answers in time', async () => {
+        const [token, error] = await getSpnegoToken(SPN, async () => TOKEN);
+
+        expect(error).toBeNull();
+        expect(token).toBe(TOKEN);
+        expect(delays).toEqual([30_000]);
+        expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
     });
 });

@@ -12,7 +12,7 @@ import type { Result, AsyncResult } from '../../../types/result';
 import { ok, err } from '../../../types/result';
 import type { AdtRequestor } from '../types';
 import { escapeXml, safeParseXml, extractError } from '../../utils/xml';
-import { getTransportTargets } from './getTransportTargets';
+import { getTransportTargets, type TransportTarget } from './getTransportTargets';
 
 const TRANSPORTREQUESTS_PATH = '/sap/bc/adt/cts/transportrequests';
 const TM_CONTENT_TYPE = 'application/vnd.sap.adt.transportorganizer.v1+xml';
@@ -36,6 +36,15 @@ export interface TransportConfig {
     type?: TransportType;
     /** Transport target. If omitted, resolved from the value-help (fails when ambiguous). */
     target?: string;
+}
+
+// No target given and the value-help offers several; the message text is kept for consumers that parse it
+export class MultipleTransportTargetsError extends Error {
+    constructor(public targets: TransportTarget[]) {
+        const options = targets.map(t => `${t.name} (${t.description})`).join(', ');
+        super(`Multiple transport targets available; pass an explicit target. Options: ${options}`);
+        this.name = 'MultipleTransportTargetsError';
+    }
 }
 
 /**
@@ -125,10 +134,7 @@ async function resolveTarget(
         return ok(targets[0]!.name);
     }
 
-    const options = targets.map(t => `${t.name} (${t.description})`).join(', ');
-    return err(new Error(
-        `Multiple transport targets available; pass an explicit target. Options: ${options}`
-    ));
+    return err(new MultipleTransportTargetsError(targets));
 }
 
 // Read the tm:number attribute from the created tm:request element.

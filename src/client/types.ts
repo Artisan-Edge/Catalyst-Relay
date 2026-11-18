@@ -5,6 +5,7 @@
 import type { ClientConfig } from '../types/config';
 import type { Session } from '../core/session/types';
 import type { AuthStrategy } from '../core/auth/types';
+import type { CertificatePaths } from '../core/auth/sso/types';
 import type { AsyncResult } from '../types/result';
 
 // HTTP request options for Node.js http/https modules
@@ -35,6 +36,8 @@ export type RequestFn = (options: RequestOptions) => AsyncResult<Response, Error
 export interface SsoCerts {
     cert: string;
     key: string;
+    // Files holding this pair; absent when it only lives in memory
+    paths?: CertificatePaths;
 }
 
 // Internal client state (implements SessionState interface from session)
