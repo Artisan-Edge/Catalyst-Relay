@@ -9,6 +9,7 @@ SAP-specific concepts and behaviors for working with ADT (ABAP Development Tools
 - [Form-based objects and function modules](#form-based-objects-and-function-modules)
 - [Text elements](#text-elements)
 - [ABAP Unit](#abap-unit)
+- [ATC](#atc)
 - [Activation results](#activation-results)
 - [Object attributes (titles)](#object-attributes-titles)
 - [Fiori launchpad sources](#fiori-launchpad-sources)
@@ -121,6 +122,21 @@ A program's, class's or function group's text pool (SE38 text elements). Library
 - **Missing objects:** a nonexistent object and one without test classes both answer an empty `<aunit:runResult/>`; relay lists such requested objects in `summary.objectsWithoutResults` (packages are not checked).
 - **Summary:** `methodsRun` (also `methods`), `passed`, `failed`, `errors`, `skippedClasses`, `syntaxErrors`, `failingAlerts`, `objectsWithoutResults`, `executionTime`. `success` is true only when no assertion failed or exception occurred, at least one method ran, and no program has syntax errors (previously an empty run or a syntax error still counted as success).
 - **Metadata:** `GET /sap/bc/adt/abapunit/metadata`, Accept `application/vnd.sap.adt.abapunit.metadata.result.v1+xml`; `clientSetup@maxRiskLevel`, `clientSetup@executionDenied`, `userAuthorization@executionDenied`.
+
+---
+
+## ATC
+
+`client.runAtc({ objects?, packages?, transports?, checkVariant?, includeExempted?, timeout?, pollInterval?, onProgress? })` returns `{ checkVariant, worklistId, objects, summary }`. Verified on S/4HANA Public Cloud (variant `ABAP_CLOUD_DEVELOPMENT_DEFAULT`).
+
+- **Variant:** `GET /sap/bc/adt/atc/customizing` (Accept `application/xml`); `properties/property[@name="systemCheckVariant"]@value` is what transport release checks with.
+- **Worklist:** `POST /sap/bc/adt/atc/worklists?checkVariant=<v>`, Accept `text/plain`; the body is the 32-hex worklist id.
+- **Run:** `POST /sap/bc/adt/atc/runs?worklistId=<id>&clientWait=false`, `atc:run maximumVerdicts="…"` with one `objectSet kind="inclusive"` of object URIs, `/sap/bc/adt/packages/{pkg}` and `/sap/bc/adt/cts/transportrequests/{TR}` (a request covers its tasks). Answers `201` with an empty body and `Location: /sap/bc/adt/atc/runs/{runId}`. **Without `clientWait=false` the POST blocks until the run ends**: a 25-class transport (~13 min) did not answer within 10 minutes.
+- **Status:** `GET <Location>` with Accept `application/vnd.sap.atc.run.v1+xml` gives `atc:run@status` (`Not Yet Started`, `Running`, `Completed`), `atc:progress@description` and `atc:phases/atc:phase` (11 phases, `status="In Process"` for the current one). When complete it carries `atom:link rel=".../relations/results/worklistid"`. Any other Accept gets 406, except `application/vnd.sap.adt.backgroundrun.v1+xml`, the generic `runs:run@runs:status` (`running` / `finished`) without phases.
+- **Findings:** `GET /sap/bc/adt/atc/worklists/{id}?usedObjectSet=99999999999999999999999999999999&includeExemptedFindings=false` (that object set is the "Last Check Run"), Accept `application/atc.worklist.v1+xml`. `worklist > objects/object (adtcore:type/name/packageName) > findings/finding`. Finding attributes in the `atcfinding` namespace: `location` (`…/source/main#start=line,col`), `priority` (1 error, 2 warning, 3 info), `checkTitle`, `messageTitle`, `effectOnTransports`, `exemptionKind`, plus `tags/tag@name,value` (`ADD_INFO`). Objects without findings are listed too. A 3,256-finding worklist is 4.3 MB and takes about 10 s.
+- **Release verdict:** `effectOnTransports` is `blockPriority` for findings that stop transport release and `allowTransports` otherwise. With `ABAP_CLOUD_DEVELOPMENT_DEFAULT`, priorities 1 and 2 (errors and warnings) block. relay sets `blocksTransport` to anything other than `allowTransports`, and `summary.releasable` to no blocking finding.
+- **Timing:** one CDS view or class takes about 20 s; a transport of 25 large generated classes about 13 minutes. The default overall timeout is 30 minutes.
+- **Release (not implemented):** `POST /sap/bc/adt/cts/transportrequests/{task}/newreleasejobs` runs this check synchronously and did not answer within 10 minutes. Eclipse instead polls a background run (`GET`/`DELETE /sap/bc/adt/communication/bgruns/runs/{id}`, where the id is the release's ATC worklist id). How Eclipse starts that background run is unknown.
 
 ---
 

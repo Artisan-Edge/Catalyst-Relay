@@ -244,5 +244,8 @@ export type {
     UnitTestMetadata,
 } from './core/adt';
 
+// ATC (ABAP Test Cockpit)
+export type { AtcRunOptions, AtcRunProgress, AtcRunResult, AtcSummary, AtcObject, AtcFinding, AtcFindingLocation } from './core/adt';
+
 // Result utilities
 export { ok, err } from './types/result';

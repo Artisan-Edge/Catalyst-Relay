@@ -88,6 +88,8 @@ import type {
     UnitTestRunOptions,
     UnitTestRunResult,
     UnitTestMetadata,
+    AtcRunOptions,
+    AtcRunResult,
     MdaAppOptions,
     MdaAppValidation,
     MdaAppPreview,
@@ -116,6 +118,7 @@ import * as apiReleaseMethods from './methods/apirelease';
 import * as refactoringMethods from './methods/refactoring';
 import * as textElementMethods from './methods/textelements';
 import * as abapUnitMethods from './methods/abapunit';
+import * as atcMethods from './methods/atc';
 import * as attributeMethods from './methods/attributes';
 import * as generatorMethods from './methods/generators';
 import * as classRunMethods from './methods/classrun';
@@ -248,6 +251,9 @@ export interface ADTClient {
     // ABAP Unit
     runUnitTests(options: UnitTestRunOptions): AsyncResult<UnitTestRunResult>;
     getUnitTestMetadata(): AsyncResult<UnitTestMetadata>;
+
+    // ATC: a background run polled to completion; summary.releasable mirrors transport release's check
+    runAtc(options: AtcRunOptions): AsyncResult<AtcRunResult>;
 
     // Configuration
     getObjectConfig(): ObjectConfig[];
@@ -665,6 +671,12 @@ export class ADTClientImpl implements ADTClient {
 
     async getUnitTestMetadata(): AsyncResult<UnitTestMetadata> {
         return abapUnitMethods.getUnitTestMetadata(this.state, this.requestor);
+    }
+
+    // --- ATC ---
+
+    async runAtc(options: AtcRunOptions): AsyncResult<AtcRunResult> {
+        return atcMethods.runAtc(this.state, this.requestor, options);
     }
 
     // --- Configuration ---

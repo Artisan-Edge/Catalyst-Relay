@@ -275,6 +275,7 @@ curl -X POST http://localhost:3000/login \
 | `runClass(className, options?)`                                                          | Run an `if_oo_adt_classrun` class stateless; returns its console text                                                           |
 | `getApiReleaseState / releaseApi / unreleaseApi / updateApiReleaseVisibility`            | C1 API release of CDS views                                                                                                     |
 | `runUnitTests(options) / getUnitTestMetadata()`                                          | ABAP Unit runs                                                                                                                  |
+| `runAtc(options)`                                                                        | ATC run on objects, packages and transports (background run, polled); `summary.releasable` mirrors transport release's check    |
 | `getObjectConfig()`                                                                      | Supported object types                                                                                                          |
 
 ### Usage Examples

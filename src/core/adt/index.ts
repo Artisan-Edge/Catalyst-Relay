@@ -312,3 +312,9 @@ export type {
     UnitTestRiskLevel,
     UnitTestDuration,
 } from './abapunit/types';
+
+// ATC (ABAP Test Cockpit)
+export { runAtc } from './atc/runAtc';
+export { getAtcCustomizing } from './atc/getAtcCustomizing';
+export type { AtcCustomizing } from './atc/getAtcCustomizing';
+export type { AtcRunOptions, AtcRunProgress, AtcRunResult, AtcSummary, AtcObject, AtcFinding, AtcFindingLocation } from './atc/types';
