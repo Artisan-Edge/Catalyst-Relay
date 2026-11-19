@@ -28,7 +28,7 @@ export function summarizeAtc(objects: readonly AtcObject[]): AtcSummary {
     const findings = objects.flatMap(object => object.findings);
     const blocking = findings.filter(finding => finding.blocksTransport).length;
     return {
-        objects: objects.length,
+        objectsWithFindings: objects.filter(object => object.findings.length > 0).length,
         findings: findings.length,
         errors: findings.filter(finding => finding.priority === PRIORITY_ERROR).length,
         warnings: findings.filter(finding => finding.priority === PRIORITY_WARNING).length,

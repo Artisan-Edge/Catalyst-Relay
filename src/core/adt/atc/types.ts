@@ -66,8 +66,8 @@ export interface AtcObject {
 }
 
 export interface AtcSummary {
-    /** Objects the run checked, with or without findings */
-    objects: number;
+    /** Objects with at least one finding (the worklist does not list clean objects reliably, so checked objects are not countable) */
+    objectsWithFindings: number;
     findings: number;
     errors: number;
     warnings: number;
@@ -81,6 +81,7 @@ export interface AtcSummary {
 export interface AtcRunResult {
     checkVariant: string;
     worklistId: string;
+    /** The worklist's objects: those with findings (SAP occasionally adds a clean one) */
     objects: AtcObject[];
     summary: AtcSummary;
 }

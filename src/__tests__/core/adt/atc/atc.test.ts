@@ -107,8 +107,8 @@ describe('parseAtcWorklist', () => {
 
     it('summarizes counts and the release verdict', () => {
         const [objects] = parseAtcWorklist(fixture('transportWorklist.atc'));
-        expect(summarizeAtc(objects!)).toEqual({ objects: 2, findings: 3, errors: 1, warnings: 1, infos: 1, blocking: 2, releasable: false });
-        expect(summarizeAtc([])).toEqual({ objects: 0, findings: 0, errors: 0, warnings: 0, infos: 0, blocking: 0, releasable: true });
+        expect(summarizeAtc(objects!)).toEqual({ objectsWithFindings: 1, findings: 3, errors: 1, warnings: 1, infos: 1, blocking: 2, releasable: false });
+        expect(summarizeAtc([])).toEqual({ objectsWithFindings: 0, findings: 0, errors: 0, warnings: 0, infos: 0, blocking: 0, releasable: true });
     });
 
     it('keeps a location without a position as a plain URI', () => {
@@ -152,7 +152,7 @@ describe('runAtc', () => {
 
         expect(result.checkVariant).toBe('ABAP_CLOUD_DEVELOPMENT_DEFAULT');
         expect(result.worklistId).toBe(WORKLIST_ID);
-        expect(result.summary).toMatchObject({ objects: 2, blocking: 2, releasable: false });
+        expect(result.summary).toMatchObject({ objectsWithFindings: 1, blocking: 2, releasable: false });
 
         const [, createWorklist, start, ...rest] = sent;
         expect(createWorklist?.params).toEqual({ checkVariant: 'ABAP_CLOUD_DEVELOPMENT_DEFAULT' });
