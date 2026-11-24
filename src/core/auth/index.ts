@@ -32,8 +32,9 @@ export type { AuthType, AuthStrategy, AuthCookie, BasicAuthCredentials } from '.
 // Strategy classes
 export { BasicAuth } from './basic';
 export { SamlAuth } from './saml';
-export type { SamlAuthConfig } from './saml';
+export type { SamlStrategyConfig } from './saml';
 export { SsoAuth } from './sso';
+export type { SsoStrategyConfig } from './sso';
 
 // Factory
 export type { CreateAuthOptions } from './factory';

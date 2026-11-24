@@ -15,7 +15,7 @@
 
 // Main auth strategy
 export { SsoAuth } from './sso';
-export type { SsoAuthConfig } from './sso';
+export type { SsoStrategyConfig } from './sso';
 
 // Types
 export type {
